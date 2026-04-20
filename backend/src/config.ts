@@ -1,0 +1,40 @@
+import { readFile, writeFile, mkdir } from 'node:fs/promises'
+import { resolve, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { AppSettingsSchema, DEFAULT_SETTINGS, type AppSettings } from '@simplechat/types'
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
+const ROOT = resolve(__dirname, '..')
+
+let _settings: AppSettings | null = null
+
+function settingsPath(): string {
+  return resolve(ROOT, 'data', 'settings.json')
+}
+
+export async function getSettings(): Promise<AppSettings> {
+  if (_settings) return _settings
+  try {
+    const raw = await readFile(settingsPath(), 'utf-8')
+    _settings = AppSettingsSchema.parse(JSON.parse(raw))
+  } catch {
+    _settings = { ...DEFAULT_SETTINGS }
+    await saveSettings(_settings)
+  }
+  return _settings
+}
+
+export async function saveSettings(settings: AppSettings): Promise<void> {
+  _settings = settings
+  const path = settingsPath()
+  await mkdir(dirname(path), { recursive: true })
+  await writeFile(path, JSON.stringify(settings, null, 2))
+}
+
+export async function dataDir(): Promise<string> {
+  const s = await getSettings()
+  return resolve(ROOT, s.dataDir)
+}
+
+export const PORT = 3001
+export const HOST = '127.0.0.1'
