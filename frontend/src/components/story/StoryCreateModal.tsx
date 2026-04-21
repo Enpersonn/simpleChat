@@ -1,5 +1,5 @@
 import { useState } from 'preact/hooks'
-import type { Story, CharacterCreate, LocationCreate } from '@simplechat/types'
+import type { Story, CharacterCreate, LocationCreate, CharacterDelta } from '@simplechat/types'
 import { useStoriesStore } from '../../store/stories.js'
 import { api } from '../../lib/api.js'
 import { CharacterModal } from './CharacterModal.js'
@@ -9,10 +9,18 @@ const GENRE_OPTIONS = ['Fantasy', 'Sci-Fi', 'Horror', 'Romance', 'Mystery', 'Thr
 const TONE_OPTIONS = ['Dark', 'Light', 'Grim', 'Hopeful', 'Intimate', 'Epic', 'Tense', 'Whimsical', 'Melancholic', 'Romantic']
 
 const DRAFT_STEPS = ['Building story core…', 'Generating characters…']
-const PARSE_STEPS = ['Analysing story…', 'Extracting characters…', 'Extracting locations…']
+const PARSE_STEPS = ['Analysing story…', 'Extracting characters…', 'Extracting locations…', 'Extracting memories…']
 
 interface PendingChar extends CharacterCreate { _localId: string }
 interface PendingLocation extends LocationCreate { _localId: string }
+interface PendingMemory {
+  _localId: string
+  characterName: string
+  summary: string
+  tags: string[]
+  importance: number
+  deltas?: Record<string, unknown>
+}
 
 interface Props {
   onClose: () => void
@@ -34,9 +42,10 @@ export function StoryCreateModal({ onClose, onCreated }: Props) {
   const [customTone, setCustomTone] = useState('')
   const [pendingChars, setPendingChars] = useState<PendingChar[]>([])
   const [pendingLocations, setPendingLocations] = useState<PendingLocation[]>([])
+  const [pendingMemories, setPendingMemories] = useState<PendingMemory[]>([])
   const [editingChar, setEditingChar] = useState<PendingChar | 'new' | 'new-persona' | null>(null)
   const [submitting, setSubmitting] = useState(false)
-  const [genStep, setGenStep] = useState<0 | 1 | 2 | 3>(0)
+  const [genStep, setGenStep] = useState<0 | 1 | 2 | 3 | 4>(0)
   const [error, setError] = useState('')
 
   const toggle = (arr: string[], val: string, setArr: (a: string[]) => void) => {
@@ -128,6 +137,23 @@ export function StoryCreateModal({ onClose, onCreated }: Props) {
       setGenStep(3)
       const { locations } = await api.stories.parseStoryLocations(importText.trim(), core.premise)
       applyGeneratedFields({ genres: [], tone: [], rules: [], writingStyle: '', characters: [], locations })
+      setGenStep(4)
+      const { memories } = await api.stories.parseStoryMemories(
+        importText.trim(),
+        core.premise,
+        characters.map((c) => ({ name: c.name })),
+      )
+      if (memories.length > 0) {
+        const newMems: PendingMemory[] = memories.map((m, i) => ({
+          _localId: `mem-${Date.now()}-${i}`,
+          characterName: m.characterName,
+          summary: m.summary,
+          tags: m.tags,
+          importance: m.importance,
+          deltas: m.deltas,
+        }))
+        setPendingMemories((prev) => [...prev, ...newMems])
+      }
       setTab('write')
     } catch (err) {
       setError((err as Error).message)
@@ -150,12 +176,33 @@ export function StoryCreateModal({ onClose, onCreated }: Props) {
         writingStyle: writingStyle.trim(),
         openingMessage: openingMessage.trim(),
       })
+
+      const createdChars: Array<{ id: string; name: string }> = []
       for (const { _localId: _, ...charData } of pendingChars) {
-        await api.characters.create(story.id, charData)
+        const char = await api.characters.create(story.id, charData)
+        createdChars.push({ id: char.id, name: char.name })
       }
+
       for (const { _localId: _, ...locData } of pendingLocations) {
         await api.locations.create(story.id, locData)
       }
+
+      for (const { _localId: _, characterName, summary, tags, importance, deltas } of pendingMemories) {
+        const char = createdChars.find((c) => c.name.toLowerCase() === characterName.toLowerCase())
+        if (!char) continue
+        const memory = await api.characterMemories.create(story.id, char.id, {
+          summary,
+          tags,
+          importance,
+          deltas: deltas as CharacterDelta | undefined,
+        })
+        await api.canonTimeline.addEntry(story.id, {
+          characterId: char.id,
+          memoryId: memory.id,
+          label: summary.slice(0, 60),
+        })
+      }
+
       onCreated(story)
     } catch (err) {
       setError((err as Error).message)
@@ -198,7 +245,7 @@ export function StoryCreateModal({ onClose, onCreated }: Props) {
             <div class={s.genProgress}>
               <span class={s.genSpinner}>↻</span>
               <span class={s.genLabel}>{(tab === 'import' ? PARSE_STEPS : DRAFT_STEPS)[genStep - 1]}</span>
-              <span class={s.genCount}>{genStep} / {tab === 'import' ? 3 : 2}</span>
+              <span class={s.genCount}>{genStep} / {tab === 'import' ? 4 : 2}</span>
             </div>
           )}
 
@@ -392,6 +439,25 @@ export function StoryCreateModal({ onClose, onCreated }: Props) {
                       </span>
                     </div>
                   ))}
+                </div>
+              )}
+
+              {pendingMemories.length > 0 && (
+                <div class={s.field}>
+                  <label class={s.label}>Canon Memories <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>({pendingMemories.length} events extracted)</span></label>
+                  {pendingMemories.map((m) => (
+                    <div key={m._localId} class={s.charRow}>
+                      <span class={s.charIcon}>🧠</span>
+                      <span class={s.charName} title={m.summary} style={{ fontStyle: 'italic' }}>{m.characterName}</span>
+                      <span class={s.charRole} title={m.summary}>{m.summary.slice(0, 50)}{m.summary.length > 50 ? '…' : ''}</span>
+                      <span class={s.charActions}>
+                        <button class={s.iconActionBtn} onClick={() => setPendingMemories((prev) => prev.filter((x) => x._localId !== m._localId))}>✕</button>
+                      </span>
+                    </div>
+                  ))}
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                    These will be added to the canon timeline on story creation. Remove any you don't want.
+                  </div>
                 </div>
               )}
             </>

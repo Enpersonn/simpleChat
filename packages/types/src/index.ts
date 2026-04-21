@@ -1,4 +1,5 @@
 export * from './story.js'
+export * from './canon-timeline.js'
 export * from './character.js'
 export * from './character-memory.js'
 export * from './chat.js'

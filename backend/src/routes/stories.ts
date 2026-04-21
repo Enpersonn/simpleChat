@@ -329,6 +329,73 @@ export async function storiesRoutes(app: FastifyInstance): Promise<void> {
     }
   })
 
+  app.post('/stories/parse-story-memories', async (req, reply) => {
+    const { text, premise, characters } = req.body as { text?: string; premise?: string; characters?: Array<{ name: string }> }
+    if (!text?.trim()) return reply.status(400).send({ error: 'text is required' })
+
+    const { streamChat } = await import('../ollama.js')
+    const charList = Array.isArray(characters) ? characters.map((c) => c.name).filter(Boolean) : []
+    const systemPrompt = [
+      'You are a story event extractor. Your ONLY job is to output a single JSON object — nothing else.',
+      'Do NOT write any analysis, explanation, commentary, or prose. Do NOT use markdown or code fences.',
+      'Read the story text and extract key story events/turning points for each named character, in chronological order.',
+      'For each event, also note any character trait changes (deltas) that resulted from it.',
+      ...(charList.length ? [`Characters in this story: ${charList.join(', ')}`] : []),
+      'Output ONLY the raw JSON object below, with no text before or after it:',
+      '{',
+      '  "memories": [',
+      '    {',
+      '      "characterName": "string — must match one of the provided character names",',
+      '      "summary": "string — one sentence describing what happened to this character",',
+      '      "tags": ["string"],',
+      '      "importance": 0.0,',
+      '      // importance 0.0–1.0: 0.9+ for major turning points, 0.6 for significant events, 0.4 for minor events',
+      '      "deltas": {',
+      '        // omit entire deltas object if no trait changes occurred',
+      '        "personality": { "add": ["new trait"], "remove": ["lost trait"] },',
+      '        "fears": { "add": ["new fear"], "remove": ["resolved fear"] },',
+      '        "speechStyle": "new speech style if changed, otherwise omit",',
+      '        "appearance": "new appearance if changed, otherwise omit",',
+      '        "clothing": "new clothing if changed, otherwise omit"',
+      '      }',
+      '    }',
+      '  ]',
+      '  // ordered chronologically: earliest event first',
+      '  // include 3-8 events per character, only include events with importance >= 0.4',
+      '  // interleave characters naturally in timeline order',
+      '}',
+    ].join('\n')
+
+    let raw = ''
+    await streamChat({
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: `${premise?.trim() ? `Story premise: ${premise.trim()}\n\n` : ''}Story text:\n${text.trim()}\n\nRespond with ONLY the JSON object. No other text.` },
+      ],
+      temperature: 0.1,
+      num_ctx: 8192,
+      onChunk: (t) => { raw += t },
+    })
+
+    try {
+      const data = extractJson(raw) as Record<string, unknown>
+      const rawMems = Array.isArray(data.memories) ? data.memories : []
+      const memories = rawMems
+        .filter((m): m is Record<string, unknown> => typeof m === 'object' && m !== null)
+        .map((m) => ({
+          characterName: typeof m.characterName === 'string' ? m.characterName : '',
+          summary:       typeof m.summary       === 'string' ? m.summary       : '',
+          tags:          Array.isArray(m.tags)   ? m.tags.filter((t): t is string => typeof t === 'string') : [],
+          importance:    typeof m.importance     === 'number' ? Math.min(1, Math.max(0, m.importance)) : 0.5,
+          deltas:        typeof m.deltas         === 'object' && m.deltas !== null ? m.deltas : undefined,
+        }))
+        .filter((m) => m.characterName && m.summary)
+      return { memories }
+    } catch {
+      return reply.status(422).send({ error: 'LLM did not return valid JSON', raw })
+    }
+  })
+
   app.post('/stories/parse-story-locations', async (req, reply) => {
     const { text, premise } = req.body as { text?: string; premise?: string }
     if (!text?.trim()) return reply.status(400).send({ error: 'text is required' })

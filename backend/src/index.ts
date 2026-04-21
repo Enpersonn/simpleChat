@@ -8,6 +8,7 @@ import { characterMemoriesRoutes } from './routes/character-memories.js'
 import { chatsRoutes } from './routes/chats.js'
 import { ollamaRoutes } from './routes/ollama.js'
 import { settingsRoutes } from './routes/settings.js'
+import { canonTimelineRoutes } from './routes/canon-timeline.js'
 
 const app = Fastify({ logger: { level: 'info' } })
 
@@ -31,6 +32,7 @@ await app.register(characterMemoriesRoutes)
 await app.register(chatsRoutes)
 await app.register(ollamaRoutes)
 await app.register(settingsRoutes)
+await app.register(canonTimelineRoutes)
 
 app.get('/health', async () => ({ ok: true }))
 

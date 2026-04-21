@@ -16,6 +16,7 @@ import type {
   ChatCreate,
   Turn,
   AppSettings,
+  CanonTimeline,
 } from '@simplechat/types'
 
 const BASE = ''
@@ -120,6 +121,14 @@ export const api = {
       }> }>(
         '/stories/parse-story-locations',
         { method: 'POST', body: JSON.stringify({ text, premise }) },
+      ),
+    parseStoryMemories: (text: string, premise: string, characters: Array<{ name: string }>) =>
+      request<{ memories: Array<{
+        characterName: string; summary: string; tags: string[]; importance: number
+        deltas?: Record<string, unknown>
+      }> }>(
+        '/stories/parse-story-memories',
+        { method: 'POST', body: JSON.stringify({ text, premise, characters }) },
       ),
   },
 
@@ -226,6 +235,23 @@ export const api = {
     get: () => request<AppSettings>('/settings'),
     update: (data: Partial<AppSettings>) =>
       request<AppSettings>('/settings', { method: 'PATCH', body: JSON.stringify(data) }),
+  },
+
+  canonTimeline: {
+    get: (storyId: string) =>
+      request<CanonTimeline>(`/stories/${storyId}/canon-timeline`),
+    addEntry: (storyId: string, entry: { characterId: string; memoryId: string; label?: string }) =>
+      request<CanonTimeline>(`/stories/${storyId}/canon-timeline/entries`, {
+        method: 'POST',
+        body: JSON.stringify(entry),
+      }),
+    reorder: (storyId: string, entryIds: string[]) =>
+      request<CanonTimeline>(`/stories/${storyId}/canon-timeline/reorder`, {
+        method: 'PUT',
+        body: JSON.stringify({ entryIds }),
+      }),
+    removeEntry: (storyId: string, entryId: string) =>
+      request<CanonTimeline>(`/stories/${storyId}/canon-timeline/entries/${entryId}`, { method: 'DELETE' }),
   },
 
   ollama: {

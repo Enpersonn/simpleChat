@@ -9,6 +9,7 @@ import { CharacterModal } from '../story/CharacterModal.js'
 import { LocationModal } from '../story/LocationModal.js'
 import { NewChatModal } from '../chat/NewChatModal.js'
 import { SettingsModal } from '../story/SettingsModal.js'
+import { CanonTimelineModal } from '../story/CanonTimelineModal.js'
 import s from './LeftPanel.module.css'
 
 export function LeftPanel() {
@@ -22,6 +23,7 @@ export function LeftPanel() {
   const [editingChar, setEditingChar] = useState<Character | null | 'new' | 'new-persona'>(null)
   const [editingLocation, setEditingLocation] = useState<Location | null | 'new'>(null)
   const [showSettings, setShowSettings] = useState(false)
+  const [showTimeline, setShowTimeline] = useState(false)
 
   useEffect(() => { loadStories() }, [])
 
@@ -77,7 +79,12 @@ export function LeftPanel() {
         <div class={s.section}>
           <div class={s.sectionHeader}>
             <span class={s.sectionLabel}>Stories</span>
-            <button class={s.addBtn} onClick={() => setShowCreateStory(true)} title="New story">+</button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              {selectedStoryId && (
+                <button class={s.addBtn} onClick={() => setShowTimeline(true)} title="Canon Timeline" style={{ fontSize: '13px' }}>⏱</button>
+              )}
+              <button class={s.addBtn} onClick={() => setShowCreateStory(true)} title="New story">+</button>
+            </div>
           </div>
           {stories.length === 0 && <div class={s.empty}>No stories yet</div>}
           {stories.map((story) => (
@@ -272,6 +279,13 @@ export function LeftPanel() {
       )}
 
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
+
+      {showTimeline && selectedStoryId && (
+        <CanonTimelineModal
+          storyId={selectedStoryId}
+          onClose={() => setShowTimeline(false)}
+        />
+      )}
     </div>
   )
 }

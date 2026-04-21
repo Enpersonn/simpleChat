@@ -10,11 +10,12 @@ type OpeningMode = 'none' | 'story' | 'auto'
 
 interface Props {
   storyId: string
+  initialAnchors?: Record<string, string>
   onClose: () => void
   onCreated: (chat: Chat, openingMode: OpeningMode) => void
 }
 
-export function NewChatModal({ storyId, onClose, onCreated }: Props) {
+export function NewChatModal({ storyId, initialAnchors, onClose, onCreated }: Props) {
   const { characters, stories } = useStoriesStore()
   const createChat = useChatsStore((s) => s.createChat)
   const story = stories.find((s) => s.id === storyId)
@@ -29,7 +30,7 @@ export function NewChatModal({ storyId, onClose, onCreated }: Props) {
   const [submitting, setSubmitting] = useState(false)
 
   // Memory anchors: { [charId]: memoryId } — undefined key = use natural head
-  const [memoryAnchors, setMemoryAnchors] = useState<Record<string, string>>({})
+  const [memoryAnchors, setMemoryAnchors] = useState<Record<string, string>>(initialAnchors ?? {})
   // Memories per char for the picker
   const [charMemories, setCharMemories] = useState<Record<string, CharacterMemory[]>>({})
   const [expandedCharId, setExpandedCharId] = useState<string | null>(null)

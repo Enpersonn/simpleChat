@@ -11,6 +11,8 @@ import {
   LocationSchema,
   CharacterMemorySchema,
   ChatEntityStateSchema,
+  CanonTimelineSchema,
+  CanonEntrySchema,
   type Story,
   type StoryCreate,
   type StoryUpdate,
@@ -29,6 +31,8 @@ import {
   type CharacterMemoryCreate,
   type CharacterMemoryUpdate,
   type ChatEntityState,
+  type CanonTimeline,
+  type CanonEntryCreate,
 } from '@simplechat/types'
 import { dataDir } from './config.js'
 
@@ -106,6 +110,7 @@ export async function createStory(data: StoryCreate): Promise<Story> {
   await mkdir(join(dir, 'summaries'), { recursive: true })
   await mkdir(join(dir, 'character-memories'), { recursive: true })
   await mkdir(join(dir, 'state'), { recursive: true })
+  await writeJson(join(dir, 'canon-timeline.json'), { storyId: story.id, entries: [] })
   return story
 }
 
@@ -512,4 +517,50 @@ export async function updateChatState(storyId: string, chatId: string, patch: Pa
   const updated = ChatEntityStateSchema.parse({ ...current, ...patch, chatId, storyId, updatedAt: now() })
   await writeJson(await chatStatePath(storyId, chatId), updated)
   return updated
+}
+
+// ─── Canon Timeline ───────────────────────────────────────────────────────────
+
+async function canonTimelinePath(storyId: string): Promise<string> {
+  const dir = await storyDir(storyId)
+  return join(dir, 'canon-timeline.json')
+}
+
+export async function getCanonTimeline(storyId: string): Promise<CanonTimeline> {
+  const path = await canonTimelinePath(storyId)
+  const raw = await readJson<unknown>(path, null)
+  if (raw) {
+    const result = CanonTimelineSchema.safeParse(raw)
+    if (result.success) return result.data
+  }
+  return CanonTimelineSchema.parse({ storyId, entries: [] })
+}
+
+export async function saveCanonTimeline(storyId: string, timeline: CanonTimeline): Promise<void> {
+  await writeJson(await canonTimelinePath(storyId), timeline)
+}
+
+export async function addCanonEntry(storyId: string, data: CanonEntryCreate): Promise<CanonTimeline> {
+  const timeline = await getCanonTimeline(storyId)
+  const entry = CanonEntrySchema.parse({ id: randomUUID(), ...data })
+  timeline.entries.push(entry)
+  await saveCanonTimeline(storyId, timeline)
+  return timeline
+}
+
+export async function removeCanonEntry(storyId: string, entryId: string): Promise<CanonTimeline> {
+  const timeline = await getCanonTimeline(storyId)
+  timeline.entries = timeline.entries.filter((e) => e.id !== entryId)
+  await saveCanonTimeline(storyId, timeline)
+  return timeline
+}
+
+export async function reorderCanonTimeline(storyId: string, orderedEntryIds: string[]): Promise<CanonTimeline> {
+  const timeline = await getCanonTimeline(storyId)
+  const byId = new Map(timeline.entries.map((e) => [e.id, e]))
+  const reordered = orderedEntryIds.map((id) => byId.get(id)).filter((e): e is NonNullable<typeof e> => e !== undefined)
+  const missing = timeline.entries.filter((e) => !orderedEntryIds.includes(e.id))
+  timeline.entries = [...reordered, ...missing]
+  await saveCanonTimeline(storyId, timeline)
+  return timeline
 }

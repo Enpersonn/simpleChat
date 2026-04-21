@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Story, StoryCreate, StoryUpdate, Character, CharacterCreate, CharacterUpdate, Location, LocationCreate, LocationUpdate } from '@simplechat/types'
+import type { Story, StoryCreate, StoryUpdate, Character, CharacterCreate, CharacterUpdate, Location, LocationCreate, LocationUpdate, CanonTimeline } from '@simplechat/types'
 import { api } from '../lib/api.js'
 
 interface StoriesState {
@@ -7,6 +7,7 @@ interface StoriesState {
   selectedStoryId: string | null
   characters: Character[]
   locations: Location[]
+  canonTimeline: CanonTimeline | null
   loading: boolean
   error: string | null
 
@@ -23,6 +24,10 @@ interface StoriesState {
   createLocation: (data: LocationCreate) => Promise<Location>
   updateLocation: (locationId: string, data: LocationUpdate) => Promise<Location>
   deleteLocation: (locationId: string) => Promise<void>
+  loadCanonTimeline: (storyId: string) => Promise<void>
+  addCanonEntry: (storyId: string, entry: { characterId: string; memoryId: string; label?: string }) => Promise<void>
+  reorderCanonTimeline: (storyId: string, entryIds: string[]) => Promise<void>
+  removeCanonEntry: (storyId: string, entryId: string) => Promise<void>
 }
 
 export const useStoriesStore = create<StoriesState>((set, get) => ({
@@ -30,6 +35,7 @@ export const useStoriesStore = create<StoriesState>((set, get) => ({
   selectedStoryId: null,
   characters: [],
   locations: [],
+  canonTimeline: null,
   loading: false,
   error: null,
 
@@ -44,12 +50,18 @@ export const useStoriesStore = create<StoriesState>((set, get) => ({
   },
 
   selectStory: async (id: string) => {
-    set({ selectedStoryId: id, characters: [], locations: [] })
+    set({ selectedStoryId: id, characters: [], locations: [], canonTimeline: null })
     try {
       const { characters, locations } = await api.stories.get(id)
       set({ characters, locations })
     } catch {
       // story may have no characters yet
+    }
+    try {
+      const canonTimeline = await api.canonTimeline.get(id)
+      set({ canonTimeline })
+    } catch {
+      // timeline may not exist yet for older stories
     }
   },
 
@@ -70,6 +82,7 @@ export const useStoriesStore = create<StoriesState>((set, get) => ({
     set((s) => ({
       stories: s.stories.filter((s2) => s2.id !== id),
       selectedStoryId: s.selectedStoryId === id ? null : s.selectedStoryId,
+      canonTimeline: s.selectedStoryId === id ? null : s.canonTimeline,
     }))
   },
 
@@ -131,5 +144,29 @@ export const useStoriesStore = create<StoriesState>((set, get) => ({
     if (!selectedStoryId) throw new Error('No story selected')
     await api.locations.delete(selectedStoryId, locationId)
     set((s) => ({ locations: s.locations.filter((l) => l.id !== locationId) }))
+  },
+
+  loadCanonTimeline: async (storyId: string) => {
+    try {
+      const canonTimeline = await api.canonTimeline.get(storyId)
+      set({ canonTimeline })
+    } catch {
+      set({ canonTimeline: null })
+    }
+  },
+
+  addCanonEntry: async (storyId: string, entry) => {
+    const timeline = await api.canonTimeline.addEntry(storyId, entry)
+    set({ canonTimeline: timeline })
+  },
+
+  reorderCanonTimeline: async (storyId: string, entryIds: string[]) => {
+    const timeline = await api.canonTimeline.reorder(storyId, entryIds)
+    set({ canonTimeline: timeline })
+  },
+
+  removeCanonEntry: async (storyId: string, entryId: string) => {
+    const timeline = await api.canonTimeline.removeEntry(storyId, entryId)
+    set({ canonTimeline: timeline })
   },
 }))
