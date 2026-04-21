@@ -1,11 +1,12 @@
 import { create } from 'zustand'
-import type { Story, StoryCreate, StoryUpdate, Character, CharacterCreate, CharacterUpdate } from '@simplechat/types'
+import type { Story, StoryCreate, StoryUpdate, Character, CharacterCreate, CharacterUpdate, Location, LocationCreate, LocationUpdate } from '@simplechat/types'
 import { api } from '../lib/api.js'
 
 interface StoriesState {
   stories: Story[]
   selectedStoryId: string | null
   characters: Character[]
+  locations: Location[]
   loading: boolean
   error: string | null
 
@@ -18,12 +19,17 @@ interface StoriesState {
   createCharacter: (data: CharacterCreate) => Promise<Character>
   updateCharacter: (charId: string, data: CharacterUpdate) => Promise<Character>
   deleteCharacter: (charId: string) => Promise<void>
+  reloadLocations: () => Promise<void>
+  createLocation: (data: LocationCreate) => Promise<Location>
+  updateLocation: (locationId: string, data: LocationUpdate) => Promise<Location>
+  deleteLocation: (locationId: string) => Promise<void>
 }
 
 export const useStoriesStore = create<StoriesState>((set, get) => ({
   stories: [],
   selectedStoryId: null,
   characters: [],
+  locations: [],
   loading: false,
   error: null,
 
@@ -38,10 +44,10 @@ export const useStoriesStore = create<StoriesState>((set, get) => ({
   },
 
   selectStory: async (id: string) => {
-    set({ selectedStoryId: id, characters: [] })
+    set({ selectedStoryId: id, characters: [], locations: [] })
     try {
-      const { characters } = await api.stories.get(id)
-      set({ characters })
+      const { characters, locations } = await api.stories.get(id)
+      set({ characters, locations })
     } catch {
       // story may have no characters yet
     }
@@ -95,5 +101,35 @@ export const useStoriesStore = create<StoriesState>((set, get) => ({
     if (!selectedStoryId) throw new Error('No story selected')
     await api.characters.delete(selectedStoryId, charId)
     set((s) => ({ characters: s.characters.filter((c) => c.id !== charId) }))
+  },
+
+  reloadLocations: async () => {
+    const { selectedStoryId } = get()
+    if (!selectedStoryId) return
+    const locations = await api.locations.list(selectedStoryId)
+    set({ locations })
+  },
+
+  createLocation: async (data: LocationCreate) => {
+    const { selectedStoryId } = get()
+    if (!selectedStoryId) throw new Error('No story selected')
+    const location = await api.locations.create(selectedStoryId, data)
+    set((s) => ({ locations: [...s.locations, location] }))
+    return location
+  },
+
+  updateLocation: async (locationId: string, data: LocationUpdate) => {
+    const { selectedStoryId } = get()
+    if (!selectedStoryId) throw new Error('No story selected')
+    const location = await api.locations.update(selectedStoryId, locationId, data)
+    set((s) => ({ locations: s.locations.map((l) => (l.id === locationId ? location : l)) }))
+    return location
+  },
+
+  deleteLocation: async (locationId: string) => {
+    const { selectedStoryId } = get()
+    if (!selectedStoryId) throw new Error('No story selected')
+    await api.locations.delete(selectedStoryId, locationId)
+    set((s) => ({ locations: s.locations.filter((l) => l.id !== locationId) }))
   },
 }))

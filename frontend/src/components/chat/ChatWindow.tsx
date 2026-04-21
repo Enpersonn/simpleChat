@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'preact/hooks'
+import { useEffect, useRef, useState } from 'preact/hooks'
 import { useChatsStore } from '../../store/chats.js'
 import { useStoriesStore } from '../../store/stories.js'
 import { ChatMessage } from './ChatMessage.js'
@@ -6,9 +6,11 @@ import { ChatComposer } from './ChatComposer.js'
 import s from './ChatWindow.module.css'
 
 export function ChatWindow() {
-  const { activeChatId, activeStoryId, turns, isStreaming, error, chats } = useChatsStore()
+  const { activeChatId, activeStoryId, turns, isStreaming, error, chats, lastStateUpdate } = useChatsStore()
   const characters = useStoriesStore((st) => st.characters)
   const messagesRef = useRef<HTMLDivElement>(null)
+  const [toastMsg, setToastMsg] = useState<string | null>(null)
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const activeChat = chats.find((c) => c.id === activeChatId)
 
@@ -17,6 +19,16 @@ export function ChatWindow() {
     if (!el) return
     el.scrollTop = el.scrollHeight
   }, [turns.length, isStreaming])
+
+  useEffect(() => {
+    if (!lastStateUpdate) return
+    const name = lastStateUpdate.locationName
+    if (name) {
+      setToastMsg(`Scene: ${name}`)
+      if (toastTimer.current) clearTimeout(toastTimer.current)
+      toastTimer.current = setTimeout(() => setToastMsg(null), 3000)
+    }
+  }, [lastStateUpdate])
 
   const getCharacterName = (speaker: string): string => {
     if (speaker === 'user') return 'You'
@@ -37,6 +49,7 @@ export function ChatWindow() {
         )}
       </div>
 
+      {toastMsg && <div class={s.stateToast}>📍 {toastMsg}</div>}
       {error && <div class={s.error}>⚠ {error}</div>}
 
       <div class={s.messages} ref={messagesRef}>

@@ -1,4 +1,13 @@
-import { type Story, type Character, type Turn, type OllamaMessage, type ChatMode } from '@simplechat/types'
+import {
+  type Story,
+  type Character,
+  type Location,
+  type CharacterMemory,
+  type Turn,
+  type OllamaMessage,
+  type ChatMode,
+  type LocationOverride,
+} from '@simplechat/types'
 
 const RESPONSE_LENGTH_MAP: Record<string, string> = {
   short: 'Keep your response brief, around 1–3 short paragraphs.',
@@ -29,6 +38,141 @@ function resolveTokens(text: string, characters: Character[]): string {
     .replace(/\{\{user\}\}/g, personas[0]?.name ?? 'the player')
 }
 
+// ─── Section builders ────────────────────────────────────────────────────────
+
+function buildSpeakerInstructions(
+  mode: ChatMode,
+  speaker: Character | undefined,
+  userPersonas: Character[],
+  otherChars: Character[],
+): string {
+  const parts: string[] = []
+
+  if (mode === 'interactive') {
+    if (speaker) {
+      parts.push(
+        `You are ${speaker.name}${speaker.role ? `, ${speaker.role}` : ''}. Stay completely in character at all times.`,
+      )
+      if (speaker.public.personality.length > 0) {
+        parts.push(`Your observable traits: ${speaker.public.personality.join(', ')}.`)
+      }
+      if (speaker.public.speechStyle) {
+        parts.push(`Your speech style: ${speaker.public.speechStyle}.`)
+      }
+      if (speaker.private.trueMotives) {
+        parts.push(`Your private motivations (never reveal directly): ${speaker.private.trueMotives}.`)
+      }
+      if (speaker.private.fears.length > 0) {
+        parts.push(`Your hidden fears: ${speaker.private.fears.join(', ')}.`)
+      }
+      if (userPersonas.length > 0) {
+        const personaNames = userPersonas.map((p) => p.name).join(' and ')
+        parts.push(
+          `\nYou are ONLY ${speaker.name}. Never write dialogue, actions, or thoughts for ${personaNames}. Wait for them to act — then respond as ${speaker.name}.`,
+        )
+      } else {
+        parts.push(
+          `\nYou are ONLY ${speaker.name}. Never write the user's dialogue, actions, or thoughts. Respond to what the user says — do not speak for them.`,
+        )
+      }
+    } else {
+      parts.push('You are the narrator. Voice all characters and describe the scene.')
+      if (userPersonas.length > 0) {
+        const personaNames = userPersonas.map((p) => p.name).join(' and ')
+        parts.push(`Do not write dialogue or actions for ${personaNames} — they are controlled by the player.`)
+      }
+    }
+    parts.push(
+      'Show emotion through behavior and subtext — not explicit statements.',
+      'Use tight, purposeful dialogue with action beats instead of dialogue tags.',
+      'Let scenes breathe with small gestures, pauses, environmental details.',
+      'Never break character or step outside the fiction.',
+    )
+  } else {
+    parts.push(
+      'You are the narrator of an ongoing story.',
+      'Write in cinematic third-person. Alternate narration with dialogue.',
+      'Use the pacing structure: action → internal thought → dialogue → environment.',
+      'Subtext over explicit. Show, never tell.',
+      'End each passage with a hook, shift, or unresolved beat.',
+    )
+  }
+
+  return parts.join('\n')
+}
+
+function buildStoryBlock(story: Story, characters: Character[]): string {
+  const parts: string[] = []
+  if (story.premise) parts.push(`\nSTORY: ${resolveTokens(story.premise, characters)}`)
+  if (story.tone.length > 0) parts.push(`Tone: ${story.tone.join(', ')}.`)
+  if (story.rules.length > 0) parts.push(`World rules: ${story.rules.map((r) => resolveTokens(r, characters)).join(' | ')}.`)
+  if (story.writingStyle) parts.push(`Writing style: ${resolveTokens(story.writingStyle, characters)}.`)
+  return parts.join('\n')
+}
+
+function buildPersonasBlock(userPersonas: Character[]): string {
+  if (userPersonas.length === 0) return ''
+  const descriptions = userPersonas
+    .map((p) => {
+      const parts = [`${p.name}${p.role ? ` (${p.role})` : ''}`]
+      const demo = [p.public.age, p.public.gender, p.public.species !== 'human' ? p.public.species : ''].filter(Boolean).join(', ')
+      if (demo) parts.push(demo)
+      if (p.public.appearance) parts.push(p.public.clothing ? `${p.public.appearance} Wearing: ${p.public.clothing}` : p.public.appearance)
+      if (p.public.personality.length > 0) parts.push(p.public.personality.join(', '))
+      if (p.public.speechStyle) parts.push(`speaks: ${p.public.speechStyle}`)
+      return parts.join(' — ')
+    })
+    .join('; ')
+  return `\nPLAYER CHARACTER: ${descriptions}`
+}
+
+function buildOtherCharsBlock(otherChars: Character[]): string {
+  if (otherChars.length === 0) return ''
+  const descriptions = otherChars
+    .map((c) => {
+      const parts = [`${c.name}${c.role ? ` (${c.role})` : ''}`]
+      const demo = [c.public.age, c.public.gender, c.public.species !== 'human' ? c.public.species : ''].filter(Boolean).join(', ')
+      if (demo) parts.push(demo)
+      if (c.public.appearance) parts.push(c.public.clothing ? `${c.public.appearance} Wearing: ${c.public.clothing}` : c.public.appearance)
+      if (c.public.personality.length > 0) parts.push(c.public.personality.join(', '))
+      return parts.join(' — ')
+    })
+    .join('; ')
+  return `\nOTHER CHARACTERS: ${descriptions}.`
+}
+
+export function buildLocationBlock(location: Location, overrides?: LocationOverride): string {
+  const lighting = overrides?.lighting ?? location.lighting
+  const atmosphere = overrides?.atmosphere ?? location.atmosphere
+  const soundscape = overrides?.soundscape ?? location.soundscape
+  const smells = overrides?.smells ?? location.smells
+  const description = overrides?.description ?? location.description
+
+  const parts: string[] = [`\nCURRENT LOCATION: ${location.name}`]
+  if (description) parts.push(description)
+  if (location.layout) parts.push(`Layout: ${location.layout}`)
+  if (lighting) parts.push(`Lighting: ${lighting}`)
+  if (atmosphere) parts.push(`Atmosphere: ${atmosphere}`)
+  if (soundscape) parts.push(`Sounds: ${soundscape}`)
+  if (smells) parts.push(`Smells: ${smells}`)
+  if (location.notes) parts.push(`Notes: ${location.notes}`)
+  return parts.join('\n')
+}
+
+export function buildCharacterMemoriesBlock(characterName: string, memories: CharacterMemory[]): string {
+  if (memories.length === 0) return ''
+  const lines = memories.map((m) => `- ${m.summary}`)
+  return `\nRELEVANT MEMORIES FOR ${characterName.toUpperCase()}:\n${lines.join('\n')}`
+}
+
+function buildMoodBlock(moodTags: string[]): string {
+  const instructions = moodTags.map((tag) => MOOD_TAG_MAP[tag]).filter(Boolean)
+  if (instructions.length === 0) return ''
+  return `\nMOOD GUIDANCE: ${instructions.join(' ')}`
+}
+
+// ─── Assembly ────────────────────────────────────────────────────────────────
+
 export interface AssembleOptions {
   story: Story
   characters: Character[]
@@ -39,6 +183,9 @@ export interface AssembleOptions {
   responseLength?: string
   feelText?: string
   globalNote?: string
+  currentLocation?: Location
+  locationOverrides?: LocationOverride
+  relevantMemories?: CharacterMemory[]
 }
 
 export function assembleContext(opts: AssembleOptions): OllamaMessage[] {
@@ -52,6 +199,9 @@ export function assembleContext(opts: AssembleOptions): OllamaMessage[] {
     responseLength = 'medium',
     feelText = '',
     globalNote = '',
+    currentLocation,
+    locationOverrides,
+    relevantMemories = [],
   } = opts
 
   const speaker = characters.find((c) => c.id === activeSpeaker)
@@ -60,120 +210,43 @@ export function assembleContext(opts: AssembleOptions): OllamaMessage[] {
 
   const systemParts: string[] = []
 
-  // If the story has a full system prompt override, use it instead of the default instructions
   if (story.systemPromptOverride?.trim()) {
     systemParts.push(story.systemPromptOverride.trim())
-  } else if (mode === 'interactive') {
-    if (speaker) {
-      systemParts.push(
-        `You are ${speaker.name}${speaker.role ? `, ${speaker.role}` : ''}. Stay completely in character at all times.`,
-      )
-      if (speaker.public.personality.length > 0) {
-        systemParts.push(`Your observable traits: ${speaker.public.personality.join(', ')}.`)
-      }
-      if (speaker.public.speechStyle) {
-        systemParts.push(`Your speech style: ${speaker.public.speechStyle}.`)
-      }
-      if (speaker.private.trueMotives) {
-        systemParts.push(`Your private motivations (never reveal directly): ${speaker.private.trueMotives}.`)
-      }
-      if (speaker.private.fears.length > 0) {
-        systemParts.push(`Your hidden fears: ${speaker.private.fears.join(', ')}.`)
-      }
-
-      // Explicit role boundary: prevent LLM from writing the user's character
-      if (userPersonas.length > 0) {
-        const personaNames = userPersonas.map((p) => p.name).join(' and ')
-        systemParts.push(
-          `\nYou are ONLY ${speaker.name}. Never write dialogue, actions, or thoughts for ${personaNames}. Wait for them to act — then respond as ${speaker.name}.`,
-        )
-      } else {
-        systemParts.push(
-          `\nYou are ONLY ${speaker.name}. Never write the user's dialogue, actions, or thoughts. Respond to what the user says — do not speak for them.`,
-        )
-      }
-    } else {
-      systemParts.push('You are the narrator. Voice all characters and describe the scene.')
-      if (userPersonas.length > 0) {
-        const personaNames = userPersonas.map((p) => p.name).join(' and ')
-        systemParts.push(`Do not write dialogue or actions for ${personaNames} — they are controlled by the player.`)
-      }
-    }
-    systemParts.push(
-      'Show emotion through behavior and subtext — not explicit statements.',
-      'Use tight, purposeful dialogue with action beats instead of dialogue tags.',
-      'Let scenes breathe with small gestures, pauses, environmental details.',
-      'Never break character or step outside the fiction.',
-    )
   } else {
-    systemParts.push(
-      'You are the narrator of an ongoing story.',
-      'Write in cinematic third-person. Alternate narration with dialogue.',
-      'Use the pacing structure: action → internal thought → dialogue → environment.',
-      'Subtext over explicit. Show, never tell.',
-      'End each passage with a hook, shift, or unresolved beat.',
-    )
+    systemParts.push(buildSpeakerInstructions(mode, speaker, userPersonas, otherChars))
   }
 
-  // Story world
-  if (story.premise) systemParts.push(`\nSTORY: ${resolveTokens(story.premise, characters)}`)
-  if (story.tone.length > 0) systemParts.push(`Tone: ${story.tone.join(', ')}.`)
-  if (story.rules.length > 0) systemParts.push(`World rules: ${story.rules.map((r) => resolveTokens(r, characters)).join(' | ')}.`)
-  if (story.writingStyle) systemParts.push(`Writing style: ${resolveTokens(story.writingStyle, characters)}.`)
+  const storyBlock = buildStoryBlock(story, characters)
+  if (storyBlock) systemParts.push(storyBlock)
 
-  // User personas (player characters)
-  if (userPersonas.length > 0) {
-    const personaDescriptions = userPersonas
-      .map((p) => {
-        const parts = [`${p.name}${p.role ? ` (${p.role})` : ''}`]
-        const demo = [p.public.age, p.public.gender, p.public.species !== 'human' ? p.public.species : ''].filter(Boolean).join(', ')
-        if (demo) parts.push(demo)
-        if (p.public.appearance) parts.push(p.public.clothing ? `${p.public.appearance} Wearing: ${p.public.clothing}` : p.public.appearance)
-        if (p.public.personality.length > 0) parts.push(p.public.personality.join(', '))
-        if (p.public.speechStyle) parts.push(`speaks: ${p.public.speechStyle}`)
-        return parts.join(' — ')
-      })
-      .join('; ')
-    systemParts.push(`\nPLAYER CHARACTER: ${personaDescriptions}`)
+  const personasBlock = buildPersonasBlock(userPersonas)
+  if (personasBlock) systemParts.push(personasBlock)
+
+  const otherCharsBlock = buildOtherCharsBlock(otherChars)
+  if (otherCharsBlock) systemParts.push(otherCharsBlock)
+
+  if (currentLocation) {
+    systemParts.push(buildLocationBlock(currentLocation, locationOverrides))
   }
 
-  // Other characters (public layer only)
-  if (otherChars.length > 0) {
-    const charDescriptions = otherChars
-      .map((c) => {
-        const parts = [`${c.name}${c.role ? ` (${c.role})` : ''}`]
-        const demo = [c.public.age, c.public.gender, c.public.species !== 'human' ? c.public.species : ''].filter(Boolean).join(', ')
-        if (demo) parts.push(demo)
-        if (c.public.appearance) parts.push(c.public.clothing ? `${c.public.appearance} Wearing: ${c.public.clothing}` : c.public.appearance)
-        if (c.public.personality.length > 0) parts.push(c.public.personality.join(', '))
-        return parts.join(' — ')
-      })
-      .join('; ')
-    systemParts.push(`\nOTHER CHARACTERS: ${charDescriptions}.`)
+  if (speaker && relevantMemories.length > 0) {
+    systemParts.push(buildCharacterMemoriesBlock(speaker.name, relevantMemories))
   }
 
-  // Mood instructions
-  const moodInstructions = moodTags.map((tag) => MOOD_TAG_MAP[tag]).filter(Boolean)
-  if (moodInstructions.length > 0) {
-    systemParts.push(`\nMOOD GUIDANCE: ${moodInstructions.join(' ')}`)
-  }
+  const moodBlock = buildMoodBlock(moodTags)
+  if (moodBlock) systemParts.push(moodBlock)
 
-  // Response length
-  const lengthInstruction = RESPONSE_LENGTH_MAP[responseLength] ?? RESPONSE_LENGTH_MAP.medium
-  systemParts.push(lengthInstruction)
+  systemParts.push(RESPONSE_LENGTH_MAP[responseLength] ?? RESPONSE_LENGTH_MAP.medium)
 
-  // Feel text
   if (feelText.trim()) {
     systemParts.push(`Style note from author: ${feelText.trim()}`)
   }
 
-  // Global note from settings (appended last)
   if (globalNote.trim()) {
     systemParts.push(`\nGLOBAL NOTE: ${globalNote.trim()}`)
   }
 
   const systemPrompt = systemParts.join('\n')
-
   const messages: OllamaMessage[] = [{ role: 'system', content: systemPrompt }]
 
   const windowTurns = recentTurns.slice(-30)

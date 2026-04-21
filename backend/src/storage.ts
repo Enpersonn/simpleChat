@@ -8,6 +8,9 @@ import {
   ChatSchema,
   TurnSchema,
   MemoryItemSchema,
+  LocationSchema,
+  CharacterMemorySchema,
+  ChatEntityStateSchema,
   type Story,
   type StoryCreate,
   type StoryUpdate,
@@ -19,6 +22,13 @@ import {
   type Turn,
   type MemoryItem,
   type MemoryItemCreate,
+  type Location,
+  type LocationCreate,
+  type LocationUpdate,
+  type CharacterMemory,
+  type CharacterMemoryCreate,
+  type CharacterMemoryUpdate,
+  type ChatEntityState,
 } from '@simplechat/types'
 import { dataDir } from './config.js'
 
@@ -90,9 +100,12 @@ export async function createStory(data: StoryCreate): Promise<Story> {
   const dir = await storyDir(story.id)
   await writeJson(join(dir, 'story.json'), story)
   await writeJson(join(dir, 'characters.json'), [])
+  await writeJson(join(dir, 'locations.json'), [])
   await mkdir(join(dir, 'chats'), { recursive: true })
   await mkdir(join(dir, 'memory'), { recursive: true })
   await mkdir(join(dir, 'summaries'), { recursive: true })
+  await mkdir(join(dir, 'character-memories'), { recursive: true })
+  await mkdir(join(dir, 'state'), { recursive: true })
   return story
 }
 
@@ -216,6 +229,7 @@ export async function createChat(data: ChatCreate): Promise<Chat> {
     title: data.title ?? '',
     mode: data.mode ?? 'interactive',
     activeSpeakers: data.activeSpeakers ?? [],
+    memoryAnchors: data.memoryAnchors ?? {},
     createdAt: now(),
     updatedAt: now(),
   })
@@ -323,4 +337,179 @@ export async function addMemoryItem(storyId: string, chatId: string, data: Memor
   items.push(item)
   await writeJson(await memoryPath(storyId, chatId), items)
   return item
+}
+
+// ─── Locations ───────────────────────────────────────────────────────────────
+
+async function locationsPath(storyId: string): Promise<string> {
+  const dir = await storyDir(storyId)
+  return join(dir, 'locations.json')
+}
+
+export async function listLocations(storyId: string): Promise<Location[]> {
+  const path = await locationsPath(storyId)
+  const raw = await readJson<unknown[]>(path, [])
+  return raw.map((r) => LocationSchema.safeParse(r)).filter((r) => r.success).map((r) => r.data!)
+}
+
+export async function getLocation(storyId: string, locationId: string): Promise<Location | null> {
+  const locations = await listLocations(storyId)
+  return locations.find((l) => l.id === locationId) ?? null
+}
+
+export async function createLocation(storyId: string, data: LocationCreate): Promise<Location> {
+  const locations = await listLocations(storyId)
+  const location: Location = LocationSchema.parse({
+    id: randomUUID(),
+    storyId,
+    name: data.name,
+    description: data.description ?? '',
+    layout: data.layout ?? '',
+    lighting: data.lighting ?? '',
+    atmosphere: data.atmosphere ?? '',
+    soundscape: data.soundscape ?? '',
+    smells: data.smells ?? '',
+    notes: data.notes ?? '',
+    tags: data.tags ?? [],
+    createdAt: now(),
+    updatedAt: now(),
+  })
+  locations.push(location)
+  await writeJson(await locationsPath(storyId), locations)
+  return location
+}
+
+export async function updateLocation(storyId: string, locationId: string, data: LocationUpdate): Promise<Location | null> {
+  const locations = await listLocations(storyId)
+  const idx = locations.findIndex((l) => l.id === locationId)
+  if (idx === -1) return null
+  const updated = LocationSchema.parse({ ...locations[idx], ...data, id: locationId, storyId, updatedAt: now() })
+  locations[idx] = updated
+  await writeJson(await locationsPath(storyId), locations)
+  return updated
+}
+
+export async function deleteLocation(storyId: string, locationId: string): Promise<boolean> {
+  const locations = await listLocations(storyId)
+  const next = locations.filter((l) => l.id !== locationId)
+  if (next.length === locations.length) return false
+  await writeJson(await locationsPath(storyId), next)
+  return true
+}
+
+// ─── Character Memories ──────────────────────────────────────────────────────
+
+async function characterMemoryPath(storyId: string, charId: string): Promise<string> {
+  const dir = await storyDir(storyId)
+  const memDir = join(dir, 'character-memories')
+  await mkdir(memDir, { recursive: true })
+  return join(memDir, `${charId}.json`)
+}
+
+export async function listCharacterMemories(storyId: string, charId: string): Promise<CharacterMemory[]> {
+  const path = await characterMemoryPath(storyId, charId)
+  const raw = await readJson<unknown[]>(path, [])
+  return raw.map((r) => CharacterMemorySchema.safeParse(r)).filter((r) => r.success).map((r) => r.data!)
+}
+
+export async function addCharacterMemory(storyId: string, charId: string, data: CharacterMemoryCreate): Promise<CharacterMemory> {
+  const memories = await listCharacterMemories(storyId, charId)
+
+  let previousMemoryId = data.previousMemoryId
+  if (!previousMemoryId && memories.length > 0) {
+    const heads = getHeadsFromList(memories)
+    const head = heads.sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]
+    if (head) previousMemoryId = head.id
+  }
+
+  const memory: CharacterMemory = CharacterMemorySchema.parse({
+    id: randomUUID(),
+    storyId,
+    characterId: charId,
+    summary: data.summary,
+    tags: data.tags ?? [],
+    importance: data.importance ?? 0.5,
+    sourceChatId: data.sourceChatId,
+    sourceTurnId: data.sourceTurnId,
+    previousMemoryId,
+    branchLabel: data.branchLabel,
+    deltas: data.deltas,
+    createdAt: now(),
+  })
+  memories.push(memory)
+  await writeJson(await characterMemoryPath(storyId, charId), memories)
+  return memory
+}
+
+function getHeadsFromList(memories: CharacterMemory[]): CharacterMemory[] {
+  const referenced = new Set(memories.map((m) => m.previousMemoryId).filter(Boolean))
+  return memories.filter((m) => !referenced.has(m.id))
+}
+
+export async function getMemoryHeads(storyId: string, charId: string): Promise<CharacterMemory[]> {
+  const memories = await listCharacterMemories(storyId, charId)
+  if (memories.length === 0) return []
+  return getHeadsFromList(memories)
+}
+
+export async function getMemoryChain(storyId: string, charId: string, fromMemoryId: string): Promise<CharacterMemory[]> {
+  const memories = await listCharacterMemories(storyId, charId)
+  const byId = new Map(memories.map((m) => [m.id, m]))
+
+  const chain: CharacterMemory[] = []
+  let current = byId.get(fromMemoryId)
+  while (current) {
+    chain.unshift(current)
+    current = current.previousMemoryId ? byId.get(current.previousMemoryId) : undefined
+  }
+  return chain
+}
+
+export async function updateCharacterMemory(
+  storyId: string,
+  charId: string,
+  memoryId: string,
+  data: CharacterMemoryUpdate,
+): Promise<CharacterMemory | null> {
+  const memories = await listCharacterMemories(storyId, charId)
+  const idx = memories.findIndex((m) => m.id === memoryId)
+  if (idx === -1) return null
+  const updated = CharacterMemorySchema.parse({ ...memories[idx], ...data, id: memoryId, storyId, characterId: charId })
+  memories[idx] = updated
+  await writeJson(await characterMemoryPath(storyId, charId), memories)
+  return updated
+}
+
+export async function deleteCharacterMemory(storyId: string, charId: string, memoryId: string): Promise<boolean> {
+  const memories = await listCharacterMemories(storyId, charId)
+  const next = memories.filter((m) => m.id !== memoryId)
+  if (next.length === memories.length) return false
+  await writeJson(await characterMemoryPath(storyId, charId), next)
+  return true
+}
+
+// ─── Chat Entity State ────────────────────────────────────────────────────────
+
+async function chatStatePath(storyId: string, chatId: string): Promise<string> {
+  const dir = await storyDir(storyId)
+  const stateDir = join(dir, 'state')
+  await mkdir(stateDir, { recursive: true })
+  return join(stateDir, `${chatId}.json`)
+}
+
+export async function getChatState(storyId: string, chatId: string): Promise<ChatEntityState> {
+  const path = await chatStatePath(storyId, chatId)
+  const raw = await readJson<unknown>(path, null)
+  if (raw) {
+    const result = ChatEntityStateSchema.safeParse(raw)
+    if (result.success) return result.data
+  }
+  return ChatEntityStateSchema.parse({ chatId, storyId, currentLocationId: null, locationOverrides: {}, updatedAt: now() })
+}
+
+export async function updateChatState(storyId: string, chatId: string, patch: Partial<ChatEntityState>): Promise<ChatEntityState> {
+  const current = await getChatState(storyId, chatId)
+  const updated = ChatEntityStateSchema.parse({ ...current, ...patch, chatId, storyId, updatedAt: now() })
+  await writeJson(await chatStatePath(storyId, chatId), updated)
+  return updated
 }

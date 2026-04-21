@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type { Chat, Turn, ChatMode } from '@simplechat/types'
 import { api } from '../lib/api.js'
-import { sendMessageStream, regenerateStream, openerStream, type DebugInfo } from '../lib/stream.js'
+import { sendMessageStream, regenerateStream, openerStream, type DebugInfo, type StateUpdate } from '../lib/stream.js'
 
 interface StreamingState {
   isStreaming: boolean
@@ -16,10 +16,11 @@ interface ChatsState extends StreamingState {
   turns: Turn[]
   error: string | null
   debugInfo: DebugInfo | null
+  lastStateUpdate: StateUpdate | null
 
   loadChats: (storyId: string) => Promise<void>
   openChat: (storyId: string, chatId: string) => Promise<void>
-  createChat: (storyId: string, mode: ChatMode, activeSpeakers?: string[]) => Promise<Chat>
+  createChat: (storyId: string, mode: ChatMode, activeSpeakers?: string[], memoryAnchors?: Record<string, string>) => Promise<Chat>
   sendMessage: (params: SendParams) => Promise<void>
   regenerate: (params: RegenerateParams) => Promise<void>
   editAndResend: (turnId: string, text: string, params: RegenerateParams) => Promise<void>
@@ -63,6 +64,7 @@ export const useChatsStore = create<ChatsState>((set, get) => ({
   abortController: null,
   error: null,
   debugInfo: null,
+  lastStateUpdate: null,
 
   loadChats: async (storyId: string) => {
     const chats = await api.chats.list(storyId)
@@ -75,8 +77,8 @@ export const useChatsStore = create<ChatsState>((set, get) => ({
     set({ turns })
   },
 
-  createChat: async (storyId: string, mode: ChatMode, activeSpeakers: string[] = []) => {
-    const chat = await api.chats.create(storyId, { mode, activeSpeakers })
+  createChat: async (storyId: string, mode: ChatMode, activeSpeakers: string[] = [], memoryAnchors?: Record<string, string>) => {
+    const chat = await api.chats.create(storyId, { mode, activeSpeakers, memoryAnchors })
     set((s) => ({ chats: [chat, ...s.chats] }))
     return chat
   },
@@ -121,6 +123,7 @@ export const useChatsStore = create<ChatsState>((set, get) => ({
       body: params,
       signal: ac.signal,
       onDebug: (info) => set({ debugInfo: info }),
+      onStateUpdate: (update) => set({ lastStateUpdate: update }),
       onChunk: (text) => {
         set((s) => ({
           streamingText: s.streamingText + text,

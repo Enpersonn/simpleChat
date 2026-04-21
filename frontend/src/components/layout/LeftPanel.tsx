@@ -1,17 +1,18 @@
 import { useEffect, useState } from 'preact/hooks'
-import type { Chat, Character } from '@simplechat/types'
+import type { Chat, Character, Location } from '@simplechat/types'
 import { useStoriesStore } from '../../store/stories.js'
 import { useChatsStore } from '../../store/chats.js'
 import { useSettingsStore } from '../../store/settings.js'
 import { StoryCreateModal } from '../story/StoryCreateModal.js'
 import { EditStoryModal } from '../story/EditStoryModal.js'
 import { CharacterModal } from '../story/CharacterModal.js'
+import { LocationModal } from '../story/LocationModal.js'
 import { NewChatModal } from '../chat/NewChatModal.js'
 import { SettingsModal } from '../story/SettingsModal.js'
 import s from './LeftPanel.module.css'
 
 export function LeftPanel() {
-  const { stories, selectedStoryId, characters, loadStories, selectStory, deleteStory, deleteCharacter } = useStoriesStore()
+  const { stories, selectedStoryId, characters, locations, loadStories, selectStory, deleteStory, deleteCharacter, deleteLocation } = useStoriesStore()
   const { chats, activeChatId, loadChats, openChat, createChat, generateOpener } = useChatsStore()
   const ollamaHealthy = useSettingsStore((s) => s.ollamaHealthy)
 
@@ -19,6 +20,7 @@ export function LeftPanel() {
   const [editingStory, setEditingStory] = useState<string | null>(null)
   const [showNewChat, setShowNewChat] = useState(false)
   const [editingChar, setEditingChar] = useState<Character | null | 'new' | 'new-persona'>(null)
+  const [editingLocation, setEditingLocation] = useState<Location | null | 'new'>(null)
   const [showSettings, setShowSettings] = useState(false)
 
   useEffect(() => { loadStories() }, [])
@@ -48,6 +50,12 @@ export function LeftPanel() {
     e.stopPropagation()
     if (!confirm('Delete this character?')) return
     await deleteCharacter(charId)
+  }
+
+  const handleDeleteLocation = async (e: MouseEvent, locationId: string) => {
+    e.stopPropagation()
+    if (!confirm('Delete this location?')) return
+    await deleteLocation(locationId)
   }
 
   const selectedStory = stories.find((s) => s.id === selectedStoryId)
@@ -169,6 +177,29 @@ export function LeftPanel() {
             ))}
           </div>
         )}
+
+        {/* Locations */}
+        {selectedStoryId && (
+          <div class={s.section}>
+            <div class={s.sectionHeader}>
+              <span class={s.sectionLabel}>Locations</span>
+              <button class={s.addBtn} onClick={() => setEditingLocation('new')} title="New location">+</button>
+            </div>
+            {locations.length === 0 && (
+              <div class={s.empty}>No locations yet</div>
+            )}
+            {locations.map((loc) => (
+              <div key={loc.id} class={`${s.item} ${s.subItem}`}>
+                <span class={s.itemIcon}>📍</span>
+                <span class={s.itemLabel} title={loc.name}>{loc.name}</span>
+                <div class={s.itemActions}>
+                  <button class={s.iconBtn} onClick={(e) => { e.stopPropagation(); setEditingLocation(loc) }} title="Edit location">✎</button>
+                  <button class={s.iconBtn} onClick={(e) => handleDeleteLocation(e, loc.id)} title="Delete location">✕</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Footer */}
@@ -222,6 +253,21 @@ export function LeftPanel() {
             })
             loadChats(selectedStoryId)
           }}
+        />
+      )}
+
+      {editingLocation === 'new' && (
+        <LocationModal
+          onClose={() => setEditingLocation(null)}
+          onSaved={() => setEditingLocation(null)}
+        />
+      )}
+
+      {editingLocation && editingLocation !== 'new' && (
+        <LocationModal
+          initial={editingLocation}
+          onClose={() => setEditingLocation(null)}
+          onSaved={() => setEditingLocation(null)}
         />
       )}
 

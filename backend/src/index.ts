@@ -2,6 +2,9 @@ import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import { PORT, HOST } from './config.js'
 import { storiesRoutes } from './routes/stories.js'
+import { charactersRoutes } from './routes/characters.js'
+import { locationsRoutes } from './routes/locations.js'
+import { characterMemoriesRoutes } from './routes/character-memories.js'
 import { chatsRoutes } from './routes/chats.js'
 import { ollamaRoutes } from './routes/ollama.js'
 import { settingsRoutes } from './routes/settings.js'
@@ -22,6 +25,9 @@ app.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, 
 })
 
 await app.register(storiesRoutes)
+await app.register(charactersRoutes)
+await app.register(locationsRoutes)
+await app.register(characterMemoriesRoutes)
 await app.register(chatsRoutes)
 await app.register(ollamaRoutes)
 await app.register(settingsRoutes)

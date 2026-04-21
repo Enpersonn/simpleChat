@@ -41,6 +41,7 @@ export interface StreamOptions {
   top_k?: number
   repeat_penalty?: number
   num_predict?: number
+  num_ctx?: number
   onChunk: (text: string) => void
   signal?: AbortSignal
 }
@@ -59,6 +60,7 @@ export async function streamChat(opts: StreamOptions): Promise<string> {
       top_k: opts.top_k ?? 40,
       repeat_penalty: opts.repeat_penalty ?? 1.1,
       ...(opts.num_predict ? { num_predict: opts.num_predict } : {}),
+      ...(opts.num_ctx ? { num_ctx: opts.num_ctx } : {}),
     },
   }
 

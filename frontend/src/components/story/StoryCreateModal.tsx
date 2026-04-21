@@ -1,5 +1,5 @@
 import { useState } from 'preact/hooks'
-import type { Story, CharacterCreate } from '@simplechat/types'
+import type { Story, CharacterCreate, LocationCreate } from '@simplechat/types'
 import { useStoriesStore } from '../../store/stories.js'
 import { api } from '../../lib/api.js'
 import { CharacterModal } from './CharacterModal.js'
@@ -8,7 +8,11 @@ import s from './StoryCreateModal.module.css'
 const GENRE_OPTIONS = ['Fantasy', 'Sci-Fi', 'Horror', 'Romance', 'Mystery', 'Thriller', 'Historical', 'Contemporary']
 const TONE_OPTIONS = ['Dark', 'Light', 'Grim', 'Hopeful', 'Intimate', 'Epic', 'Tense', 'Whimsical', 'Melancholic', 'Romantic']
 
+const DRAFT_STEPS = ['Building story core…', 'Generating characters…']
+const PARSE_STEPS = ['Analysing story…', 'Extracting characters…', 'Extracting locations…']
+
 interface PendingChar extends CharacterCreate { _localId: string }
+interface PendingLocation extends LocationCreate { _localId: string }
 
 interface Props {
   onClose: () => void
@@ -17,6 +21,8 @@ interface Props {
 
 export function StoryCreateModal({ onClose, onCreated }: Props) {
   const createStory = useStoriesStore((s) => s.createStory)
+  const [tab, setTab] = useState<'write' | 'import'>('write')
+  const [importText, setImportText] = useState('')
   const [title, setTitle] = useState('')
   const [premise, setPremise] = useState('')
   const [openingMessage, setOpeningMessage] = useState('')
@@ -27,9 +33,10 @@ export function StoryCreateModal({ onClose, onCreated }: Props) {
   const [customGenre, setCustomGenre] = useState('')
   const [customTone, setCustomTone] = useState('')
   const [pendingChars, setPendingChars] = useState<PendingChar[]>([])
+  const [pendingLocations, setPendingLocations] = useState<PendingLocation[]>([])
   const [editingChar, setEditingChar] = useState<PendingChar | 'new' | 'new-persona' | null>(null)
   const [submitting, setSubmitting] = useState(false)
-  const [generating, setGenerating] = useState(false)
+  const [genStep, setGenStep] = useState<0 | 1 | 2 | 3>(0)
   const [error, setError] = useState('')
 
   const toggle = (arr: string[], val: string, setArr: (a: string[]) => void) => {
@@ -42,40 +49,90 @@ export function StoryCreateModal({ onClose, onCreated }: Props) {
     setInput('')
   }
 
+  const applyGeneratedFields = (result: {
+    title?: string; premise?: string; genres: string[]; tone: string[]; rules: string[]; writingStyle: string
+    characters: Array<{ name: string; role: string; isUserPersona: boolean; age: string; gender: string; species: string; clothing: string; appearance: string; personality: string[]; speechStyle: string; trueMotives: string; fears: string[] }>
+    locations?: Array<{ name: string; description: string; layout: string; lighting: string; atmosphere: string; soundscape: string; smells: string; notes: string; tags: string[] }>
+  }) => {
+    if (result.title && !title.trim()) setTitle(result.title)
+    if (result.premise) setPremise(result.premise)
+    if (result.genres.length) setGenres(result.genres)
+    if (result.tone.length) setTones(result.tone)
+    if (result.rules.length) setRules(result.rules.join('\n'))
+    if (result.writingStyle) setWritingStyle(result.writingStyle)
+    if (result.characters?.length) {
+      const newChars: PendingChar[] = result.characters.map((c, i) => ({
+        _localId: `draft-${Date.now()}-${i}`,
+        name: c.name,
+        role: c.role,
+        isUserPersona: c.isUserPersona,
+        public: {
+          age: c.age, gender: c.gender, species: c.species || 'human',
+          clothing: c.clothing, appearance: c.appearance,
+          personality: c.personality, speechStyle: c.speechStyle,
+          reputation: '', voiceNotes: '',
+        },
+        private: {
+          trueMotives: c.trueMotives, fears: c.fears,
+          privateKnowledge: [], moralLimits: '', hiddenEmotionalState: '',
+        },
+      }))
+      setPendingChars((prev) => [...prev, ...newChars])
+    }
+    if (result.locations?.length) {
+      const newLocs: PendingLocation[] = result.locations.map((l, i) => ({
+        _localId: `loc-${Date.now()}-${i}`,
+        name: l.name,
+        description: l.description,
+        layout: l.layout,
+        lighting: l.lighting,
+        atmosphere: l.atmosphere,
+        soundscape: l.soundscape,
+        smells: l.smells,
+        notes: l.notes,
+        tags: l.tags,
+      }))
+      setPendingLocations((prev) => [...prev, ...newLocs])
+    }
+  }
+
+  const generating = genStep > 0
+
   const handleDraft = async () => {
     if (!premise.trim() || generating) return
-    setGenerating(true)
+    setGenStep(1)
     setError('')
     try {
-      const result = await api.stories.generateFields(premise.trim(), !title.trim())
-      if (result.title && !title.trim()) setTitle(result.title)
-      if (result.genres.length) setGenres(result.genres)
-      if (result.tone.length) setTones(result.tone)
-      if (result.rules.length) setRules(result.rules.join('\n'))
-      if (result.writingStyle) setWritingStyle(result.writingStyle)
-      if (result.characters?.length) {
-        const newChars: PendingChar[] = result.characters.map((c, i) => ({
-          _localId: `draft-${Date.now()}-${i}`,
-          name: c.name,
-          role: c.role,
-          isUserPersona: c.isUserPersona,
-          public: {
-            age: c.age, gender: c.gender, species: c.species || 'human',
-            clothing: c.clothing, appearance: c.appearance,
-            personality: c.personality, speechStyle: c.speechStyle,
-            reputation: '', voiceNotes: '',
-          },
-          private: {
-            trueMotives: c.trueMotives, fears: c.fears,
-            privateKnowledge: [], moralLimits: '', hiddenEmotionalState: '',
-          },
-        }))
-        setPendingChars((prev) => [...prev, ...newChars])
-      }
+      const core = await api.stories.generateStoryCore(premise.trim(), !title.trim())
+      applyGeneratedFields({ ...core, characters: [] })
+      setGenStep(2)
+      const { characters } = await api.stories.generateStoryCharacters(premise.trim(), core)
+      applyGeneratedFields({ genres: [], tone: [], rules: [], writingStyle: '', characters })
     } catch (err) {
       setError((err as Error).message)
     } finally {
-      setGenerating(false)
+      setGenStep(0)
+    }
+  }
+
+  const handleParse = async () => {
+    if (!importText.trim() || generating) return
+    setGenStep(1)
+    setError('')
+    try {
+      const core = await api.stories.parseStoryCore(importText.trim())
+      applyGeneratedFields({ ...core, characters: [], locations: [] })
+      setGenStep(2)
+      const { characters } = await api.stories.parseStoryCharacters(importText.trim(), core.premise)
+      applyGeneratedFields({ genres: [], tone: [], rules: [], writingStyle: '', characters, locations: [] })
+      setGenStep(3)
+      const { locations } = await api.stories.parseStoryLocations(importText.trim(), core.premise)
+      applyGeneratedFields({ genres: [], tone: [], rules: [], writingStyle: '', characters: [], locations })
+      setTab('write')
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setGenStep(0)
     }
   }
 
@@ -96,6 +153,9 @@ export function StoryCreateModal({ onClose, onCreated }: Props) {
       for (const { _localId: _, ...charData } of pendingChars) {
         await api.characters.create(story.id, charData)
       }
+      for (const { _localId: _, ...locData } of pendingLocations) {
+        await api.locations.create(story.id, locData)
+      }
       onCreated(story)
     } catch (err) {
       setError((err as Error).message)
@@ -113,6 +173,7 @@ export function StoryCreateModal({ onClose, onCreated }: Props) {
   }
 
   const removeChar = (localId: string) => setPendingChars((prev) => prev.filter((c) => c._localId !== localId))
+  const removeLoc = (localId: string) => setPendingLocations((prev) => prev.filter((l) => l._localId !== localId))
 
   const customGenres = genres.filter((g) => !GENRE_OPTIONS.includes(g))
   const customTones  = tones.filter((t) => !TONE_OPTIONS.includes(t))
@@ -126,163 +187,227 @@ export function StoryCreateModal({ onClose, onCreated }: Props) {
             <button class={s.closeBtn} onClick={onClose}>✕</button>
           </div>
 
+          <div class={s.tabs}>
+            <button class={s.tabBtn} data-active={tab === 'write' ? 'true' : undefined} onClick={() => setTab('write')}>Write</button>
+            <button class={s.tabBtn} data-active={tab === 'import' ? 'true' : undefined} onClick={() => setTab('import')}>Import from text</button>
+          </div>
+
           {error && <div style={{ color: 'var(--error)', fontSize: '12px' }}>{error}</div>}
 
-          <div class={s.field}>
-            <label class={s.label}>Title <span class={s.required}>*</span></label>
-            <input
-              class={s.input}
-              placeholder="e.g. Ashes of Vallor"
-              value={title}
-              onInput={(e) => setTitle((e.target as HTMLInputElement).value)}
-            />
-          </div>
-
-          <div class={s.field}>
-            <label class={s.label}>Premise</label>
-            <textarea
-              class={s.textarea}
-              placeholder="What is this story about? Who are the key players? What world does it inhabit?"
-              value={premise}
-              onInput={(e) => setPremise((e.target as HTMLTextAreaElement).value)}
-              style={{ minHeight: '120px' }}
-            />
-            <div class={s.aiBar}>
-              <button
-                class={s.aiBtn}
-                onClick={handleDraft}
-                disabled={generating || !premise.trim()}
-                title="Use the premise to generate genres, tone, rules, writing style and characters"
-              >
-                {generating ? '✨ Drafting…' : '✨ Draft all fields from premise'}
-              </button>
+          {genStep > 0 && (
+            <div class={s.genProgress}>
+              <span class={s.genSpinner}>↻</span>
+              <span class={s.genLabel}>{(tab === 'import' ? PARSE_STEPS : DRAFT_STEPS)[genStep - 1]}</span>
+              <span class={s.genCount}>{genStep} / {tab === 'import' ? 3 : 2}</span>
             </div>
-          </div>
+          )}
 
-          <div class={s.field}>
-            <label class={s.label}>Genre</label>
-            <div class={s.tagGroup}>
-              {GENRE_OPTIONS.map((g) => (
-                <button
-                  key={g}
-                  class={s.tag}
-                  data-active={genres.includes(g) ? 'true' : undefined}
-                  onClick={() => toggle(genres, g, setGenres)}
-                >
-                  {g}
-                </button>
-              ))}
-              {customGenres.map((g) => (
-                <button key={g} class={s.tag} data-active="true" onClick={() => toggle(genres, g, setGenres)}>
-                  {g}<span class={s.tagRemove}>×</span>
-                </button>
-              ))}
-            </div>
-            <div class={s.tagAddRow}>
-              <input
-                class={s.customTagInput}
-                placeholder="Add genre…"
-                value={customGenre}
-                onInput={(e) => setCustomGenre((e.target as HTMLInputElement).value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCustomTag(customGenre, genres, setGenres, setCustomGenre) } }}
+          {tab === 'import' && (
+            <div class={s.field}>
+              <label class={s.label}>Paste your story notes, excerpts, or drafts</label>
+              <textarea
+                class={s.textarea}
+                placeholder="Paste story notes, chapter drafts, character sketches, world-building notes…"
+                value={importText}
+                onInput={(e) => setImportText((e.target as HTMLTextAreaElement).value)}
+                style={{ minHeight: '220px' }}
               />
-              <button class={s.tagAddBtn} onClick={() => addCustomTag(customGenre, genres, setGenres, setCustomGenre)}>+</button>
-            </div>
-          </div>
-
-          <div class={s.field}>
-            <label class={s.label}>Tone</label>
-            <div class={s.tagGroup}>
-              {TONE_OPTIONS.map((t) => (
+              <div class={s.aiBar}>
                 <button
-                  key={t}
-                  class={s.tag}
-                  data-active={tones.includes(t) ? 'true' : undefined}
-                  onClick={() => toggle(tones, t, setTones)}
+                  class={s.aiBtn}
+                  onClick={handleParse}
+                  disabled={generating || !importText.trim()}
                 >
-                  {t}
+                  {generating ? '✨ Parsing…' : '✨ Parse & Generate'}
                 </button>
-              ))}
-              {customTones.map((t) => (
-                <button key={t} class={s.tag} data-active="true" onClick={() => toggle(tones, t, setTones)}>
-                  {t}<span class={s.tagRemove}>×</span>
-                </button>
-              ))}
-            </div>
-            <div class={s.tagAddRow}>
-              <input
-                class={s.customTagInput}
-                placeholder="Add tone…"
-                value={customTone}
-                onInput={(e) => setCustomTone((e.target as HTMLInputElement).value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCustomTag(customTone, tones, setTones, setCustomTone) } }}
-              />
-              <button class={s.tagAddBtn} onClick={() => addCustomTag(customTone, tones, setTones, setCustomTone)}>+</button>
-            </div>
-          </div>
-
-          <div class={s.field}>
-            <label class={s.label}>World Rules <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(one per line)</span></label>
-            <textarea
-              class={s.textarea}
-              placeholder={"No modern technology\nMagic has a social cost\nThe gods are silent"}
-              value={rules}
-              onInput={(e) => setRules((e.target as HTMLTextAreaElement).value)}
-              style={{ minHeight: '60px' }}
-            />
-          </div>
-
-          <div class={s.field}>
-            <label class={s.label}>Writing Style</label>
-            <textarea
-              class={s.textarea}
-              placeholder="e.g. cinematic, sensory-rich, short punchy dialogue, third-person intimate"
-              value={writingStyle}
-              onInput={(e) => setWritingStyle((e.target as HTMLTextAreaElement).value)}
-              style={{ minHeight: '56px' }}
-            />
-          </div>
-
-          <div class={s.field}>
-            <label class={s.label}>Opening Message <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(optional — used when starting a new chat)</span></label>
-            <textarea
-              class={s.textarea}
-              placeholder="The scene opens on a rain-slicked street…"
-              value={openingMessage}
-              onInput={(e) => setOpeningMessage((e.target as HTMLTextAreaElement).value)}
-              style={{ minHeight: '60px' }}
-            />
-          </div>
-
-          <div class={s.field}>
-            <div class={s.charSectionHeader}>
-              <label class={s.label} style={{ margin: 0 }}>Characters</label>
-              <div class={s.charAddBtns}>
-                <button class={s.aiBtn} onClick={() => setEditingChar('new-persona')}>+ Persona</button>
-                <button class={s.aiBtn} onClick={() => setEditingChar('new')}>+ Character</button>
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                The LLM will synthesise a clean premise and extract characters and locations. Review all fields before creating.
               </div>
             </div>
-            {pendingChars.length === 0 && (
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>No characters yet — draft from premise or add manually.</div>
-            )}
-            {pendingChars.map((c) => (
-              <div key={c._localId} class={s.charRow}>
-                <span class={s.charIcon}>{c.isUserPersona ? '🧑' : '🎭'}</span>
-                <span class={s.charName}>{c.name}</span>
-                {c.role && <span class={s.charRole}>{c.role}</span>}
-                <span class={s.charActions}>
-                  <button class={s.iconActionBtn} onClick={() => setEditingChar(c)}>✎</button>
-                  <button class={s.iconActionBtn} onClick={() => removeChar(c._localId)}>✕</button>
-                </span>
+          )}
+
+          {tab === 'write' && (
+            <>
+              <div class={s.field}>
+                <label class={s.label}>Title <span class={s.required}>*</span></label>
+                <input
+                  class={s.input}
+                  placeholder="e.g. Ashes of Vallor"
+                  value={title}
+                  onInput={(e) => setTitle((e.target as HTMLInputElement).value)}
+                />
               </div>
-            ))}
-          </div>
+
+              <div class={s.field}>
+                <label class={s.label}>Premise</label>
+                <textarea
+                  class={s.textarea}
+                  placeholder="What is this story about? Who are the key players? What world does it inhabit?"
+                  value={premise}
+                  onInput={(e) => setPremise((e.target as HTMLTextAreaElement).value)}
+                  style={{ minHeight: '120px' }}
+                />
+                <div class={s.aiBar}>
+                  <button
+                    class={s.aiBtn}
+                    onClick={handleDraft}
+                    disabled={generating || !premise.trim()}
+                    title="Use the premise to generate genres, tone, rules, writing style and characters"
+                  >
+                    {generating ? '✨ Drafting…' : '✨ Draft all fields from premise'}
+                  </button>
+                </div>
+              </div>
+
+              <div class={s.field}>
+                <label class={s.label}>Genre</label>
+                <div class={s.tagGroup}>
+                  {GENRE_OPTIONS.map((g) => (
+                    <button
+                      key={g}
+                      class={s.tag}
+                      data-active={genres.includes(g) ? 'true' : undefined}
+                      onClick={() => toggle(genres, g, setGenres)}
+                    >
+                      {g}
+                    </button>
+                  ))}
+                  {customGenres.map((g) => (
+                    <button key={g} class={s.tag} data-active="true" onClick={() => toggle(genres, g, setGenres)}>
+                      {g}<span class={s.tagRemove}>×</span>
+                    </button>
+                  ))}
+                </div>
+                <div class={s.tagAddRow}>
+                  <input
+                    class={s.customTagInput}
+                    placeholder="Add genre…"
+                    value={customGenre}
+                    onInput={(e) => setCustomGenre((e.target as HTMLInputElement).value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCustomTag(customGenre, genres, setGenres, setCustomGenre) } }}
+                  />
+                  <button class={s.tagAddBtn} onClick={() => addCustomTag(customGenre, genres, setGenres, setCustomGenre)}>+</button>
+                </div>
+              </div>
+
+              <div class={s.field}>
+                <label class={s.label}>Tone</label>
+                <div class={s.tagGroup}>
+                  {TONE_OPTIONS.map((t) => (
+                    <button
+                      key={t}
+                      class={s.tag}
+                      data-active={tones.includes(t) ? 'true' : undefined}
+                      onClick={() => toggle(tones, t, setTones)}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                  {customTones.map((t) => (
+                    <button key={t} class={s.tag} data-active="true" onClick={() => toggle(tones, t, setTones)}>
+                      {t}<span class={s.tagRemove}>×</span>
+                    </button>
+                  ))}
+                </div>
+                <div class={s.tagAddRow}>
+                  <input
+                    class={s.customTagInput}
+                    placeholder="Add tone…"
+                    value={customTone}
+                    onInput={(e) => setCustomTone((e.target as HTMLInputElement).value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCustomTag(customTone, tones, setTones, setCustomTone) } }}
+                  />
+                  <button class={s.tagAddBtn} onClick={() => addCustomTag(customTone, tones, setTones, setCustomTone)}>+</button>
+                </div>
+              </div>
+
+              <div class={s.field}>
+                <label class={s.label}>World Rules <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(one per line)</span></label>
+                <textarea
+                  class={s.textarea}
+                  placeholder={"No modern technology\nMagic has a social cost\nThe gods are silent"}
+                  value={rules}
+                  onInput={(e) => setRules((e.target as HTMLTextAreaElement).value)}
+                  style={{ minHeight: '60px' }}
+                />
+              </div>
+
+              <div class={s.field}>
+                <label class={s.label}>Writing Style</label>
+                <textarea
+                  class={s.textarea}
+                  placeholder="e.g. cinematic, sensory-rich, short punchy dialogue, third-person intimate"
+                  value={writingStyle}
+                  onInput={(e) => setWritingStyle((e.target as HTMLTextAreaElement).value)}
+                  style={{ minHeight: '56px' }}
+                />
+              </div>
+
+              <div class={s.field}>
+                <label class={s.label}>Opening Message <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(optional)</span></label>
+                <textarea
+                  class={s.textarea}
+                  placeholder="The scene opens on a rain-slicked street…"
+                  value={openingMessage}
+                  onInput={(e) => setOpeningMessage((e.target as HTMLTextAreaElement).value)}
+                  style={{ minHeight: '60px' }}
+                />
+              </div>
+
+              <div class={s.field}>
+                <div class={s.charSectionHeader}>
+                  <label class={s.label} style={{ margin: 0 }}>Characters</label>
+                  <div class={s.charAddBtns}>
+                    <button class={s.aiBtn} onClick={() => setEditingChar('new-persona')}>+ Persona</button>
+                    <button class={s.aiBtn} onClick={() => setEditingChar('new')}>+ Character</button>
+                  </div>
+                </div>
+                {pendingChars.length === 0 && (
+                  <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>No characters yet — draft from premise or add manually.</div>
+                )}
+                {pendingChars.map((c) => (
+                  <div key={c._localId} class={s.charRow}>
+                    <span class={s.charIcon}>{c.isUserPersona ? '🧑' : '🎭'}</span>
+                    <span class={s.charName}>{c.name}</span>
+                    {c.role && <span class={s.charRole}>{c.role}</span>}
+                    <span class={s.charActions}>
+                      <button class={s.iconActionBtn} onClick={() => setEditingChar(c)}>✎</button>
+                      <button class={s.iconActionBtn} onClick={() => removeChar(c._localId)}>✕</button>
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {pendingLocations.length > 0 && (
+                <div class={s.field}>
+                  <label class={s.label}>Locations</label>
+                  {pendingLocations.map((l) => (
+                    <div key={l._localId} class={s.charRow}>
+                      <span class={s.charIcon}>📍</span>
+                      <span class={s.charName}>{l.name}</span>
+                      {l.description && <span class={s.charRole}>{l.description}</span>}
+                      <span class={s.charActions}>
+                        <button class={s.iconActionBtn} onClick={() => removeLoc(l._localId)}>✕</button>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
 
           <div class={s.footer}>
             <button class={s.cancelBtn} onClick={onClose}>Cancel</button>
-            <button class={s.submitBtn} onClick={handleSubmit} disabled={submitting || !title.trim()}>
-              {submitting ? 'Creating…' : 'Create Story'}
-            </button>
+            {tab === 'import' ? (
+              <button class={s.submitBtn} onClick={() => setTab('write')} disabled={generating}>
+                {generating ? 'Parsing…' : 'Review fields →'}
+              </button>
+            ) : (
+              <button class={s.submitBtn} onClick={handleSubmit} disabled={submitting || !title.trim()}>
+                {submitting ? 'Creating…' : 'Create Story'}
+              </button>
+            )}
           </div>
         </div>
       </div>

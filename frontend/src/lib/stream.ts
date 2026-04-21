@@ -3,6 +3,11 @@ export interface DebugInfo {
   model: string
 }
 
+export interface StateUpdate {
+  currentLocationId: string | null
+  locationName: string | null | undefined
+}
+
 export interface StreamOptions {
   storyId: string
   chatId: string
@@ -11,6 +16,7 @@ export interface StreamOptions {
   onDone: () => void
   onError: (msg: string) => void
   onDebug?: (info: DebugInfo) => void
+  onStateUpdate?: (update: StateUpdate) => void
   signal?: AbortSignal
 }
 
@@ -20,6 +26,7 @@ async function readStream(
   onDone: () => void,
   onError: (msg: string) => void,
   onDebug?: (info: DebugInfo) => void,
+  onStateUpdate?: (update: StateUpdate) => void,
 ): Promise<void> {
   if (!res.body) { onError(`Request failed: ${res.status}`); return }
 
@@ -44,8 +51,9 @@ async function readStream(
     for (const line of lines) {
       if (!line.trim()) continue
       try {
-        const msg = JSON.parse(line) as { content?: string; done?: boolean; error?: string; debug?: DebugInfo }
+        const msg = JSON.parse(line) as { content?: string; done?: boolean; error?: string; debug?: DebugInfo; stateUpdate?: StateUpdate }
         if (msg.debug) { onDebug?.(msg.debug); continue }
+        if (msg.stateUpdate) { onStateUpdate?.(msg.stateUpdate); continue }
         if (msg.error) { onError(msg.error); return }
         if (msg.content) onChunk(msg.content)
         if (msg.done) { onDone(); return }
@@ -75,7 +83,7 @@ export async function sendMessageStream(opts: StreamOptions): Promise<void> {
   }
 
   if (!res.ok || !res.body) { onError(`Request failed: ${res.status}`); return }
-  await readStream(res, onChunk, onDone, onError, onDebug)
+  await readStream(res, onChunk, onDone, onError, onDebug, opts.onStateUpdate)
 }
 
 export async function openerStream(
@@ -118,5 +126,5 @@ export async function regenerateStream(opts: StreamOptions): Promise<void> {
   }
 
   if (!res.ok || !res.body) { onError(`Request failed: ${res.status}`); return }
-  await readStream(res, onChunk, onDone, onError, onDebug)
+  await readStream(res, onChunk, onDone, onError, onDebug, opts.onStateUpdate)
 }

@@ -37,6 +37,23 @@
 .modeTag[data-mode='interactive'] { background: rgba(124,106,247,0.2); color: var(--accent); }
 .modeTag[data-mode='storyteller'] { background: rgba(251,191,36,0.2); color: var(--warning); }
 
+.stateToast {
+  margin: 6px 16px 0;
+  padding: 6px 10px;
+  background: rgba(124,106,247,0.12);
+  border: 1px solid rgba(124,106,247,0.3);
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  color: var(--accent);
+  flex-shrink: 0;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
 .error {
   margin: 0 16px;
   padding: 8px 12px;

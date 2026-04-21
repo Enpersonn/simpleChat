@@ -1,10 +1,5 @@
 import type { FastifyInstance } from 'fastify'
-import {
-  StoryCreateSchema,
-  StoryUpdateSchema,
-  CharacterCreateSchema,
-  CharacterUpdateSchema,
-} from '@simplechat/types'
+import { StoryCreateSchema, StoryUpdateSchema } from '@simplechat/types'
 import * as storage from '../storage.js'
 
 function extractJson(raw: string): unknown {
@@ -12,12 +7,59 @@ function extractJson(raw: string): unknown {
   return JSON.parse((fenced ? fenced[1] : raw).trim())
 }
 
+function normaliseCharacter(c: Record<string, unknown>) {
+  return {
+    name:         typeof c.name         === 'string' ? c.name         : '',
+    role:         typeof c.role         === 'string' ? c.role         : '',
+    isUserPersona: c.isUserPersona === true,
+    age:          typeof c.age          === 'string' ? c.age          : '',
+    gender:       typeof c.gender       === 'string' ? c.gender       : '',
+    species:      typeof c.species      === 'string' ? c.species      : 'human',
+    clothing:     typeof c.clothing     === 'string' ? c.clothing     : '',
+    appearance:   typeof c.appearance   === 'string' ? c.appearance   : '',
+    personality:  Array.isArray(c.personality) ? c.personality.filter((x): x is string => typeof x === 'string') : [],
+    speechStyle:  typeof c.speechStyle  === 'string' ? c.speechStyle  : '',
+    trueMotives:  typeof c.trueMotives  === 'string' ? c.trueMotives  : '',
+    fears:        Array.isArray(c.fears) ? c.fears.filter((x): x is string => typeof x === 'string') : [],
+  }
+}
+
+function normaliseLocation(l: Record<string, unknown>) {
+  return {
+    name:        typeof l.name        === 'string' ? l.name        : '',
+    description: typeof l.description === 'string' ? l.description : '',
+    layout:      typeof l.layout      === 'string' ? l.layout      : '',
+    lighting:    typeof l.lighting    === 'string' ? l.lighting    : '',
+    atmosphere:  typeof l.atmosphere  === 'string' ? l.atmosphere  : '',
+    soundscape:  typeof l.soundscape  === 'string' ? l.soundscape  : '',
+    smells:      typeof l.smells      === 'string' ? l.smells      : '',
+    notes:       typeof l.notes       === 'string' ? l.notes       : '',
+    tags:        Array.isArray(l.tags) ? l.tags.filter((x): x is string => typeof x === 'string') : [],
+  }
+}
+
+function parseCharactersArray(data: Record<string, unknown>) {
+  const raw = Array.isArray(data.characters) ? data.characters : []
+  return raw
+    .filter((c): c is Record<string, unknown> => typeof c === 'object' && c !== null)
+    .map(normaliseCharacter)
+    .filter((c) => c.name)
+}
+
+function parseLocationsArray(data: Record<string, unknown>) {
+  const raw = Array.isArray(data.locations) ? data.locations : []
+  return raw
+    .filter((l): l is Record<string, unknown> => typeof l === 'object' && l !== null)
+    .map(normaliseLocation)
+    .filter((l) => l.name)
+}
+
 const STORY_GENRES = ['Fantasy', 'Sci-Fi', 'Horror', 'Romance', 'Mystery', 'Thriller', 'Historical', 'Contemporary']
 const STORY_TONES  = ['Dark', 'Light', 'Grim', 'Hopeful', 'Intimate', 'Epic', 'Tense', 'Whimsical', 'Melancholic', 'Romantic']
 
 export async function storiesRoutes(app: FastifyInstance): Promise<void> {
 
-  // ─── AI Story Field Generation ──────────────────────────────────────────────
+  // ─── AI Generation (legacy monolithic) ───────────────────────────────────
 
   app.post('/stories/generate-fields', async (req, reply) => {
     const { concept, includeTitle } = req.body as { concept?: string; includeTitle?: boolean }
@@ -70,36 +112,386 @@ export async function storiesRoutes(app: FastifyInstance): Promise<void> {
 
     try {
       const data = extractJson(raw) as Record<string, unknown>
-      const rawChars = Array.isArray(data.characters) ? data.characters : []
-      const characters = rawChars
-        .filter((c): c is Record<string, unknown> => typeof c === 'object' && c !== null)
-        .map((c) => ({
-          name:        typeof c.name        === 'string' ? c.name        : '',
-          role:        typeof c.role        === 'string' ? c.role        : '',
-          isUserPersona: c.isUserPersona === true,
-          age:         typeof c.age         === 'string' ? c.age         : '',
-          gender:      typeof c.gender      === 'string' ? c.gender      : '',
-          species:     typeof c.species     === 'string' ? c.species     : 'human',
-          clothing:    typeof c.clothing    === 'string' ? c.clothing    : '',
-          appearance:  typeof c.appearance  === 'string' ? c.appearance  : '',
-          personality: Array.isArray(c.personality) ? c.personality.filter((x): x is string => typeof x === 'string') : [],
-          speechStyle: typeof c.speechStyle === 'string' ? c.speechStyle : '',
-          trueMotives: typeof c.trueMotives === 'string' ? c.trueMotives : '',
-          fears:       Array.isArray(c.fears) ? c.fears.filter((x): x is string => typeof x === 'string') : [],
-        }))
-        .filter((c) => c.name)
       return {
         ...(includeTitle && typeof data.title === 'string' ? { title: data.title } : {}),
         genres:       Array.isArray(data.genres)       ? data.genres.filter((x): x is string => typeof x === 'string')       : [],
         tone:         Array.isArray(data.tone)         ? data.tone.filter((x): x is string => typeof x === 'string')         : [],
         rules:        Array.isArray(data.rules)        ? data.rules.filter((x): x is string => typeof x === 'string')        : [],
         writingStyle: typeof data.writingStyle === 'string' ? data.writingStyle : '',
-        characters,
+        characters:   parseCharactersArray(data),
       }
     } catch {
       return reply.status(422).send({ error: 'LLM did not return valid JSON', raw })
     }
   })
+
+  // ─── AI Generation (multi-step) ───────────────────────────────────────────
+
+  app.post('/stories/generate-story-core', async (req, reply) => {
+    const { concept, includeTitle } = req.body as { concept?: string; includeTitle?: boolean }
+    if (!concept?.trim()) return reply.status(400).send({ error: 'concept is required' })
+
+    const { streamChat } = await import('../ollama.js')
+    const systemPrompt = [
+      'You are a creative writing assistant. Your ONLY job is to output a single JSON object — nothing else.',
+      'Do NOT write characters. Do NOT write any explanation, commentary, or prose. Do NOT use markdown or code fences.',
+      'Given a story concept, generate the story metadata only. Output ONLY the raw JSON object below:',
+      '{',
+      ...(includeTitle ? ['  "title": "string",'] : []),
+      '  "genres": ["string", ...],',
+      `  // allowed genres: ${STORY_GENRES.join(', ')}`,
+      '  "tone": ["string", ...],',
+      `  // allowed tones: ${STORY_TONES.join(', ')}`,
+      '  "rules": ["string", ...],',
+      '  // 2-4 world rules as short sentences',
+      '  "writingStyle": "string"',
+      '  // one sentence describing narrative style',
+      '}',
+    ].join('\n')
+
+    let raw = ''
+    await streamChat({
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: `Story concept:\n${concept.trim()}\n\nRespond with ONLY the JSON object. No other text.` },
+      ],
+      temperature: 0.85,
+      onChunk: (text) => { raw += text },
+    })
+
+    try {
+      const data = extractJson(raw) as Record<string, unknown>
+      return {
+        ...(includeTitle && typeof data.title === 'string' ? { title: data.title } : {}),
+        genres:       Array.isArray(data.genres)       ? data.genres.filter((x): x is string => typeof x === 'string')       : [],
+        tone:         Array.isArray(data.tone)         ? data.tone.filter((x): x is string => typeof x === 'string')         : [],
+        rules:        Array.isArray(data.rules)        ? data.rules.filter((x): x is string => typeof x === 'string')        : [],
+        writingStyle: typeof data.writingStyle === 'string' ? data.writingStyle : '',
+      }
+    } catch {
+      return reply.status(422).send({ error: 'LLM did not return valid JSON', raw })
+    }
+  })
+
+  app.post('/stories/generate-story-characters', async (req, reply) => {
+    const { concept, genres, tone, writingStyle } = req.body as {
+      concept?: string; genres?: string[]; tone?: string[]; writingStyle?: string
+    }
+    if (!concept?.trim()) return reply.status(400).send({ error: 'concept is required' })
+
+    const { streamChat } = await import('../ollama.js')
+    const systemPrompt = [
+      'You are a creative writing assistant. Your ONLY job is to output a single JSON object — nothing else.',
+      'Do NOT write any explanation, commentary, or prose. Do NOT use markdown or code fences.',
+      'Given a story concept and its established style, create the characters. Output ONLY the raw JSON object below:',
+      '{',
+      '  "characters": [',
+      '    {',
+      '      "name": "string",',
+      '      "role": "string",',
+      '      "isUserPersona": false,',
+      '      // set isUserPersona: true only if this is explicitly the player/user character',
+      '      "age": "string",',
+      '      "gender": "string",',
+      '      "species": "string",',
+      '      "clothing": "string",',
+      '      "appearance": "string",',
+      '      "personality": ["trait"],',
+      '      "speechStyle": "string",',
+      '      "trueMotives": "string",',
+      '      "fears": ["fear"]',
+      '    }',
+      '  ]',
+      '  // extract named characters from the concept; create 1-3 if none are named',
+      '}',
+    ].join('\n')
+
+    const styleContext = [
+      genres?.length ? `Genres: ${genres.join(', ')}` : '',
+      tone?.length ? `Tone: ${tone.join(', ')}` : '',
+      writingStyle ? `Writing style: ${writingStyle}` : '',
+    ].filter(Boolean).join('\n')
+
+    let raw = ''
+    await streamChat({
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: `Story concept:\n${concept.trim()}${styleContext ? `\n\n${styleContext}` : ''}\n\nRespond with ONLY the JSON object. No other text.` },
+      ],
+      temperature: 0.85,
+      onChunk: (text) => { raw += text },
+    })
+
+    try {
+      const data = extractJson(raw) as Record<string, unknown>
+      return { characters: parseCharactersArray(data) }
+    } catch {
+      return reply.status(422).send({ error: 'LLM did not return valid JSON', raw })
+    }
+  })
+
+  // ─── Import from text (multi-step) ────────────────────────────────────────
+
+  app.post('/stories/parse-story-core', async (req, reply) => {
+    const { text } = req.body as { text?: string }
+    if (!text?.trim()) return reply.status(400).send({ error: 'text is required' })
+
+    const { streamChat } = await import('../ollama.js')
+    const systemPrompt = [
+      'You are a story metadata extractor. Your ONLY job is to output a single JSON object — nothing else.',
+      'Do NOT extract characters or locations. Do NOT write any analysis, explanation, commentary, or prose. Do NOT use markdown or code fences.',
+      'Read the story text. Synthesise a concise 2-4 sentence premise (do not copy verbatim). Extract metadata only.',
+      'Output ONLY the raw JSON object below, with no text before or after it:',
+      '{',
+      '  "title": "string",',
+      '  "premise": "string — synthesised 2-4 sentence premise",',
+      '  "genres": ["string", ...],',
+      `  // allowed genres: ${STORY_GENRES.join(', ')}`,
+      '  "tone": ["string", ...],',
+      `  // allowed tones: ${STORY_TONES.join(', ')}`,
+      '  "rules": ["string", ...],',
+      '  "writingStyle": "string"',
+      '}',
+    ].join('\n')
+
+    let raw = ''
+    await streamChat({
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: `Story text:\n${text.trim()}\n\nRespond with ONLY the JSON object. No other text.` },
+      ],
+      temperature: 0.1,
+      num_ctx: 8192,
+      onChunk: (t) => { raw += t },
+    })
+
+    try {
+      const data = extractJson(raw) as Record<string, unknown>
+      return {
+        title:        typeof data.title        === 'string' ? data.title        : '',
+        premise:      typeof data.premise      === 'string' ? data.premise      : '',
+        genres:       Array.isArray(data.genres)       ? data.genres.filter((x): x is string => typeof x === 'string')       : [],
+        tone:         Array.isArray(data.tone)         ? data.tone.filter((x): x is string => typeof x === 'string')         : [],
+        rules:        Array.isArray(data.rules)        ? data.rules.filter((x): x is string => typeof x === 'string')        : [],
+        writingStyle: typeof data.writingStyle === 'string' ? data.writingStyle : '',
+      }
+    } catch {
+      return reply.status(422).send({ error: 'LLM did not return valid JSON', raw })
+    }
+  })
+
+  app.post('/stories/parse-story-characters', async (req, reply) => {
+    const { text, premise } = req.body as { text?: string; premise?: string }
+    if (!text?.trim()) return reply.status(400).send({ error: 'text is required' })
+
+    const { streamChat } = await import('../ollama.js')
+    const systemPrompt = [
+      'You are a character extractor. Your ONLY job is to output a single JSON object — nothing else.',
+      'Do NOT write any analysis, explanation, commentary, or prose. Do NOT use markdown or code fences.',
+      'Extract all named characters from the story text. Use the story premise as context.',
+      'Output ONLY the raw JSON object below, with no text before or after it:',
+      '{',
+      '  "characters": [',
+      '    {',
+      '      "name": "string",',
+      '      "role": "string",',
+      '      "isUserPersona": false,',
+      '      "age": "string",',
+      '      "gender": "string",',
+      '      "species": "string",',
+      '      "clothing": "string",',
+      '      "appearance": "string",',
+      '      "personality": ["trait"],',
+      '      "speechStyle": "string",',
+      '      "trueMotives": "string",',
+      '      "fears": ["fear"]',
+      '    }',
+      '  ]',
+      '}',
+    ].join('\n')
+
+    let raw = ''
+    await streamChat({
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: `${premise?.trim() ? `Story premise: ${premise.trim()}\n\n` : ''}Story text:\n${text.trim()}\n\nRespond with ONLY the JSON object. No other text.` },
+      ],
+      temperature: 0.1,
+      num_ctx: 8192,
+      onChunk: (t) => { raw += t },
+    })
+
+    try {
+      const data = extractJson(raw) as Record<string, unknown>
+      return { characters: parseCharactersArray(data) }
+    } catch {
+      return reply.status(422).send({ error: 'LLM did not return valid JSON', raw })
+    }
+  })
+
+  app.post('/stories/parse-story-locations', async (req, reply) => {
+    const { text, premise } = req.body as { text?: string; premise?: string }
+    if (!text?.trim()) return reply.status(400).send({ error: 'text is required' })
+
+    const { streamChat } = await import('../ollama.js')
+    const systemPrompt = [
+      'You are a location extractor. Your ONLY job is to output a single JSON object — nothing else.',
+      'Do NOT write any analysis, explanation, commentary, or prose. Do NOT use markdown or code fences.',
+      'Extract all distinct locations and settings from the story text. Use the story premise as context.',
+      'Output ONLY the raw JSON object below, with no text before or after it:',
+      '{',
+      '  "locations": [',
+      '    {',
+      '      "name": "string",',
+      '      "description": "string",',
+      '      "layout": "string",',
+      '      "lighting": "string",',
+      '      "atmosphere": "string",',
+      '      "soundscape": "string",',
+      '      "smells": "string",',
+      '      "notes": "string",',
+      '      "tags": ["string"]',
+      '    }',
+      '  ]',
+      '}',
+    ].join('\n')
+
+    let raw = ''
+    await streamChat({
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: `${premise?.trim() ? `Story premise: ${premise.trim()}\n\n` : ''}Story text:\n${text.trim()}\n\nRespond with ONLY the JSON object. No other text.` },
+      ],
+      temperature: 0.1,
+      num_ctx: 8192,
+      onChunk: (t) => { raw += t },
+    })
+
+    try {
+      const data = extractJson(raw) as Record<string, unknown>
+      return { locations: parseLocationsArray(data) }
+    } catch {
+      return reply.status(422).send({ error: 'LLM did not return valid JSON', raw })
+    }
+  })
+
+  // ─── Import from text (legacy monolithic) ────────────────────────────────
+
+  app.post('/stories/parse-text', async (req, reply) => {
+    const { text } = req.body as { text?: string }
+    if (!text?.trim()) return reply.status(400).send({ error: 'text is required' })
+
+    const { streamChat } = await import('../ollama.js')
+    const systemPrompt = [
+      'You are a story metadata extractor. Your ONLY job is to output a single JSON object — nothing else.',
+      'Do NOT write any analysis, explanation, commentary, or prose. Do NOT use markdown. Do NOT use code fences.',
+      'Read the provided story text. Synthesise a concise 2-4 sentence premise (do not copy verbatim). Extract characters and locations.',
+      'Output ONLY the raw JSON object below, with no text before or after it:',
+      '{',
+      '  "title": "string",',
+      '  "premise": "string — synthesised 2-4 sentence premise",',
+      '  "genres": ["string", ...],',
+      `  // allowed genres: ${STORY_GENRES.join(', ')}`,
+      '  "tone": ["string", ...],',
+      `  // allowed tones: ${STORY_TONES.join(', ')}`,
+      '  "rules": ["string", ...],',
+      '  "writingStyle": "string",',
+      '  "characters": [',
+      '    {',
+      '      "name": "string",',
+      '      "role": "string",',
+      '      "isUserPersona": false,',
+      '      "age": "string",',
+      '      "gender": "string",',
+      '      "species": "string",',
+      '      "clothing": "string",',
+      '      "appearance": "string",',
+      '      "personality": ["trait"],',
+      '      "speechStyle": "string",',
+      '      "trueMotives": "string",',
+      '      "fears": ["fear"]',
+      '    }',
+      '  ],',
+      '  "locations": [',
+      '    {',
+      '      "name": "string",',
+      '      "description": "string",',
+      '      "layout": "string",',
+      '      "lighting": "string",',
+      '      "atmosphere": "string",',
+      '      "soundscape": "string",',
+      '      "smells": "string",',
+      '      "notes": "string",',
+      '      "tags": ["string"]',
+      '    }',
+      '  ]',
+      '}',
+    ].join('\n')
+
+    let raw = ''
+    await streamChat({
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: `Story text:\n${text.trim()}\n\nRespond with ONLY the JSON object. No other text.` },
+      ],
+      temperature: 0.1,
+      num_ctx: 8192,
+      onChunk: (t) => { raw += t },
+    })
+
+    try {
+      const data = extractJson(raw) as Record<string, unknown>
+      return {
+        title:        typeof data.title        === 'string' ? data.title        : '',
+        premise:      typeof data.premise      === 'string' ? data.premise      : '',
+        genres:       Array.isArray(data.genres)       ? data.genres.filter((x): x is string => typeof x === 'string')       : [],
+        tone:         Array.isArray(data.tone)         ? data.tone.filter((x): x is string => typeof x === 'string')         : [],
+        rules:        Array.isArray(data.rules)        ? data.rules.filter((x): x is string => typeof x === 'string')        : [],
+        writingStyle: typeof data.writingStyle === 'string' ? data.writingStyle : '',
+        characters:   parseCharactersArray(data),
+        locations:    parseLocationsArray(data),
+      }
+    } catch {
+      return reply.status(422).send({ error: 'LLM did not return valid JSON', raw })
+    }
+  })
+
+  // ─── Stories CRUD ─────────────────────────────────────────────────────────
+
+  app.get('/stories', async () => {
+    return storage.listStories()
+  })
+
+  app.get<{ Params: { id: string } }>('/stories/:id', async (req, reply) => {
+    const story = await storage.getStory(req.params.id)
+    if (!story) return reply.status(404).send({ error: 'Story not found' })
+    const characters = await storage.listCharacters(req.params.id)
+    const locations = await storage.listLocations(req.params.id)
+    return { story, characters, locations }
+  })
+
+  app.post('/stories', async (req, reply) => {
+    const body = StoryCreateSchema.safeParse(req.body)
+    if (!body.success) return reply.status(400).send({ error: body.error.flatten() })
+    const story = await storage.createStory(body.data)
+    return reply.status(201).send(story)
+  })
+
+  app.patch<{ Params: { id: string } }>('/stories/:id', async (req, reply) => {
+    const body = StoryUpdateSchema.safeParse(req.body)
+    if (!body.success) return reply.status(400).send({ error: body.error.flatten() })
+    const story = await storage.updateStory(req.params.id, body.data)
+    if (!story) return reply.status(404).send({ error: 'Story not found' })
+    return story
+  })
+
+  app.delete<{ Params: { id: string } }>('/stories/:id', async (req, reply) => {
+    const ok = await storage.deleteStory(req.params.id)
+    if (!ok) return reply.status(404).send({ error: 'Story not found' })
+    return { ok: true }
+  })
+
+  // ─── Supporting field generation ──────────────────────────────────────────
 
   app.post<{ Params: { id: string } }>('/stories/:id/generate-supporting', async (req, reply) => {
     const story = await storage.getStory(req.params.id)
@@ -138,126 +530,6 @@ export async function storiesRoutes(app: FastifyInstance): Promise<void> {
         tone:         Array.isArray(data.tone)         ? data.tone.filter((x): x is string => typeof x === 'string')         : [],
         rules:        Array.isArray(data.rules)        ? data.rules.filter((x): x is string => typeof x === 'string')        : [],
         writingStyle: typeof data.writingStyle === 'string' ? data.writingStyle : '',
-      }
-    } catch {
-      return reply.status(422).send({ error: 'LLM did not return valid JSON', raw })
-    }
-  })
-
-  // ─── Stories ──────────────────────────────────────────────────────────────
-
-  app.get('/stories', async () => {
-    return storage.listStories()
-  })
-
-  app.get<{ Params: { id: string } }>('/stories/:id', async (req, reply) => {
-    const story = await storage.getStory(req.params.id)
-    if (!story) return reply.status(404).send({ error: 'Story not found' })
-    const characters = await storage.listCharacters(req.params.id)
-    return { story, characters }
-  })
-
-  app.post('/stories', async (req, reply) => {
-    const body = StoryCreateSchema.safeParse(req.body)
-    if (!body.success) return reply.status(400).send({ error: body.error.flatten() })
-    const story = await storage.createStory(body.data)
-    return reply.status(201).send(story)
-  })
-
-  app.patch<{ Params: { id: string } }>('/stories/:id', async (req, reply) => {
-    const body = StoryUpdateSchema.safeParse(req.body)
-    if (!body.success) return reply.status(400).send({ error: body.error.flatten() })
-    const story = await storage.updateStory(req.params.id, body.data)
-    if (!story) return reply.status(404).send({ error: 'Story not found' })
-    return story
-  })
-
-  app.delete<{ Params: { id: string } }>('/stories/:id', async (req, reply) => {
-    const ok = await storage.deleteStory(req.params.id)
-    if (!ok) return reply.status(404).send({ error: 'Story not found' })
-    return { ok: true }
-  })
-
-  // ─── Characters ───────────────────────────────────────────────────────────
-
-  app.get<{ Params: { id: string } }>('/stories/:id/characters', async (req) => {
-    return storage.listCharacters(req.params.id)
-  })
-
-  app.post<{ Params: { id: string } }>('/stories/:id/characters', async (req, reply) => {
-    const body = CharacterCreateSchema.safeParse(req.body)
-    if (!body.success) return reply.status(400).send({ error: body.error.flatten() })
-    const char = await storage.createCharacter(req.params.id, body.data)
-    return reply.status(201).send(char)
-  })
-
-  app.patch<{ Params: { id: string; cid: string } }>('/stories/:id/characters/:cid', async (req, reply) => {
-    const body = CharacterUpdateSchema.safeParse(req.body)
-    if (!body.success) return reply.status(400).send({ error: body.error.flatten() })
-    const char = await storage.updateCharacter(req.params.id, req.params.cid, body.data)
-    if (!char) return reply.status(404).send({ error: 'Character not found' })
-    return char
-  })
-
-  app.delete<{ Params: { id: string; cid: string } }>('/stories/:id/characters/:cid', async (req, reply) => {
-    const ok = await storage.deleteCharacter(req.params.id, req.params.cid)
-    if (!ok) return reply.status(404).send({ error: 'Character not found' })
-    return { ok: true }
-  })
-
-  // ─── AI Character Generation ──────────────────────────────────────────────
-
-  app.post<{ Params: { id: string } }>('/stories/:id/characters/generate-fields', async (req, reply) => {
-    const { prompt } = req.body as { prompt?: string }
-    if (!prompt?.trim()) return reply.status(400).send({ error: 'prompt is required' })
-
-    const story = await storage.getStory(req.params.id)
-    const storyContext = story ? `Story: "${story.title}"${story.premise ? `\nPremise: ${story.premise}` : ''}` : ''
-
-    const { streamChat } = await import('../ollama.js')
-    const systemPrompt = [
-      'You are a creative writing assistant. Return ONLY valid JSON — no explanation, no markdown, no code fences.',
-      'Given a character description, generate a complete character profile.',
-      'Return exactly this JSON shape:',
-      '{',
-      '  "name": "string",',
-      '  "role": "string (title or occupation)",',
-      '  "age": "string (e.g. \\"mid-30s\\" or \\"ancient\\")",',
-      '  "gender": "string",',
-      '  "species": "string (e.g. human, wolf, android — default human)",',
-      '  "clothing": "string (brief outfit description)",',
-      '  "appearance": "string (2-3 sentences of physical description)",',
-      '  "personality": ["trait1", "trait2"],',
-      '  "speechStyle": "string (one sentence)",',
-      '  "trueMotives": "string (hidden goal, 1-2 sentences)",',
-      '  "fears": ["fear1", "fear2"]',
-      '}',
-    ].join('\n')
-
-    let raw = ''
-    await streamChat({
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: `${storyContext ? storyContext + '\n\n' : ''}Character description: ${prompt.trim()}` },
-      ],
-      temperature: 0.85,
-      onChunk: (text) => { raw += text },
-    })
-
-    try {
-      const data = extractJson(raw) as Record<string, unknown>
-      return {
-        name:        typeof data.name        === 'string' ? data.name        : '',
-        role:        typeof data.role        === 'string' ? data.role        : '',
-        age:         typeof data.age         === 'string' ? data.age         : '',
-        gender:      typeof data.gender      === 'string' ? data.gender      : '',
-        species:     typeof data.species     === 'string' ? data.species     : 'human',
-        clothing:    typeof data.clothing    === 'string' ? data.clothing    : '',
-        appearance:  typeof data.appearance  === 'string' ? data.appearance  : '',
-        personality: Array.isArray(data.personality) ? data.personality.filter((x): x is string => typeof x === 'string') : [],
-        speechStyle: typeof data.speechStyle === 'string' ? data.speechStyle : '',
-        trueMotives: typeof data.trueMotives === 'string' ? data.trueMotives : '',
-        fears:       Array.isArray(data.fears) ? data.fears.filter((x): x is string => typeof x === 'string') : [],
       }
     } catch {
       return reply.status(422).send({ error: 'LLM did not return valid JSON', raw })

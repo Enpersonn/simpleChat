@@ -164,6 +164,33 @@
 .iconActionBtn { font-size: 11px; padding: 1px 4px; border-radius: var(--radius-sm); color: var(--text-muted); line-height: 1; transition: color 0.1s, background 0.1s; }
 .iconActionBtn:hover { color: var(--text-primary); background: var(--bg-active); }
 
+/* Generation progress indicator */
+.genProgress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--accent-dim);
+  border: 1px solid var(--accent);
+  font-size: 12px;
+  color: var(--accent);
+}
+.genSpinner {
+  display: inline-block;
+  animation: genSpin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes genSpin { to { transform: rotate(360deg); } }
+.genLabel { flex: 1; font-weight: 500; }
+.genCount { font-size: 11px; opacity: 0.7; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+
+/* Tab switcher */
+.tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin: -6px 0 0; }
+.tabBtn { padding: 8px 16px; font-size: 12px; font-weight: 500; color: var(--text-muted); border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all 0.15s; }
+.tabBtn:hover { color: var(--text-primary); }
+.tabBtn[data-active='true'] { color: var(--accent); border-bottom-color: var(--accent); }
+
 /* Character generate section (in CharacterModal) */
 .generateSection { display: flex; flex-direction: column; gap: 5px; padding-bottom: 14px; border-bottom: 1px solid var(--border); }
 .generateRow { display: flex; gap: 8px; align-items: flex-start; }
