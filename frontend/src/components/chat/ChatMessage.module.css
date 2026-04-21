@@ -38,10 +38,10 @@
 }
 
 .bubble {
-  padding: 10px 14px;
+  padding: 10px 16px;
   border-radius: var(--radius-lg);
-  line-height: 1.7;
-  font-size: 14px;
+  line-height: 1.8;
+  font-size: var(--bubble-font-size, 16px);
   word-break: break-word;
   position: relative;
 }
@@ -102,7 +102,7 @@
 .editTextarea {
   width: 100%;
   padding: 6px 8px;
-  font-size: 14px;
+  font-size: var(--bubble-font-size, 16px);
   font-family: var(--font-ui);
   border: 1px solid var(--accent);
   border-radius: var(--radius-sm);

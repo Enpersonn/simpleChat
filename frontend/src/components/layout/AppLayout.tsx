@@ -11,15 +11,19 @@ export function AppLayout() {
   const checkHealth = useSettingsStore((s) => s.checkHealth)
   const loadSettings = useSettingsStore((s) => s.loadSettings)
   const loadModels = useSettingsStore((s) => s.loadModels)
+  const fontSize = useSettingsStore((s) => s.appSettings.fontSize)
 
   useEffect(() => {
     loadSettings().then(() => {
-      // Check health after settings are loaded so we use the correct endpoint
       checkHealth().then(() => loadModels())
     })
     const interval = setInterval(checkHealth, 30_000)
     return () => clearInterval(interval)
   }, [])
+
+  useEffect(() => {
+    document.documentElement.style.setProperty('--bubble-font-size', `${fontSize}px`)
+  }, [fontSize])
 
   return (
     <div class={s.root}>

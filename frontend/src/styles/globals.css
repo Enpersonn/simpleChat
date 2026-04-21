@@ -24,8 +24,9 @@
   --radius-lg: 12px;
 
   --font-ui: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-reading: Georgia, 'Times New Roman', serif;
+  --font-reading: Cambria, 'Palatino Linotype', Georgia, serif;
   --font-mono: Consolas, 'Courier New', monospace;
+  --bubble-font-size: 16px;
 }
 
 [data-theme='light'] {
@@ -98,9 +99,28 @@ input:focus, textarea:focus, select:focus {
 }
 
 /* Markdown output */
-.md-content { font-family: var(--font-reading); line-height: 1.75; }
-.md-content p { margin-bottom: 0.75em; }
+.md-content { font-family: var(--font-reading); line-height: 1.8; font-size: var(--bubble-font-size, 16px); }
+.md-content p { margin-bottom: 0.8em; }
 .md-content p:last-child { margin-bottom: 0; }
 .md-content em { font-style: italic; }
-.md-content strong { font-weight: 600; }
-.md-content hr { border: none; border-top: 1px solid var(--border); margin: 1em 0; }
+.md-content strong { font-weight: 700; color: var(--text-primary); }
+.md-content hr { border: none; border-top: 1px solid var(--border); margin: 1.2em 0; }
+.md-content blockquote {
+  border-left: 2px solid var(--accent);
+  margin: 0.6em 0;
+  padding: 2px 0 2px 12px;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+.md-content h1, .md-content h2 { font-size: 1.05em; font-weight: 700; margin: 0.8em 0 0.4em; }
+.md-content h3, .md-content h4 { font-size: 1em; font-weight: 600; margin: 0.6em 0 0.3em; font-style: italic; }
+.md-content ul, .md-content ol { padding-left: 1.4em; margin-bottom: 0.75em; }
+.md-content li { margin-bottom: 0.2em; }
+.md-content code {
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+  background: var(--bg-hover);
+  padding: 1px 5px;
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+}
