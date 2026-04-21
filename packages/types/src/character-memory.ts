@@ -26,6 +26,13 @@ export const CharacterDeltaSchema = z.object({
   appearance: z.string().optional(),
   clothing: z.string().optional(),
   reputation: z.string().optional(),
+  relationships: z.array(z.object({
+    charId: z.string(),
+    emotion: z.string().optional(),
+    publicAttitude: z.string().optional(),
+    privateAttitude: z.string().optional(),
+    trustLevel: z.number().min(0).max(10).optional(),
+  })).optional(),
 })
 export type CharacterDelta = z.infer<typeof CharacterDeltaSchema>
 

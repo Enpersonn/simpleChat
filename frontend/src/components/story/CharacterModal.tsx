@@ -5,6 +5,8 @@ import { api } from '../../lib/api.js'
 import s from './StoryCreateModal.module.css'
 import ms from './CharacterModal.module.css'
 
+type RelationEntry = { charId: string; otherCharName: string; emotion: string; publicAttitude: string; privateAttitude: string; trustLevel: number; sourceMemoryId?: string }
+
 interface Props {
   initial?: Character
   initialDraft?: CharacterCreate
@@ -79,7 +81,7 @@ export function CharacterModal({ initial, initialDraft, defaultIsPersona, onClos
   const { createCharacter, updateCharacter, selectedStoryId } = useStoriesStore()
   const isEdit = !!initial
 
-  const [activeTab, setActiveTab] = useState<'character' | 'memories'>('character')
+  const [activeTab, setActiveTab] = useState<'character' | 'memories' | 'relations'>('character')
   const [name, setName] = useState(initial?.name ?? initialDraft?.name ?? '')
   const [role, setRole] = useState(initial?.role ?? initialDraft?.role ?? '')
   const [isUserPersona, setIsUserPersona] = useState(initial?.isUserPersona ?? initialDraft?.isUserPersona ?? defaultIsPersona ?? false)
@@ -103,9 +105,13 @@ export function CharacterModal({ initial, initialDraft, defaultIsPersona, onClos
   const [memoryForm, setMemoryForm] = useState<MemoryForm | null>(null)
   const [memSaving, setMemSaving] = useState(false)
 
+  // Relations tab state
+  const [relations, setRelations] = useState<RelationEntry[]>([])
+
   useEffect(() => {
     if (isEdit && initial && selectedStoryId) {
       api.characterMemories.chain(selectedStoryId, initial.id).then(setMemories).catch(() => {})
+      api.characters.relationships(selectedStoryId, initial.id).then(setRelations).catch(() => {})
     }
   }, [isEdit, initial?.id, selectedStoryId])
 
@@ -245,6 +251,7 @@ export function CharacterModal({ initial, initialDraft, defaultIsPersona, onClos
           <div class={s.tabs}>
             <button class={s.tabBtn} data-active={activeTab === 'character' ? 'true' : undefined} onClick={() => setActiveTab('character')}>Character</button>
             <button class={s.tabBtn} data-active={activeTab === 'memories' ? 'true' : undefined} onClick={() => setActiveTab('memories')}>Memories</button>
+            <button class={s.tabBtn} data-active={activeTab === 'relations' ? 'true' : undefined} onClick={() => setActiveTab('relations')}>Relations</button>
           </div>
         )}
 
@@ -347,6 +354,40 @@ export function CharacterModal({ initial, initialDraft, defaultIsPersona, onClos
               </button>
             </div>
           </>
+        )}
+
+        {activeTab === 'relations' && (
+          <div class={ms.memList}>
+            {relations.length === 0 ? (
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', padding: '8px 0' }}>
+                No relations yet. Add memories with relationship effects to establish them.
+              </div>
+            ) : (
+              relations.map((r) => {
+                const sourceMem = r.sourceMemoryId ? memories.find((m) => m.id === r.sourceMemoryId) : undefined
+                return (
+                  <div key={r.charId} class={ms.memCard}>
+                    <div class={ms.memCardHeader}>
+                      <span style={{ fontWeight: 600, fontSize: '13px' }}>{r.otherCharName}</span>
+                      {r.emotion && <span class={ms.memBranch}>{r.emotion}</span>}
+                      <span class={ms.memImportance} style={{ marginLeft: 'auto' }}>{r.trustLevel}/10</span>
+                    </div>
+                    {r.publicAttitude && (
+                      <div class={ms.memSummary}>{r.publicAttitude}</div>
+                    )}
+                    {r.privateAttitude && (
+                      <div class={ms.memSummary} style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Private: {r.privateAttitude}</div>
+                    )}
+                    {sourceMem && (
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                        Source: {sourceMem.summary.slice(0, 70)}{sourceMem.summary.length > 70 ? '…' : ''}
+                      </div>
+                    )}
+                  </div>
+                )
+              })
+            )}
+          </div>
         )}
 
         {activeTab === 'memories' && (

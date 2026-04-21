@@ -35,6 +35,8 @@ export const RelationshipEdgeSchema = z.object({
   history: z.string().default(''),
   trustLevel: z.number().min(0).max(10).default(5),
   visibility: VisibilitySchema.default('public'),
+  emotion: z.string().default(''),
+  sourceMemoryId: z.string().optional(),
 })
 export type RelationshipEdge = z.infer<typeof RelationshipEdgeSchema>
 

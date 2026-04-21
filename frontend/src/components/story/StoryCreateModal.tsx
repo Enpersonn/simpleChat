@@ -11,7 +11,8 @@ const TONE_OPTIONS = ['Dark', 'Light', 'Grim', 'Hopeful', 'Intimate', 'Epic', 'T
 const DRAFT_STEPS = ['Building story core…', 'Generating characters…']
 const PARSE_STEPS = ['Analysing story…', 'Extracting characters…', 'Extracting locations…', 'Extracting memories…']
 
-interface PendingChar extends CharacterCreate { _localId: string }
+type RawRelation = { otherCharacterName: string; emotion: string; publicAttitude: string; privateAttitude: string; trustLevel: number }
+interface PendingChar extends CharacterCreate { _localId: string; _rawRelationships?: RawRelation[] }
 interface PendingLocation extends LocationCreate { _localId: string }
 interface PendingMemory {
   _localId: string
@@ -20,6 +21,7 @@ interface PendingMemory {
   tags: string[]
   importance: number
   deltas?: Record<string, unknown>
+  relationshipEffects?: RawRelation[]
 }
 
 interface Props {
@@ -60,7 +62,7 @@ export function StoryCreateModal({ onClose, onCreated }: Props) {
 
   const applyGeneratedFields = (result: {
     title?: string; premise?: string; genres: string[]; tone: string[]; rules: string[]; writingStyle: string
-    characters: Array<{ name: string; role: string; isUserPersona: boolean; age: string; gender: string; species: string; clothing: string; appearance: string; personality: string[]; speechStyle: string; trueMotives: string; fears: string[] }>
+    characters: Array<{ name: string; role: string; isUserPersona: boolean; age: string; gender: string; species: string; clothing: string; appearance: string; personality: string[]; speechStyle: string; trueMotives: string; fears: string[]; relationships?: RawRelation[] }>
     locations?: Array<{ name: string; description: string; layout: string; lighting: string; atmosphere: string; soundscape: string; smells: string; notes: string; tags: string[] }>
   }) => {
     if (result.title && !title.trim()) setTitle(result.title)
@@ -85,6 +87,7 @@ export function StoryCreateModal({ onClose, onCreated }: Props) {
           trueMotives: c.trueMotives, fears: c.fears,
           privateKnowledge: [], moralLimits: '', hiddenEmotionalState: '',
         },
+        _rawRelationships: c.relationships?.length ? c.relationships : undefined,
       }))
       setPendingChars((prev) => [...prev, ...newChars])
     }
@@ -151,6 +154,7 @@ export function StoryCreateModal({ onClose, onCreated }: Props) {
           tags: m.tags,
           importance: m.importance,
           deltas: m.deltas,
+          relationshipEffects: m.relationshipEffects,
         }))
         setPendingMemories((prev) => [...prev, ...newMems])
       }
@@ -178,23 +182,51 @@ export function StoryCreateModal({ onClose, onCreated }: Props) {
       })
 
       const createdChars: Array<{ id: string; name: string }> = []
-      for (const { _localId: _, ...charData } of pendingChars) {
+      for (const { _localId: _, _rawRelationships: __, ...charData } of pendingChars) {
         const char = await api.characters.create(story.id, charData)
         createdChars.push({ id: char.id, name: char.name })
+      }
+
+      const resolveName = (name: string) => createdChars.find((c) => c.name.toLowerCase() === name.toLowerCase())
+
+      for (const pending of pendingChars) {
+        if (!pending._rawRelationships?.length) continue
+        const char = resolveName(pending.name)
+        if (!char) continue
+        const relationships = pending._rawRelationships
+          .map((r) => {
+            const other = resolveName(r.otherCharacterName)
+            if (!other) return null
+            return { charId: other.id, emotion: r.emotion, publicAttitude: r.publicAttitude, privateAttitude: r.privateAttitude, trustLevel: r.trustLevel, history: '', visibility: 'public' as const }
+          })
+          .filter((r): r is NonNullable<typeof r> => r !== null)
+        if (relationships.length > 0) {
+          await api.characters.update(story.id, char.id, { relationships })
+        }
       }
 
       for (const { _localId: _, ...locData } of pendingLocations) {
         await api.locations.create(story.id, locData)
       }
 
-      for (const { _localId: _, characterName, summary, tags, importance, deltas } of pendingMemories) {
-        const char = createdChars.find((c) => c.name.toLowerCase() === characterName.toLowerCase())
+      for (const { _localId: _, characterName, summary, tags, importance, deltas, relationshipEffects } of pendingMemories) {
+        const char = resolveName(characterName)
         if (!char) continue
+        const resolvedRelDelta = (relationshipEffects ?? [])
+          .map((r) => {
+            const other = resolveName(r.otherCharacterName)
+            if (!other) return null
+            return { charId: other.id, emotion: r.emotion || undefined, publicAttitude: r.publicAttitude || undefined, privateAttitude: r.privateAttitude || undefined, trustLevel: r.trustLevel }
+          })
+          .filter((r): r is NonNullable<typeof r> => r !== null)
+        const mergedDeltas: CharacterDelta | undefined = resolvedRelDelta.length
+          ? { ...(deltas as CharacterDelta | undefined), relationships: resolvedRelDelta }
+          : (deltas as CharacterDelta | undefined)
         const memory = await api.characterMemories.create(story.id, char.id, {
           summary,
           tags,
           importance,
-          deltas: deltas as CharacterDelta | undefined,
+          deltas: mergedDeltas,
         })
         await api.canonTimeline.addEntry(story.id, {
           characterId: char.id,

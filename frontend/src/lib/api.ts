@@ -110,6 +110,7 @@ export const api = {
         name: string; role: string; isUserPersona: boolean; age: string; gender: string
         species: string; clothing: string; appearance: string; personality: string[]
         speechStyle: string; trueMotives: string; fears: string[]
+        relationships?: Array<{ otherCharacterName: string; emotion: string; publicAttitude: string; privateAttitude: string; trustLevel: number }>
       }> }>(
         '/stories/parse-story-characters',
         { method: 'POST', body: JSON.stringify({ text, premise }) },
@@ -126,6 +127,7 @@ export const api = {
       request<{ memories: Array<{
         characterName: string; summary: string; tags: string[]; importance: number
         deltas?: Record<string, unknown>
+        relationshipEffects?: Array<{ otherCharacterName: string; emotion: string; publicAttitude: string; privateAttitude: string; trustLevel: number }>
       }> }>(
         '/stories/parse-story-memories',
         { method: 'POST', body: JSON.stringify({ text, premise, characters }) },
@@ -178,6 +180,12 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ prompt }),
       }),
+    relationships: (storyId: string, charId: string) =>
+      request<Array<{
+        charId: string; otherCharName: string; emotion: string
+        publicAttitude: string; privateAttitude: string; trustLevel: number
+        sourceMemoryId?: string
+      }>>(`/stories/${storyId}/characters/${charId}/relationships`),
   },
 
   locations: {
