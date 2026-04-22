@@ -373,6 +373,8 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
         ? chatState.locationOverrides[chatState.currentLocationId]
         : undefined
 
+      const openerLength = chat.mode === 'storyteller' ? 'paragraph+' : 'medium'
+
       const messages = assembleContext({
         story, characters, activeSpeaker,
         recentTurns: [],
@@ -380,6 +382,9 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
         globalNote: settings.globalNote,
         currentLocation,
         locationOverrides,
+        responseLength: openerLength,
+        moodTags: [],
+        feelText: '',
       })
       messages.push({ role: 'user', content: '[Begin. Write the opening scene or greeting.]' })
 

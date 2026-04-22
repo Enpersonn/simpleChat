@@ -16,6 +16,7 @@ export function LeftPanel() {
   const { stories, selectedStoryId, characters, locations, loadStories, selectStory, deleteStory, deleteCharacter, deleteLocation } = useStoriesStore()
   const { chats, activeChatId, loadChats, openChat, createChat, generateOpener } = useChatsStore()
   const ollamaHealthy = useSettingsStore((s) => s.ollamaHealthy)
+  const setGeneration = useSettingsStore((s) => s.setGeneration)
 
   const [showCreateStory, setShowCreateStory] = useState(false)
   const [editingStory, setEditingStory] = useState<string | null>(null)
@@ -40,6 +41,7 @@ export function LeftPanel() {
     if (!selectedStoryId) return
     if (chat.id === activeChatId) return
     openChat(selectedStoryId, chat.id)
+    setGeneration({ responseLength: chat.mode === 'storyteller' ? 'paragraph+' : 'medium' })
   }
 
   const handleDeleteStory = async (e: MouseEvent, id: string) => {
@@ -61,7 +63,7 @@ export function LeftPanel() {
   }
 
   const selectedStory = stories.find((s) => s.id === selectedStoryId)
-  const storyChats = chats.filter(() => selectedStoryId !== null)
+  const storyChats = chats.filter((c) => c.storyId === selectedStoryId)
 
   return (
     <div class={s.root}>

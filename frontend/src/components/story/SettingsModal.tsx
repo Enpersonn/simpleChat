@@ -1,4 +1,4 @@
-import { useState } from 'preact/hooks'
+import { useEffect, useState } from 'preact/hooks'
 import { useSettingsStore } from '../../store/settings.js'
 import s from './StoryCreateModal.module.css'
 import ms from './SettingsModal.module.css'
@@ -11,6 +11,14 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
   const [theme, setTheme] = useState(appSettings.theme)
   const [fontSize, setFontSize] = useState(appSettings.fontSize)
   const [globalNote, setGlobalNote] = useState(appSettings.globalNote)
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+  }, [theme])
+
+  useEffect(() => {
+    document.documentElement.style.setProperty('--bubble-font-size', `${fontSize}px`)
+  }, [fontSize])
+
   const [submitting, setSubmitting] = useState(false)
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState<'ok' | 'fail' | null>(null)
@@ -44,7 +52,6 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
     setError('')
     try {
       await saveSettings({ ollamaEndpoint: endpoint.trim(), activeModel: model.trim(), theme, fontSize, globalNote: globalNote.trim() })
-      document.documentElement.setAttribute('data-theme', theme)
       onClose()
     } catch (err) {
       setError((err as Error).message)
