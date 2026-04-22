@@ -11,6 +11,7 @@ export interface ExtractionContext {
 interface ExtractionResult {
   currentLocationId?: string | null
   locationOverrides?: Record<string, LocationOverride>
+  newLocationName?: string
 }
 
 interface EntityExtractor {
@@ -47,10 +48,12 @@ const locationExtractor: EntityExtractor = {
               'Analyze the messages and detect scene changes.',
               'Return this shape:',
               '{',
-              '  "currentLocationId": "<id from list, null if no location, or \\"unchanged\\" if same as before>",',
+              '  "currentLocationId": "<id from list, \\"unchanged\\" if same as before, or null if no location>",',
+              '  "newLocationName": "<name of the new place if characters explicitly moved somewhere NOT in the location list, otherwise omit>",',
               '  "stateChanges": { "<field>": "<new value>" }',
               '  // stateChanges applies to the current location. Fields: lighting, atmosphere, soundscape, smells, description',
               '  // Only include fields that explicitly changed in the messages.',
+              '  // If newLocationName is set, set currentLocationId to null.',
               '}',
             ].join('\n'),
           },
@@ -72,7 +75,10 @@ const locationExtractor: EntityExtractor = {
 
       const result: Partial<ExtractionResult> = {}
 
-      if (typeof data.currentLocationId === 'string' && data.currentLocationId !== 'unchanged') {
+      if (typeof data.newLocationName === 'string' && data.newLocationName.trim()) {
+        result.newLocationName = data.newLocationName.trim()
+        result.currentLocationId = null
+      } else if (typeof data.currentLocationId === 'string' && data.currentLocationId !== 'unchanged') {
         result.currentLocationId = data.currentLocationId === 'null' || data.currentLocationId === ''
           ? null
           : data.currentLocationId
@@ -114,18 +120,23 @@ const locationExtractor: EntityExtractor = {
 
 const extractors: EntityExtractor[] = [locationExtractor]
 
-export async function runExtraction(ctx: ExtractionContext): Promise<ChatEntityState> {
+export type ExtractionOutput = ChatEntityState & { newLocationName?: string }
+
+export async function runExtraction(ctx: ExtractionContext): Promise<ExtractionOutput> {
   const results = await Promise.all(extractors.map((e) => e.extract(ctx)))
 
-  let state = { ...ctx.currentState }
+  const output: ExtractionOutput = { ...ctx.currentState }
   for (const result of results) {
     if (result.currentLocationId !== undefined) {
-      state.currentLocationId = result.currentLocationId
+      output.currentLocationId = result.currentLocationId
     }
     if (result.locationOverrides) {
-      state.locationOverrides = result.locationOverrides
+      output.locationOverrides = result.locationOverrides
+    }
+    if (result.newLocationName) {
+      output.newLocationName = result.newLocationName
     }
   }
 
-  return state
+  return output
 }

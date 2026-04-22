@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type { Chat, Turn, ChatMode } from '@simplechat/types'
 import { api } from '../lib/api.js'
 import { sendMessageStream, regenerateStream, openerStream, type DebugInfo, type StateUpdate } from '../lib/stream.js'
+import { useStoriesStore } from './stories.js'
 
 interface StreamingState {
   isStreaming: boolean
@@ -20,7 +21,7 @@ interface ChatsState extends StreamingState {
 
   loadChats: (storyId: string) => Promise<void>
   openChat: (storyId: string, chatId: string) => Promise<void>
-  createChat: (storyId: string, mode: ChatMode, activeSpeakers?: string[], memoryAnchors?: Record<string, string>) => Promise<Chat>
+  createChat: (storyId: string, mode: ChatMode, activeSpeakers?: string[], memoryAnchors?: Record<string, string>, startingLocationId?: string) => Promise<Chat>
   sendMessage: (params: SendParams) => Promise<void>
   regenerate: (params: RegenerateParams) => Promise<void>
   editAndResend: (turnId: string, text: string, params: RegenerateParams) => Promise<void>
@@ -77,8 +78,8 @@ export const useChatsStore = create<ChatsState>((set, get) => ({
     set({ turns })
   },
 
-  createChat: async (storyId: string, mode: ChatMode, activeSpeakers: string[] = [], memoryAnchors?: Record<string, string>) => {
-    const chat = await api.chats.create(storyId, { mode, activeSpeakers, memoryAnchors })
+  createChat: async (storyId: string, mode: ChatMode, activeSpeakers: string[] = [], memoryAnchors?: Record<string, string>, startingLocationId?: string) => {
+    const chat = await api.chats.create(storyId, { mode, activeSpeakers, memoryAnchors, startingLocationId })
     set((s) => ({ chats: [chat, ...s.chats] }))
     return chat
   },
@@ -123,7 +124,13 @@ export const useChatsStore = create<ChatsState>((set, get) => ({
       body: params,
       signal: ac.signal,
       onDebug: (info) => set({ debugInfo: info }),
-      onStateUpdate: (update) => set({ lastStateUpdate: update }),
+      onStateUpdate: (update) => {
+        set({ lastStateUpdate: update })
+        if (update.newLocationCreated) {
+          const { selectedStoryId, reloadLocations } = useStoriesStore.getState()
+          if (selectedStoryId) reloadLocations()
+        }
+      },
       onChunk: (text) => {
         set((s) => ({
           streamingText: s.streamingText + text,

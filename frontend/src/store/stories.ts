@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Story, StoryCreate, StoryUpdate, Character, CharacterCreate, CharacterUpdate, Location, LocationCreate, LocationUpdate, CanonTimeline } from '@simplechat/types'
+import type { Story, StoryCreate, StoryUpdate, Character, CharacterCreate, CharacterUpdate, Location, LocationCreate, LocationUpdate, CanonTimeline, CharacterMemory } from '@simplechat/types'
 import { api } from '../lib/api.js'
 
 interface StoriesState {
@@ -8,6 +8,7 @@ interface StoriesState {
   characters: Character[]
   locations: Location[]
   canonTimeline: CanonTimeline | null
+  characterMemories: Record<string, CharacterMemory[]>
   loading: boolean
   error: string | null
 
@@ -20,6 +21,8 @@ interface StoriesState {
   createCharacter: (data: CharacterCreate) => Promise<Character>
   updateCharacter: (charId: string, data: CharacterUpdate) => Promise<Character>
   deleteCharacter: (charId: string) => Promise<void>
+  loadCharacterTimeline: (charId: string) => Promise<void>
+  initCharacterGenesis: (charId: string) => Promise<void>
   reloadLocations: () => Promise<void>
   createLocation: (data: LocationCreate) => Promise<Location>
   updateLocation: (locationId: string, data: LocationUpdate) => Promise<Location>
@@ -36,6 +39,7 @@ export const useStoriesStore = create<StoriesState>((set, get) => ({
   characters: [],
   locations: [],
   canonTimeline: null,
+  characterMemories: {},
   loading: false,
   error: null,
 
@@ -113,7 +117,27 @@ export const useStoriesStore = create<StoriesState>((set, get) => ({
     const { selectedStoryId } = get()
     if (!selectedStoryId) throw new Error('No story selected')
     await api.characters.delete(selectedStoryId, charId)
-    set((s) => ({ characters: s.characters.filter((c) => c.id !== charId) }))
+    set((s) => {
+      const { [charId]: _, ...rest } = s.characterMemories
+      return { characters: s.characters.filter((c) => c.id !== charId), characterMemories: rest }
+    })
+  },
+
+  loadCharacterTimeline: async (charId: string) => {
+    const { selectedStoryId } = get()
+    if (!selectedStoryId) return
+    const chain = await api.characterMemories.chain(selectedStoryId, charId)
+    set((s) => ({ characterMemories: { ...s.characterMemories, [charId]: chain } }))
+  },
+
+  initCharacterGenesis: async (charId: string) => {
+    const { selectedStoryId } = get()
+    if (!selectedStoryId) return
+    const updated = await api.characters.initGenesis(selectedStoryId, charId)
+    set((s) => ({ characters: s.characters.map((c) => (c.id === charId ? updated : c)) }))
+    // Reload timeline after genesis is created
+    const chain = await api.characterMemories.chain(selectedStoryId, charId)
+    set((s) => ({ characterMemories: { ...s.characterMemories, [charId]: chain } }))
   },
 
   reloadLocations: async () => {

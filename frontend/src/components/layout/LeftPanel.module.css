@@ -147,6 +147,63 @@
   flex-shrink: 0;
 }
 
+.iconBtn[data-active='true'] { color: var(--accent); }
+
+/* Character timeline */
+.timeline {
+  margin: 0 12px 6px 32px;
+  border-left: 2px solid var(--border);
+  padding-left: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.timelineEntry {
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.timelineDot {
+  flex-shrink: 0;
+  font-size: 9px;
+  color: var(--text-muted);
+  margin-top: 1px;
+}
+
+.timelineSummary {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.4;
+}
+
+.branchBtn {
+  flex-shrink: 0;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--accent-dim);
+  color: var(--accent);
+  transition: background 0.1s;
+  white-space: nowrap;
+}
+.branchBtn:hover { background: var(--accent); color: #fff; }
+
+.timelineInitBtn {
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  border: 1px dashed var(--border);
+  width: 100%;
+  text-align: left;
+  transition: color 0.1s, border-color 0.1s;
+}
+.timelineInitBtn:hover { color: var(--accent); border-color: var(--accent); }
+
 /* Footer with settings button */
 .footer {
   flex-shrink: 0;

@@ -49,6 +49,8 @@ function buildSpeakerInstructions(
   speaker: Character | undefined,
   userPersonas: Character[],
   otherChars: Character[],
+  speakerMemories: CharacterMemory[] = [],
+  locations?: Location[],
 ): string {
   const parts: string[] = [];
 
@@ -57,22 +59,44 @@ function buildSpeakerInstructions(
       parts.push(
         `You are ${speaker.name}${speaker.role ? `, ${speaker.role}` : ""}. Stay completely in character at all times.`,
       );
-      if (speaker.public.personality.length > 0) {
-        parts.push(
-          `Your observable traits: ${speaker.public.personality.join(", ")}.`,
-        );
+
+      // History block: memories provide the WHY behind current traits.
+      // Genesis memory is always first; sort oldest→newest by createdAt.
+      const sorted = [...speakerMemories].sort((a, b) =>
+        a.createdAt.localeCompare(b.createdAt),
+      );
+      if (sorted.length > 0) {
+        const lines = sorted.map((m) => {
+          const locName = m.locationId && locations
+            ? locations.find((l) => l.id === m.locationId)?.name
+            : undefined;
+          return locName ? `• ${m.summary} (@ ${locName})` : `• ${m.summary}`;
+        }).join("\n");
+        parts.push(`\nYour history — the events that shaped who you are:\n${lines}`);
       }
-      if (speaker.public.speechStyle) {
-        parts.push(`Your speech style: ${speaker.public.speechStyle}.`);
+
+      // Current state derived from the memory chain
+      const hasState =
+        speaker.public.personality.length > 0 ||
+        speaker.public.speechStyle ||
+        speaker.private.trueMotives ||
+        speaker.private.fears.length > 0 ||
+        speaker.private.hiddenEmotionalState;
+
+      if (hasState) {
+        parts.push("\nYour current state:");
+        if (speaker.public.personality.length > 0)
+          parts.push(`Observable traits: ${speaker.public.personality.join(", ")}.`);
+        if (speaker.public.speechStyle)
+          parts.push(`Speech style: ${speaker.public.speechStyle}.`);
+        if (speaker.private.trueMotives)
+          parts.push(`Private motivations (never reveal directly): ${speaker.private.trueMotives}.`);
+        if (speaker.private.hiddenEmotionalState)
+          parts.push(`Hidden emotional state: ${speaker.private.hiddenEmotionalState}.`);
+        if (speaker.private.fears.length > 0)
+          parts.push(`Hidden fears: ${speaker.private.fears.join(", ")}.`);
       }
-      if (speaker.private.trueMotives) {
-        parts.push(
-          `Your private motivations (never reveal directly): ${speaker.private.trueMotives}.`,
-        );
-      }
-      if (speaker.private.fears.length > 0) {
-        parts.push(`Your hidden fears: ${speaker.private.fears.join(", ")}.`);
-      }
+
       if (userPersonas.length > 0) {
         const personaNames = userPersonas.map((p) => p.name).join(" and ");
         parts.push(
@@ -99,6 +123,7 @@ function buildSpeakerInstructions(
       "Use tight, purposeful dialogue with action beats instead of dialogue tags.",
       "Let scenes breathe with small gestures, pauses, environmental details.",
       "Never break character or step outside the fiction.",
+      "Format physical actions and stage directions in *italics*. Spoken dialogue in \"quotes\".",
     );
   } else {
     parts.push(
@@ -157,7 +182,10 @@ function buildPersonasBlock(userPersonas: Character[]): string {
   return `\nPLAYER CHARACTER: ${descriptions}`;
 }
 
-function buildOtherCharsBlock(otherChars: Character[]): string {
+function buildOtherCharsBlock(
+  otherChars: Character[],
+  otherCharMemories: Map<string, CharacterMemory[]> = new Map(),
+): string {
   if (otherChars.length === 0) return "";
   const descriptions = otherChars
     .map((c) => {
@@ -178,10 +206,24 @@ function buildOtherCharsBlock(otherChars: Character[]): string {
         );
       if (c.public.personality.length > 0)
         parts.push(c.public.personality.join(", "));
+
+      // Append the most important memory as context for who this person is now
+      const mems = otherCharMemories.get(c.id) ?? [];
+      const keyMem = mems
+        .filter((m) => m.importance >= 0.7)
+        .sort((a, b) => b.importance - a.importance)[0];
+      if (keyMem) {
+        const truncated =
+          keyMem.summary.length > 120
+            ? `${keyMem.summary.slice(0, 117)}…`
+            : keyMem.summary;
+        parts.push(`[${truncated}]`);
+      }
+
       return parts.join(" — ");
     })
-    .join("; ");
-  return `\nOTHER CHARACTERS: ${descriptions}.`;
+    .join(";\n");
+  return `\nOTHER CHARACTERS:\n${descriptions}`;
 }
 
 export function buildLocationBlock(
@@ -230,10 +272,36 @@ export function buildRelationshipsBlock(
 export function buildCharacterMemoriesBlock(
   characterName: string,
   memories: CharacterMemory[],
+  locations?: Location[],
 ): string {
   if (memories.length === 0) return "";
-  const lines = memories.map((m) => `- ${m.summary}`);
+  const lines = memories.map((m) => {
+    const locName = m.locationId && locations
+      ? locations.find((l) => l.id === m.locationId)?.name
+      : undefined;
+    return locName ? `- ${m.summary} (@ ${locName})` : `- ${m.summary}`;
+  });
   return `\nRELEVANT MEMORIES FOR ${characterName.toUpperCase()}:\n${lines.join("\n")}`;
+}
+
+export function buildCharacterLocationFeelingBlock(
+  speaker: Character,
+  locationId: string | null | undefined,
+): string {
+  if (!locationId) return "";
+  const rel = speaker.locationRelationships?.find((r) => r.locationId === locationId);
+  if (!rel) return "";
+  const parts: string[] = [];
+  if (rel.emotion) parts.push(rel.emotion);
+  if (rel.comfort !== 5 || rel.tension > 0) {
+    const comfortLabel = rel.comfort >= 7 ? "at ease" : rel.comfort <= 3 ? "uncomfortable" : "neutral";
+    const tensionLabel = rel.tension >= 7 ? "very tense" : rel.tension >= 4 ? "tense" : null;
+    const stateDesc = [comfortLabel, tensionLabel].filter(Boolean).join(", ");
+    if (stateDesc) parts.push(stateDesc);
+  }
+  if (rel.notes) parts.push(rel.notes);
+  if (parts.length === 0) return "";
+  return `\nYOUR FEELINGS ABOUT THIS PLACE: ${parts.join(" — ")}`;
 }
 
 function buildMoodBlock(moodTags: string[]): string {
@@ -256,6 +324,12 @@ export interface AssembleOptions {
   globalNote?: string;
   currentLocation?: Location;
   locationOverrides?: LocationOverride;
+  locations?: Location[];
+  /** Memories relevant to the active speaker — shown as their lived history. */
+  speakerMemories?: CharacterMemory[];
+  /** Key memories per non-speaker character — appended as one-line context. */
+  otherCharMemories?: Map<string, CharacterMemory[]>;
+  /** @deprecated Use speakerMemories instead. Kept for callers not yet updated. */
   relevantMemories?: CharacterMemory[];
 }
 
@@ -272,8 +346,13 @@ export function assembleContext(opts: AssembleOptions): OllamaMessage[] {
     globalNote = "",
     currentLocation,
     locationOverrides,
+    locations,
+    speakerMemories,
+    otherCharMemories,
     relevantMemories = [],
   } = opts;
+
+  const resolvedSpeakerMemories = speakerMemories ?? relevantMemories;
 
   const speaker = characters.find((c) => c.id === activeSpeaker);
   const userPersonas = characters.filter((c) => c.isUserPersona);
@@ -287,7 +366,7 @@ export function assembleContext(opts: AssembleOptions): OllamaMessage[] {
     systemParts.push(story.systemPromptOverride.trim());
   } else {
     systemParts.push(
-      buildSpeakerInstructions(mode, speaker, userPersonas, otherChars),
+      buildSpeakerInstructions(mode, speaker, userPersonas, otherChars, resolvedSpeakerMemories, locations),
     );
   }
 
@@ -297,7 +376,7 @@ export function assembleContext(opts: AssembleOptions): OllamaMessage[] {
   const personasBlock = buildPersonasBlock(userPersonas);
   if (personasBlock) systemParts.push(personasBlock);
 
-  const otherCharsBlock = buildOtherCharsBlock(otherChars);
+  const otherCharsBlock = buildOtherCharsBlock(otherChars, otherCharMemories);
   if (otherCharsBlock) systemParts.push(otherCharsBlock);
 
   if (speaker) {
@@ -310,12 +389,10 @@ export function assembleContext(opts: AssembleOptions): OllamaMessage[] {
 
   if (currentLocation) {
     systemParts.push(buildLocationBlock(currentLocation, locationOverrides));
-  }
-
-  if (speaker && relevantMemories.length > 0) {
-    systemParts.push(
-      buildCharacterMemoriesBlock(speaker.name, relevantMemories),
-    );
+    if (speaker) {
+      const feelingBlock = buildCharacterLocationFeelingBlock(speaker, currentLocation.id);
+      if (feelingBlock) systemParts.push(feelingBlock);
+    }
   }
 
   const moodBlock = buildMoodBlock(moodTags);

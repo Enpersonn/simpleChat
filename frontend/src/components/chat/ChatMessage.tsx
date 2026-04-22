@@ -30,6 +30,7 @@ export function ChatMessage({ turn, speakerName, isStreaming }: Props) {
     ? marked.parse(turn.text) as string
     : ''
 
+
   const handleRegenerate = () => {
     regenerate({
       moodTags: generation.moodTags,
@@ -96,8 +97,6 @@ export function ChatMessage({ turn, speakerName, isStreaming }: Props) {
               <button class={s.actionBtn} onClick={cancelEdit}>Cancel</button>
             </div>
           </div>
-        ) : isUser ? (
-          <span>{turn.text}</span>
         ) : (
           <div
             class="md-content"

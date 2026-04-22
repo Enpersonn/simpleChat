@@ -1,10 +1,38 @@
 import type { Character, CharacterMemory } from "@simplechat/types";
 
+function blankBase(char: Character): Character {
+  return {
+    ...char,
+    public: {
+      appearance: '',
+      personality: [],
+      speechStyle: '',
+      reputation: '',
+      voiceNotes: char.public.voiceNotes,
+      age: char.public.age,
+      gender: char.public.gender,
+      species: char.public.species,
+      clothing: '',
+    },
+    private: {
+      trueMotives: '',
+      fears: [],
+      privateKnowledge: [],
+      moralLimits: '',
+      hiddenEmotionalState: '',
+    },
+    relationships: [],
+    locationRelationships: [],
+  }
+}
+
 export function applyMemoryChain(
   base: Character,
   chain: CharacterMemory[],
 ): Character {
-  const effective: Character = JSON.parse(JSON.stringify(base));
+  const effective: Character = JSON.parse(JSON.stringify(
+    base.genesisMemoryId ? blankBase(base) : base
+  ));
 
   for (const memory of chain) {
     const d = memory.deltas;
@@ -89,6 +117,28 @@ export function applyMemoryChain(
         };
         if (idx >= 0) effective.relationships[idx] = updated;
         else effective.relationships.push(updated);
+      }
+    }
+
+    if (d.locationRelationships) {
+      for (const lr of d.locationRelationships) {
+        const idx = effective.locationRelationships.findIndex(
+          (r) => r.locationId === lr.locationId,
+        );
+        const existing =
+          idx >= 0
+            ? effective.locationRelationships[idx]
+            : { locationId: lr.locationId, comfort: 5, tension: 0, emotion: '', notes: '', sourceMemoryId: memory.id };
+        const updated = {
+          ...existing,
+          ...(lr.comfort !== undefined ? { comfort: lr.comfort } : {}),
+          ...(lr.tension !== undefined ? { tension: lr.tension } : {}),
+          ...(lr.emotion !== undefined ? { emotion: lr.emotion } : {}),
+          ...(lr.notes !== undefined ? { notes: lr.notes } : {}),
+          sourceMemoryId: memory.id,
+        };
+        if (idx >= 0) effective.locationRelationships[idx] = updated;
+        else effective.locationRelationships.push(updated);
       }
     }
   }

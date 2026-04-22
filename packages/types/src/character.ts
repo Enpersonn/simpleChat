@@ -1,5 +1,15 @@
 import { z } from 'zod'
 
+export const LocationRelationshipSchema = z.object({
+  locationId: z.string(),
+  comfort: z.number().min(0).max(10).default(5),
+  tension: z.number().min(0).max(10).default(0),
+  emotion: z.string().default(''),
+  notes: z.string().default(''),
+  sourceMemoryId: z.string().optional(),
+})
+export type LocationRelationship = z.infer<typeof LocationRelationshipSchema>
+
 export const VisibilitySchema = z.union([
   z.literal('public'),
   z.literal('narrator-only'),
@@ -52,6 +62,8 @@ export const CharacterSchema = z.object({
   public: CharacterPublicSchema.default({}),
   private: CharacterPrivateSchema.default({}),
   relationships: z.array(RelationshipEdgeSchema).default([]),
+  locationRelationships: z.array(LocationRelationshipSchema).default([]),
+  genesisMemoryId: z.string().optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
 })
@@ -71,6 +83,7 @@ export const CharacterCreateSchema = CharacterSchema.omit({
   public: true,
   private: true,
   relationships: true,
+  locationRelationships: true,
 })
 export type CharacterCreate = z.infer<typeof CharacterCreateSchema>
 

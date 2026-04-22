@@ -1,15 +1,56 @@
 import {
+  type Character,
   CharacterCreateSchema,
+  type CharacterDelta,
   CharacterUpdateSchema,
 } from "@simplechat/types";
 import type { FastifyInstance } from "fastify";
 import { applyMemoryChain } from "../character-state.js";
 import * as storage from "../storage.js";
+import { extractJson } from "../utils.js";
 
-function extractJson(raw: string): unknown {
-  const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
-  return JSON.parse((fenced ? fenced[1] : raw).trim());
+async function createGenesisMemory(storyId: string, char: Character): Promise<Character> {
+  if (char.genesisMemoryId) return char
+
+  const deltas: CharacterDelta = {}
+  if (char.public.personality.length) deltas.personality = { add: char.public.personality, remove: [] }
+  if (char.public.appearance) deltas.appearance = char.public.appearance
+  if (char.public.speechStyle) deltas.speechStyle = char.public.speechStyle
+  if (char.public.reputation) deltas.reputation = char.public.reputation
+  if (char.public.clothing) deltas.clothing = char.public.clothing
+  if (char.private.trueMotives) deltas.trueMotives = char.private.trueMotives
+  if (char.private.fears.length) deltas.fears = { add: char.private.fears, remove: [] }
+  if (char.private.privateKnowledge.length) deltas.privateKnowledge = { add: char.private.privateKnowledge, remove: [] }
+  if (char.private.moralLimits) deltas.moralLimits = char.private.moralLimits
+  if (char.private.hiddenEmotionalState) deltas.hiddenEmotionalState = char.private.hiddenEmotionalState
+  if (char.relationships.length) {
+    deltas.relationships = char.relationships.map((r) => ({
+      charId: r.charId,
+      emotion: r.emotion,
+      publicAttitude: r.publicAttitude,
+      privateAttitude: r.privateAttitude,
+      trustLevel: r.trustLevel,
+    }))
+  }
+
+  const summaryParts: string[] = []
+  if (char.role) summaryParts.push(`${char.name} is a ${char.role}.`)
+  if (char.public.personality.length) summaryParts.push(`Personality: ${char.public.personality.join(', ')}.`)
+  if (char.public.appearance) summaryParts.push(char.public.appearance)
+  if (char.private.trueMotives) summaryParts.push(`True motives: ${char.private.trueMotives}`)
+  if (!summaryParts.length) summaryParts.push(`${char.name} — starting state.`)
+
+  const genesis = await storage.addCharacterMemory(storyId, char.id, {
+    summary: summaryParts.join(' '),
+    tags: [...char.public.personality, ...char.private.fears].slice(0, 10),
+    importance: 1.0,
+    deltas: Object.keys(deltas).length > 0 ? deltas : undefined,
+  })
+
+  const updated = await storage.updateCharacter(storyId, char.id, { genesisMemoryId: genesis.id })
+  return updated ?? char
 }
+
 
 export async function charactersRoutes(app: FastifyInstance): Promise<void> {
   app.get<{ Params: { id: string } }>(
@@ -26,7 +67,8 @@ export async function charactersRoutes(app: FastifyInstance): Promise<void> {
       if (!body.success)
         return reply.status(400).send({ error: body.error.flatten() });
       const char = await storage.createCharacter(req.params.id, body.data);
-      return reply.status(201).send(char);
+      const withGenesis = await createGenesisMemory(req.params.id, char);
+      return reply.status(201).send(withGenesis);
     },
   );
 
@@ -86,6 +128,16 @@ export async function charactersRoutes(app: FastifyInstance): Promise<void> {
       }));
     },
   );
+
+  app.post<{ Params: { id: string; cid: string } }>(
+    "/stories/:id/characters/:cid/genesis",
+    async (req, reply) => {
+      const char = await storage.getCharacter(req.params.id, req.params.cid)
+      if (!char) return reply.status(404).send({ error: "Character not found" })
+      const updated = await createGenesisMemory(req.params.id, char)
+      return updated
+    },
+  )
 
   // ─── AI Character Generation ──────────────────────────────────────────────
 

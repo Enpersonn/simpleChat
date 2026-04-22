@@ -6,6 +6,7 @@ import { api } from '../../lib/api.js'
 import s from '../story/StoryCreateModal.module.css'
 import ms from './NewChatModal.module.css'
 
+
 type OpeningMode = 'none' | 'story' | 'auto'
 
 interface Props {
@@ -16,7 +17,7 @@ interface Props {
 }
 
 export function NewChatModal({ storyId, initialAnchors, onClose, onCreated }: Props) {
-  const { characters, stories } = useStoriesStore()
+  const { characters, stories, locations } = useStoriesStore()
   const createChat = useChatsStore((s) => s.createChat)
   const story = stories.find((s) => s.id === storyId)
 
@@ -28,6 +29,9 @@ export function NewChatModal({ storyId, initialAnchors, onClose, onCreated }: Pr
   )
   const [customOpening, setCustomOpening] = useState(story?.openingMessage ?? '')
   const [submitting, setSubmitting] = useState(false)
+  const [startingLocationId, setStartingLocationId] = useState<string | undefined>(
+    locations.length === 1 ? locations[0].id : undefined,
+  )
 
   // Memory anchors: { [charId]: memoryId } — undefined key = use natural head
   const [memoryAnchors, setMemoryAnchors] = useState<Record<string, string>>(initialAnchors ?? {})
@@ -73,7 +77,7 @@ export function NewChatModal({ storyId, initialAnchors, onClose, onCreated }: Pr
     setSubmitting(true)
     try {
       const anchorsToPass = Object.keys(memoryAnchors).length > 0 ? memoryAnchors : undefined
-      const chat = await createChat(storyId, mode, speakers, anchorsToPass)
+      const chat = await createChat(storyId, mode, speakers, anchorsToPass, startingLocationId)
       if (openingMode === 'story' && customOpening.trim()) {
         await api.chats.seed(storyId, chat.id, customOpening.trim())
         onCreated(chat, 'none')
@@ -129,6 +133,29 @@ export function NewChatModal({ storyId, initialAnchors, onClose, onCreated }: Pr
             </div>
           </div>
         )}
+
+        <div class={s.field}>
+          <label class={s.label}>Starting Location</label>
+          {locations.length === 0 ? (
+            <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+              No locations in this story — add one in the Locations panel first.
+            </div>
+          ) : (
+            <div class={s.tagGroup}>
+              {locations.map((loc) => (
+                <button
+                  key={loc.id}
+                  type="button"
+                  class={s.tag}
+                  data-active={startingLocationId === loc.id ? 'true' : undefined}
+                  onClick={() => setStartingLocationId(loc.id)}
+                >
+                  {loc.name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
 
         {charsWithMemories.length > 0 && (
           <div class={s.field}>

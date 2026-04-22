@@ -1,11 +1,7 @@
 import { StoryCreateSchema, StoryUpdateSchema } from "@simplechat/types";
 import type { FastifyInstance } from "fastify";
 import * as storage from "../storage.js";
-
-function extractJson(raw: string): unknown {
-  const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
-  return JSON.parse((fenced ? fenced[1] : raw).trim());
-}
+import { extractJson } from "../utils.js";
 
 function normaliseCharacter(c: Record<string, unknown>) {
   const rawRels = Array.isArray(c.relationships) ? c.relationships : [];
@@ -289,7 +285,18 @@ export async function storiesRoutes(app: FastifyInstance): Promise<void> {
       '      "personality": ["trait"],',
       '      "speechStyle": "string",',
       '      "trueMotives": "string",',
-      '      "fears": ["fear"]',
+      '      "fears": ["fear"],',
+      '      "relationships": [',
+      "        {",
+      '          "otherCharacterName": "string — must match another character\'s name exactly",',
+      '          "emotion": "string — e.g. love, fear, rivalry, ally, hate, distrust, respect, neutral",',
+      '          "publicAttitude": "string — how they visibly act toward this character",',
+      '          "privateAttitude": "string — their hidden feelings toward this character",',
+      '          "trustLevel": 5',
+      "          // trustLevel 0-10: 0=no trust, 5=neutral, 10=complete trust",
+      "        }",
+      "      ]",
+      "      // omit relationships array if the character has no notable relationships",
       "    }",
       "  ]",
       "  // extract named characters from the concept; create 1-3 if none are named",
@@ -322,6 +329,216 @@ export async function storiesRoutes(app: FastifyInstance): Promise<void> {
     try {
       const data = extractJson(raw) as Record<string, unknown>;
       return { characters: parseCharactersArray(data) };
+    } catch {
+      return reply
+        .status(422)
+        .send({ error: "LLM did not return valid JSON", raw });
+    }
+  });
+
+  app.post("/stories/generate-story-locations", async (req, reply) => {
+    const { concept, genres, tone, writingStyle } = req.body as {
+      concept?: string;
+      genres?: string[];
+      tone?: string[];
+      writingStyle?: string;
+    };
+    if (!concept?.trim())
+      return reply.status(400).send({ error: "concept is required" });
+
+    const { streamChat } = await import("../ollama.js");
+    const styleContext = [
+      genres?.length ? `Genres: ${genres.join(", ")}` : "",
+      tone?.length ? `Tone: ${tone.join(", ")}` : "",
+      writingStyle ? `Writing style: ${writingStyle}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    const systemPrompt = [
+      "You are a creative writing assistant. Your ONLY job is to output a single JSON object — nothing else.",
+      "Do NOT write any explanation, commentary, or prose. Do NOT use markdown or code fences.",
+      "Given a story concept and its established style, invent 2–4 compelling, distinct locations that fit this story world.",
+      "Output ONLY the raw JSON object below:",
+      "{",
+      '  "locations": [',
+      "    {",
+      '      "name": "string",',
+      '      "description": "string — 1-2 sentences of vivid atmosphere",',
+      '      "layout": "string",',
+      '      "lighting": "string",',
+      '      "atmosphere": "string",',
+      '      "soundscape": "string",',
+      '      "smells": "string",',
+      '      "notes": "string",',
+      '      "tags": ["string"]',
+      "    }",
+      "  ]",
+      "}",
+    ].join("\n");
+
+    let raw = "";
+    await streamChat({
+      messages: [
+        { role: "system", content: systemPrompt },
+        {
+          role: "user",
+          content: `Story concept:\n${concept.trim()}${styleContext ? `\n\n${styleContext}` : ""}\n\nRespond with ONLY the JSON object. No other text.`,
+        },
+      ],
+      temperature: 0.85,
+      onChunk: (text) => {
+        raw += text;
+      },
+    });
+
+    try {
+      const data = extractJson(raw) as Record<string, unknown>;
+      return { locations: parseLocationsArray(data) };
+    } catch {
+      return reply
+        .status(422)
+        .send({ error: "LLM did not return valid JSON", raw });
+    }
+  });
+
+  app.post("/stories/generate-story-memories", async (req, reply) => {
+    const { concept, premise, characters } = req.body as {
+      concept?: string;
+      premise?: string;
+      characters?: Array<{ name: string }>;
+    };
+    if (!concept?.trim())
+      return reply.status(400).send({ error: "concept is required" });
+
+    const { streamChat } = await import("../ollama.js");
+    const charList = Array.isArray(characters)
+      ? characters.map((c) => c.name).filter(Boolean)
+      : [];
+
+    const systemPrompt = [
+      "You are a creative writing assistant. Your ONLY job is to output a single JSON object — nothing else.",
+      "Do NOT write any explanation, commentary, or prose. Do NOT use markdown or code fences.",
+      "Given a story concept, invent 2–4 backstory/origin events per character — things that happened BEFORE the story begins that shaped who they are.",
+      "Focus on events with emotional weight: first meetings, formative traumas, key decisions, lost relationships.",
+      ...(charList.length
+        ? [`Characters in this story: ${charList.join(", ")}`]
+        : []),
+      "Output ONLY the raw JSON object below:",
+      "{",
+      '  "memories": [',
+      "    {",
+      '      "characterName": "string — must match one of the provided character names",',
+      '      "summary": "string — one sentence describing the backstory event",',
+      '      "tags": ["string"],',
+      '      "importance": 0.0,',
+      "      // importance 0.0–1.0: 0.9+ for defining moments, 0.6 for significant backstory, 0.4 for minor history",
+      '      "deltas": {',
+      "        // omit entire deltas object if no trait changes resulted from this event",
+      '        "personality": { "add": ["new trait"], "remove": ["lost trait"] },',
+      '        "fears": { "add": ["new fear"], "remove": ["resolved fear"] },',
+      '        "speechStyle": "new speech style if this event changed it, otherwise omit",',
+      '        "appearance": "new appearance if this event changed it, otherwise omit",',
+      '        "relationships": [',
+      "          {",
+      '            "otherCharacterName": "string",',
+      '            "emotion": "string",',
+      '            "publicAttitude": "string",',
+      '            "privateAttitude": "string",',
+      '            "trustLevel": 5',
+      "          }",
+      "        ]",
+      "        // include relationships only if this event changed how they feel about another character",
+      "      }",
+      "    }",
+      "  ]",
+      "  // ordered chronologically: earliest event first",
+      "  // interleave characters naturally in timeline order",
+      "}",
+    ].join("\n");
+
+    let raw = "";
+    await streamChat({
+      messages: [
+        { role: "system", content: systemPrompt },
+        {
+          role: "user",
+          content: `${premise?.trim() ? `Story premise: ${premise.trim()}\n\n` : ""}Story concept:\n${concept.trim()}\n\nRespond with ONLY the JSON object. No other text.`,
+        },
+      ],
+      temperature: 0.85,
+      onChunk: (t) => {
+        raw += t;
+      },
+    });
+
+    try {
+      const data = extractJson(raw) as Record<string, unknown>;
+      const rawMems = Array.isArray(data.memories) ? data.memories : [];
+      const memories = rawMems
+        .filter(
+          (m): m is Record<string, unknown> =>
+            typeof m === "object" && m !== null,
+        )
+        .map((m) => {
+          const rawDeltas =
+            typeof m.deltas === "object" && m.deltas !== null
+              ? (m.deltas as Record<string, unknown>)
+              : null;
+          const rawRelEffects =
+            rawDeltas && Array.isArray(rawDeltas.relationships)
+              ? rawDeltas.relationships
+              : [];
+          const relationshipEffects = rawRelEffects
+            .filter(
+              (r): r is Record<string, unknown> =>
+                typeof r === "object" && r !== null,
+            )
+            .map((r) => ({
+              otherCharacterName:
+                typeof r.otherCharacterName === "string"
+                  ? r.otherCharacterName
+                  : "",
+              emotion: typeof r.emotion === "string" ? r.emotion : "",
+              publicAttitude:
+                typeof r.publicAttitude === "string" ? r.publicAttitude : "",
+              privateAttitude:
+                typeof r.privateAttitude === "string" ? r.privateAttitude : "",
+              trustLevel:
+                typeof r.trustLevel === "number"
+                  ? Math.min(10, Math.max(0, r.trustLevel))
+                  : 5,
+            }))
+            .filter((r) => r.otherCharacterName);
+          const deltasWithoutRelationships = rawDeltas
+            ? Object.fromEntries(
+                Object.entries(rawDeltas).filter(
+                  ([k]) => k !== "relationships",
+                ),
+              )
+            : undefined;
+          return {
+            characterName:
+              typeof m.characterName === "string" ? m.characterName : "",
+            summary: typeof m.summary === "string" ? m.summary : "",
+            tags: Array.isArray(m.tags)
+              ? m.tags.filter((t): t is string => typeof t === "string")
+              : [],
+            importance:
+              typeof m.importance === "number"
+                ? Math.min(1, Math.max(0, m.importance))
+                : 0.5,
+            deltas:
+              deltasWithoutRelationships &&
+              Object.keys(deltasWithoutRelationships).length > 0
+                ? deltasWithoutRelationships
+                : undefined,
+            relationshipEffects:
+              relationshipEffects.length > 0 ? relationshipEffects : undefined,
+          };
+        })
+        .filter((m) => m.characterName && m.summary);
+      return { memories };
     } catch {
       return reply
         .status(422)

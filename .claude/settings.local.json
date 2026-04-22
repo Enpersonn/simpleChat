@@ -19,7 +19,11 @@
       "Bash(npx biome *)",
       "Bash(node_modules/.bin/tsc --project backend/tsconfig.json --noEmit)",
       "Bash(node_modules/.bin/tsc --project frontend/tsconfig.json --noEmit)",
-      "Bash(grep -v \".ts$\")"
+      "Bash(grep -v \".ts$\")",
+      "Read(//c/Users/nicbaaki/.claude/projects/c--Users-nicbaaki-Documents-PersonalProjects-a-chat-simpleChat/**)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\nicbaaki\\.claude\\projects\\c--Users-nicbaaki-Documents-PersonalProjects-a-chat-simpleChat"
     ]
   }
 }

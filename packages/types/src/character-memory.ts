@@ -33,6 +33,13 @@ export const CharacterDeltaSchema = z.object({
     privateAttitude: z.string().optional(),
     trustLevel: z.number().min(0).max(10).optional(),
   })).optional(),
+  locationRelationships: z.array(z.object({
+    locationId: z.string(),
+    comfort: z.number().min(0).max(10).optional(),
+    tension: z.number().min(0).max(10).optional(),
+    emotion: z.string().optional(),
+    notes: z.string().optional(),
+  })).optional(),
 })
 export type CharacterDelta = z.infer<typeof CharacterDeltaSchema>
 
@@ -43,6 +50,7 @@ export const CharacterMemorySchema = z.object({
   summary: z.string().min(1),
   tags: z.array(z.string()).default([]),
   importance: z.number().min(0).max(1).default(0.5),
+  locationId: z.string().optional(),
   sourceChatId: z.string().optional(),
   sourceTurnId: z.string().optional(),
   previousMemoryId: z.string().optional(),
@@ -60,6 +68,7 @@ export const CharacterMemoryCreateSchema = CharacterMemorySchema.omit({
 }).partial({
   tags: true,
   importance: true,
+  locationId: true,
   sourceChatId: true,
   sourceTurnId: true,
   previousMemoryId: true,

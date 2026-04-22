@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'preact/hooks'
+import { createPortal } from 'preact/compat'
 import type { Chat, Character, Location } from '@simplechat/types'
 import { useStoriesStore } from '../../store/stories.js'
 import { useChatsStore } from '../../store/chats.js'
@@ -13,7 +14,7 @@ import { CanonTimelineModal } from '../story/CanonTimelineModal.js'
 import s from './LeftPanel.module.css'
 
 export function LeftPanel() {
-  const { stories, selectedStoryId, characters, locations, loadStories, selectStory, deleteStory, deleteCharacter, deleteLocation } = useStoriesStore()
+  const { stories, selectedStoryId, characters, locations, characterMemories, loadStories, selectStory, deleteStory, deleteCharacter, deleteLocation, loadCharacterTimeline, initCharacterGenesis } = useStoriesStore()
   const { chats, activeChatId, loadChats, openChat, createChat, generateOpener } = useChatsStore()
   const ollamaHealthy = useSettingsStore((s) => s.ollamaHealthy)
   const setGeneration = useSettingsStore((s) => s.setGeneration)
@@ -21,10 +22,12 @@ export function LeftPanel() {
   const [showCreateStory, setShowCreateStory] = useState(false)
   const [editingStory, setEditingStory] = useState<string | null>(null)
   const [showNewChat, setShowNewChat] = useState(false)
+  const [branchAnchors, setBranchAnchors] = useState<Record<string, string> | null>(null)
   const [editingChar, setEditingChar] = useState<Character | null | 'new' | 'new-persona'>(null)
   const [editingLocation, setEditingLocation] = useState<Location | null | 'new'>(null)
   const [showSettings, setShowSettings] = useState(false)
   const [showTimeline, setShowTimeline] = useState(false)
+  const [expandedTimeline, setExpandedTimeline] = useState<string | null>(null)
 
   useEffect(() => { loadStories() }, [])
 
@@ -60,6 +63,27 @@ export function LeftPanel() {
     e.stopPropagation()
     if (!confirm('Delete this location?')) return
     await deleteLocation(locationId)
+  }
+
+  const handleToggleTimeline = async (charId: string) => {
+    if (expandedTimeline === charId) {
+      setExpandedTimeline(null)
+      return
+    }
+    setExpandedTimeline(charId)
+    if (!characterMemories[charId]) {
+      await loadCharacterTimeline(charId)
+    }
+  }
+
+  const handleBranchFromMemory = (charId: string, memoryId: string) => {
+    setBranchAnchors({ [charId]: memoryId })
+    setShowNewChat(true)
+  }
+
+  const handleInitGenesis = async (e: MouseEvent, charId: string) => {
+    e.stopPropagation()
+    await initCharacterGenesis(charId)
   }
 
   const selectedStory = stories.find((s) => s.id === selectedStoryId)
@@ -174,14 +198,63 @@ export function LeftPanel() {
               <div class={s.empty}>No characters yet</div>
             )}
             {characters.filter((c) => !c.isUserPersona).map((char) => (
-              <div key={char.id} class={`${s.item} ${s.subItem}`}>
-                <span class={s.itemIcon}>🎭</span>
-                <span class={s.itemLabel} title={char.name}>{char.name}</span>
-                {char.role && <span class={s.roleTag}>{char.role}</span>}
-                <div class={s.itemActions}>
-                  <button class={s.iconBtn} onClick={(e) => { e.stopPropagation(); setEditingChar(char) }} title="Edit character">✎</button>
-                  <button class={s.iconBtn} onClick={(e) => handleDeleteChar(e, char.id)} title="Delete character">✕</button>
+              <div key={char.id}>
+                <div class={`${s.item} ${s.subItem}`}>
+                  <span class={s.itemIcon}>🎭</span>
+                  <span class={s.itemLabel} title={char.name}>{char.name}</span>
+                  {char.role && <span class={s.roleTag}>{char.role}</span>}
+                  <div class={s.itemActions}>
+                    <button
+                      type="button"
+                      class={s.iconBtn}
+                      data-active={expandedTimeline === char.id ? 'true' : undefined}
+                      onClick={(e) => { e.stopPropagation(); handleToggleTimeline(char.id) }}
+                      title="Character timeline"
+                    >⏱</button>
+                    <button type="button" class={s.iconBtn} onClick={(e) => { e.stopPropagation(); setEditingChar(char) }} title="Edit character">✎</button>
+                    <button type="button" class={s.iconBtn} onClick={(e) => handleDeleteChar(e, char.id)} title="Delete character">✕</button>
+                  </div>
                 </div>
+                {expandedTimeline === char.id && (
+                  <div class={s.timeline}>
+                    {!char.genesisMemoryId && (
+                      <button type="button" class={s.timelineInitBtn} onClick={(e) => handleInitGenesis(e, char.id)}>
+                        Initialize timeline from traits
+                      </button>
+                    )}
+                    {(characterMemories[char.id] ?? []).length === 0 && char.genesisMemoryId && (
+                      <div class={s.empty}>No memories yet</div>
+                    )}
+                    {[...(characterMemories[char.id] ?? [])]
+                      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+                      .map((mem) => {
+                        const locName = mem.locationId
+                          ? locations.find((l) => l.id === mem.locationId)?.name
+                          : undefined
+                        return (
+                          <div key={mem.id} class={s.timelineEntry}>
+                            <span class={s.timelineDot} title={mem.importance >= 0.8 ? 'High importance' : 'Normal'}>
+                              {mem.importance >= 0.8 ? '●' : '○'}
+                            </span>
+                            <span class={s.timelineSummary} title={mem.summary}>
+                              {mem.summary.length > 72 ? `${mem.summary.slice(0, 69)}…` : mem.summary}
+                            </span>
+                            {locName && (
+                              <span class={s.roleTag} title={`Location: ${locName}`}>📍{locName}</span>
+                            )}
+                            <button
+                              type="button"
+                              class={s.branchBtn}
+                              onClick={() => handleBranchFromMemory(char.id, mem.id)}
+                              title="Start a new chat from this point in the timeline"
+                            >
+                              Branch
+                            </button>
+                          </div>
+                        )
+                      })}
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -216,77 +289,90 @@ export function LeftPanel() {
         <button class={s.settingsBtn} onClick={() => setShowSettings(true)}>⚙ Settings</button>
       </div>
 
-      {/* Modals */}
-      {showCreateStory && (
+      {/* Modals — rendered via portal to escape overflow:hidden on the left panel */}
+      {showCreateStory && createPortal(
         <StoryCreateModal
           onClose={() => setShowCreateStory(false)}
           onCreated={(story) => {
             setShowCreateStory(false)
             selectStory(story.id)
           }}
-        />
+        />,
+        document.body
       )}
 
-      {editingStory && selectedStory && editingStory === selectedStory.id && (
+      {editingStory && selectedStory && editingStory === selectedStory.id && createPortal(
         <EditStoryModal
           story={selectedStory}
           onClose={() => setEditingStory(null)}
           onSaved={() => setEditingStory(null)}
-        />
+        />,
+        document.body
       )}
 
-      {(editingChar === 'new' || editingChar === 'new-persona') && (
+      {(editingChar === 'new' || editingChar === 'new-persona') && createPortal(
         <CharacterModal
           defaultIsPersona={editingChar === 'new-persona'}
           onClose={() => setEditingChar(null)}
           onSaved={() => setEditingChar(null)}
-        />
+        />,
+        document.body
       )}
 
-      {editingChar && editingChar !== 'new' && editingChar !== 'new-persona' && (
+      {editingChar && editingChar !== 'new' && editingChar !== 'new-persona' && createPortal(
         <CharacterModal
           initial={editingChar}
           onClose={() => setEditingChar(null)}
           onSaved={() => setEditingChar(null)}
-        />
+        />,
+        document.body
       )}
 
-      {showNewChat && selectedStoryId && (
+      {showNewChat && selectedStoryId && createPortal(
         <NewChatModal
           storyId={selectedStoryId}
-          onClose={() => setShowNewChat(false)}
+          initialAnchors={branchAnchors ?? undefined}
+          onClose={() => { setShowNewChat(false); setBranchAnchors(null) }}
           onCreated={(chat, openingMode) => {
             setShowNewChat(false)
+            setBranchAnchors(null)
             openChat(selectedStoryId, chat.id).then(() => {
               if (openingMode === 'auto') generateOpener(selectedStoryId, chat.id)
             })
             loadChats(selectedStoryId)
           }}
-        />
+        />,
+        document.body
       )}
 
-      {editingLocation === 'new' && (
+      {editingLocation === 'new' && createPortal(
         <LocationModal
           onClose={() => setEditingLocation(null)}
           onSaved={() => setEditingLocation(null)}
-        />
+        />,
+        document.body
       )}
 
-      {editingLocation && editingLocation !== 'new' && (
+      {editingLocation && editingLocation !== 'new' && createPortal(
         <LocationModal
           initial={editingLocation}
           onClose={() => setEditingLocation(null)}
           onSaved={() => setEditingLocation(null)}
-        />
+        />,
+        document.body
       )}
 
-      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
+      {showSettings && createPortal(
+        <SettingsModal onClose={() => setShowSettings(false)} />,
+        document.body
+      )}
 
-      {showTimeline && selectedStoryId && (
+      {showTimeline && selectedStoryId && createPortal(
         <CanonTimelineModal
           storyId={selectedStoryId}
           onClose={() => setShowTimeline(false)}
-        />
+        />,
+        document.body
       )}
     </div>
   )

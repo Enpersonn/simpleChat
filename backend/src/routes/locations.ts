@@ -1,11 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import { LocationCreateSchema, LocationUpdateSchema } from '@simplechat/types'
 import * as storage from '../storage.js'
-
-function extractJson(raw: string): unknown {
-  const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/)
-  return JSON.parse((fenced ? fenced[1] : raw).trim())
-}
+import { extractJson } from '../utils.js'
 
 export async function locationsRoutes(app: FastifyInstance): Promise<void> {
   app.get<{ Params: { id: string } }>('/stories/:id/locations', async (req) => {

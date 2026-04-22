@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'preact/hooks'
-import type { Character, CharacterCreate, CharacterMemory, CharacterMemoryCreate, CharacterDelta } from '@simplechat/types'
+import type { Character, CharacterCreate, CharacterMemory, CharacterMemoryCreate, CharacterDelta, LocationRelationship } from '@simplechat/types'
 import { useStoriesStore } from '../../store/stories.js'
 import { api } from '../../lib/api.js'
 import s from './StoryCreateModal.module.css'
@@ -78,10 +78,10 @@ function deltaToFormFields(d: CharacterDelta | undefined): Partial<MemoryForm> {
 }
 
 export function CharacterModal({ initial, initialDraft, defaultIsPersona, onClose, onSaved, onSaveData }: Props) {
-  const { createCharacter, updateCharacter, selectedStoryId } = useStoriesStore()
+  const { createCharacter, updateCharacter, selectedStoryId, locations } = useStoriesStore()
   const isEdit = !!initial
 
-  const [activeTab, setActiveTab] = useState<'character' | 'memories' | 'relations'>('character')
+  const [activeTab, setActiveTab] = useState<'character' | 'memories' | 'relations' | 'locations'>('character')
   const [name, setName] = useState(initial?.name ?? initialDraft?.name ?? '')
   const [role, setRole] = useState(initial?.role ?? initialDraft?.role ?? '')
   const [isUserPersona, setIsUserPersona] = useState(initial?.isUserPersona ?? initialDraft?.isUserPersona ?? defaultIsPersona ?? false)
@@ -107,6 +107,12 @@ export function CharacterModal({ initial, initialDraft, defaultIsPersona, onClos
 
   // Relations tab state
   const [relations, setRelations] = useState<RelationEntry[]>([])
+
+  // Location feelings tab state
+  const [locFeelings, setLocFeelings] = useState<LocationRelationship[]>(
+    initial?.locationRelationships ?? [],
+  )
+  const [locSaving, setLocSaving] = useState(false)
 
   useEffect(() => {
     if (isEdit && initial && selectedStoryId) {
@@ -252,6 +258,7 @@ export function CharacterModal({ initial, initialDraft, defaultIsPersona, onClos
             <button class={s.tabBtn} data-active={activeTab === 'character' ? 'true' : undefined} onClick={() => setActiveTab('character')}>Character</button>
             <button class={s.tabBtn} data-active={activeTab === 'memories' ? 'true' : undefined} onClick={() => setActiveTab('memories')}>Memories</button>
             <button class={s.tabBtn} data-active={activeTab === 'relations' ? 'true' : undefined} onClick={() => setActiveTab('relations')}>Relations</button>
+            <button class={s.tabBtn} data-active={activeTab === 'locations' ? 'true' : undefined} onClick={() => setActiveTab('locations')}>Locations</button>
           </div>
         )}
 
@@ -354,6 +361,93 @@ export function CharacterModal({ initial, initialDraft, defaultIsPersona, onClos
               </button>
             </div>
           </>
+        )}
+
+        {activeTab === 'locations' && (
+          <div class={ms.memList}>
+            {locations.length === 0 ? (
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', padding: '8px 0' }}>
+                No locations in this story yet.
+              </div>
+            ) : (
+              <>
+                {locations.map((loc) => {
+                  const feeling = locFeelings.find((r) => r.locationId === loc.id)
+                  const comfort = feeling?.comfort ?? 5
+                  const tension = feeling?.tension ?? 0
+                  const emotion = feeling?.emotion ?? ''
+                  const notes = feeling?.notes ?? ''
+                  const updateFeeling = (patch: Partial<LocationRelationship>) => {
+                    setLocFeelings((prev) => {
+                      const idx = prev.findIndex((r) => r.locationId === loc.id)
+                      const next = [...prev]
+                      if (idx >= 0) {
+                        next[idx] = { ...next[idx], ...patch }
+                      } else {
+                        next.push({ locationId: loc.id, comfort: 5, tension: 0, emotion: '', notes: '', ...patch })
+                      }
+                      return next
+                    })
+                  }
+                  return (
+                    <div key={loc.id} class={ms.memCard}>
+                      <div class={ms.memCardHeader}>
+                        <span style={{ fontWeight: 600, fontSize: '13px' }}>{loc.name}</span>
+                      </div>
+                      <div class={s.infoGrid} style={{ marginTop: '6px' }}>
+                        <div class={s.infoCell}>
+                          <span class={s.subLabel}>Comfort: {comfort}/10</span>
+                          <input type="range" min="0" max="10" step="1" value={comfort}
+                            onInput={(e) => updateFeeling({ comfort: parseInt((e.target as HTMLInputElement).value, 10) })}
+                            style={{ width: '100%' }} />
+                        </div>
+                        <div class={s.infoCell}>
+                          <span class={s.subLabel}>Tension: {tension}/10</span>
+                          <input type="range" min="0" max="10" step="1" value={tension}
+                            onInput={(e) => updateFeeling({ tension: parseInt((e.target as HTMLInputElement).value, 10) })}
+                            style={{ width: '100%' }} />
+                        </div>
+                      </div>
+                      <div class={s.field} style={{ marginTop: '6px' }}>
+                        <span class={s.subLabel}>Emotion at this place</span>
+                        <input class={s.input} placeholder="e.g. nostalgic, uneasy, at home"
+                          value={emotion}
+                          onInput={(e) => updateFeeling({ emotion: (e.target as HTMLInputElement).value })} />
+                      </div>
+                      <div class={s.field}>
+                        <span class={s.subLabel}>Notes (private)</span>
+                        <input class={s.input} placeholder="Why they feel this way…"
+                          value={notes}
+                          onInput={(e) => updateFeeling({ notes: (e.target as HTMLInputElement).value })} />
+                      </div>
+                    </div>
+                  )
+                })}
+                <div class={s.footer}>
+                  <button class={s.cancelBtn} onClick={onClose}>Cancel</button>
+                  <button
+                    type="button"
+                    class={s.submitBtn}
+                    disabled={locSaving}
+                    onClick={async () => {
+                      if (!selectedStoryId || !initial) return
+                      setLocSaving(true)
+                      try {
+                        const updated = await updateCharacter(initial.id, { locationRelationships: locFeelings })
+                        onSaved(updated)
+                      } catch (err) {
+                        setError((err as Error).message)
+                      } finally {
+                        setLocSaving(false)
+                      }
+                    }}
+                  >
+                    {locSaving ? 'Saving…' : 'Save Location Feelings'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         )}
 
         {activeTab === 'relations' && (

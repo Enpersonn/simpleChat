@@ -234,7 +234,7 @@ export async function createChat(data: ChatCreate): Promise<Chat> {
     title: data.title ?? '',
     mode: data.mode ?? 'interactive',
     activeSpeakers: data.activeSpeakers ?? [],
-    memoryAnchors: data.memoryAnchors ?? {},
+    memoryTimelineCutoff: data.memoryTimelineCutoff,
     createdAt: now(),
     updatedAt: now(),
   })

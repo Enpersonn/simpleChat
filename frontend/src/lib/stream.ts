@@ -6,6 +6,7 @@ export interface DebugInfo {
 export interface StateUpdate {
   currentLocationId: string | null
   locationName: string | null | undefined
+  newLocationCreated?: boolean
 }
 
 export interface StreamOptions {

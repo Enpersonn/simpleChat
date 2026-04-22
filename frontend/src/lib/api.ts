@@ -96,6 +96,7 @@ export const api = {
         name: string; role: string; isUserPersona: boolean; age: string; gender: string
         species: string; clothing: string; appearance: string; personality: string[]
         speechStyle: string; trueMotives: string; fears: string[]
+        relationships?: Array<{ otherCharacterName: string; emotion: string; publicAttitude: string; privateAttitude: string; trustLevel: number }>
       }> }>(
         '/stories/generate-story-characters',
         { method: 'POST', body: JSON.stringify({ concept, ...core }) },
@@ -132,11 +133,28 @@ export const api = {
         '/stories/parse-story-memories',
         { method: 'POST', body: JSON.stringify({ text, premise, characters }) },
       ),
+    generateStoryLocations: (concept: string, core: { genres: string[]; tone: string[]; writingStyle: string }) =>
+      request<{ locations: Array<{
+        name: string; description: string; layout: string; lighting: string
+        atmosphere: string; soundscape: string; smells: string; notes: string; tags: string[]
+      }> }>(
+        '/stories/generate-story-locations',
+        { method: 'POST', body: JSON.stringify({ concept, ...core }) },
+      ),
+    generateStoryMemories: (concept: string, premise: string, characters: Array<{ name: string }>) =>
+      request<{ memories: Array<{
+        characterName: string; summary: string; tags: string[]; importance: number
+        deltas?: Record<string, unknown>
+        relationshipEffects?: Array<{ otherCharacterName: string; emotion: string; publicAttitude: string; privateAttitude: string; trustLevel: number }>
+      }> }>(
+        '/stories/generate-story-memories',
+        { method: 'POST', body: JSON.stringify({ concept, premise, characters }) },
+      ),
   },
 
   chats: {
     list: (storyId: string) => request<Chat[]>(`/stories/${storyId}/chats`),
-    create: (storyId: string, data: Omit<ChatCreate, 'storyId'>) =>
+    create: (storyId: string, data: Omit<ChatCreate, 'storyId'> & { startingLocationId?: string }) =>
       request<Chat>(`/stories/${storyId}/chats`, { method: 'POST', body: JSON.stringify(data) }),
     history: (storyId: string, chatId: string) =>
       request<Turn[]>(`/stories/${storyId}/chats/${chatId}/history`),
@@ -186,6 +204,8 @@ export const api = {
         publicAttitude: string; privateAttitude: string; trustLevel: number
         sourceMemoryId?: string
       }>>(`/stories/${storyId}/characters/${charId}/relationships`),
+    initGenesis: (storyId: string, charId: string) =>
+      request<Character>(`/stories/${storyId}/characters/${charId}/genesis`, { method: 'POST' }),
   },
 
   locations: {

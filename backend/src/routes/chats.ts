@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import { randomUUID } from 'node:crypto'
-import { ChatCreateSchema, SendMessageSchema, type Turn, type CharacterMemory } from '@simplechat/types'
+import { ChatCreateSchema, ChatEntityStateSchema, SendMessageSchema, type Story, type Turn, type CharacterMemory, type LocationCreate } from '@simplechat/types'
 import * as storage from '../storage.js'
 import { streamChat, activeModel } from '../ollama.js'
 import { assembleContext } from '../context.js'
@@ -8,6 +8,7 @@ import { getSettings } from '../config.js'
 import { findRelevantMemories } from '../memory-retrieval.js'
 import { runExtraction } from '../extraction.js'
 import { applyMemoryChain } from '../character-state.js'
+import { extractJson } from '../utils.js'
 
 export async function chatsRoutes(app: FastifyInstance): Promise<void> {
   app.get<{ Params: { storyId: string } }>('/stories/:storyId/chats', async (req) => {
@@ -18,6 +19,15 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
     const body = ChatCreateSchema.safeParse({ ...req.body as object, storyId: req.params.storyId })
     if (!body.success) return reply.status(400).send({ error: body.error.flatten() })
     const chat = await storage.createChat(body.data)
+    if (body.data.startingLocationId) {
+      await storage.updateChatState(req.params.storyId, chat.id, ChatEntityStateSchema.parse({
+        chatId: chat.id,
+        storyId: req.params.storyId,
+        currentLocationId: body.data.startingLocationId,
+        locationOverrides: {},
+        updatedAt: new Date().toISOString(),
+      }))
+    }
     return reply.status(201).send(chat)
   })
 
@@ -101,21 +111,19 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
       const effectiveModel = speakerChar?.modelOverride || model || undefined
       const settings = await getSettings()
 
-      // Build accessible memory chain for the active speaker
-      const allMemories = speakerChar
-        ? await storage.listCharacterMemories(storyId, speakerChar.id)
-        : []
-      const accessibleMemories = await resolveAccessibleMemories(
-        allMemories, storyId, speakerChar?.id, chat.memoryAnchors, chatId,
-      )
       const allTurns = [...existingTurns, userTurn]
-      const relevantMemories = await findRelevantMemories(accessibleMemories, allTurns)
 
-      // Effective character state: base + accumulated memory deltas
-      const effectiveCharacters = characters.map((c) => {
-        if (c.id !== activeSpeaker || accessibleMemories.length === 0) return c
-        return applyMemoryChain(c, accessibleMemories)
+      // Apply memory chains to ALL characters scoped to the chat's timeline anchors
+      const characterChains = await resolveCharacterChains(storyId, chatId, characters, chat.memoryTimelineCutoff)
+      const effectiveCharacters = characters.map((c, i) => {
+        const chain = characterChains[i]
+        return chain.length > 0 ? applyMemoryChain(c, chain) : c
       })
+
+      // Use the active speaker's chain for relevance retrieval
+      const activeSpeakerIdx = characters.findIndex((c) => c.id === activeSpeaker)
+      const accessibleMemories = activeSpeakerIdx >= 0 ? characterChains[activeSpeakerIdx] : []
+      const relevantMemories = await findRelevantMemories(accessibleMemories, allTurns)
 
       // Resolve current location and its state overrides
       const currentLocation = chatState.currentLocationId
@@ -124,6 +132,14 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
       const locationOverrides = chatState.currentLocationId
         ? chatState.locationOverrides[chatState.currentLocationId]
         : undefined
+
+      const otherCharMemories = new Map<string, CharacterMemory[]>()
+      for (let i = 0; i < characters.length; i++) {
+        const c = characters[i]
+        if (c.id !== activeSpeaker && !c.isUserPersona) {
+          otherCharMemories.set(c.id, characterChains[i])
+        }
+      }
 
       const messages = assembleContext({
         story,
@@ -137,7 +153,9 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
         globalNote: settings.globalNote,
         currentLocation,
         locationOverrides,
-        relevantMemories,
+        locations,
+        speakerMemories: relevantMemories,
+        otherCharMemories,
       })
 
       reply.raw.writeHead(200, {
@@ -183,22 +201,37 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
         }
         await storage.appendTurn(storyId, assistantTurn)
 
-        // Run entity extraction in background and emit state update frame
+        // Run entity extraction and emit state update frame
         if (locations.length > 0) {
           try {
             const completedTurns = [...allTurns, assistantTurn]
-            const newState = await runExtraction({
+            const extracted = await runExtraction({
               recentTurns: completedTurns.slice(-6),
               story,
               locations,
               currentState: chatState,
             })
-            await storage.updateChatState(storyId, chatId, newState)
-            if (newState.currentLocationId !== chatState.currentLocationId || JSON.stringify(newState.locationOverrides) !== JSON.stringify(chatState.locationOverrides)) {
-              const locationName = newState.currentLocationId
-                ? locations.find((l) => l.id === newState.currentLocationId)?.name
+
+            let finalState = extracted
+            let newLocationCreated = false
+
+            if (extracted.newLocationName) {
+              const newLocFields = await generateLocationFromContext(extracted.newLocationName, story, completedTurns.slice(-4))
+              const newLoc = await storage.createLocation(storyId, newLocFields)
+              locations.push(newLoc)
+              finalState = { ...extracted, currentLocationId: newLoc.id, locationOverrides: {} }
+              newLocationCreated = true
+            }
+
+            await storage.updateChatState(storyId, chatId, finalState)
+
+            const locationChanged = finalState.currentLocationId !== chatState.currentLocationId
+            const overridesChanged = JSON.stringify(finalState.locationOverrides) !== JSON.stringify(chatState.locationOverrides)
+            if (locationChanged || overridesChanged || newLocationCreated) {
+              const locationName = finalState.currentLocationId
+                ? locations.find((l) => l.id === finalState.currentLocationId)?.name ?? null
                 : null
-              reply.raw.write(JSON.stringify({ stateUpdate: { currentLocationId: newState.currentLocationId, locationName } }) + '\n')
+              reply.raw.write(JSON.stringify({ stateUpdate: { currentLocationId: finalState.currentLocationId, locationName, newLocationCreated } }) + '\n')
             }
           } catch {
             // Extraction failure is non-fatal
@@ -239,18 +272,15 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
       const speakerChar = characters.find((c) => c.id === activeSpeaker)
       const effectiveModel = speakerChar?.modelOverride || params.model || undefined
 
-      const allMemories = speakerChar
-        ? await storage.listCharacterMemories(storyId, speakerChar.id)
-        : []
-      const accessibleMemories = await resolveAccessibleMemories(
-        allMemories, storyId, speakerChar?.id, chat.memoryAnchors, chatId,
-      )
-      const relevantMemories = await findRelevantMemories(accessibleMemories, freshTurns)
-
-      const effectiveCharacters = characters.map((c) => {
-        if (c.id !== activeSpeaker || accessibleMemories.length === 0) return c
-        return applyMemoryChain(c, accessibleMemories)
+      const characterChains = await resolveCharacterChains(storyId, chatId, characters, chat.memoryTimelineCutoff)
+      const effectiveCharacters = characters.map((c, i) => {
+        const chain = characterChains[i]
+        return chain.length > 0 ? applyMemoryChain(c, chain) : c
       })
+
+      const activeSpeakerIdx = characters.findIndex((c) => c.id === activeSpeaker)
+      const accessibleMemories = activeSpeakerIdx >= 0 ? characterChains[activeSpeakerIdx] : []
+      const relevantMemories = await findRelevantMemories(accessibleMemories, freshTurns)
 
       const currentLocation = chatState.currentLocationId
         ? locations.find((l) => l.id === chatState.currentLocationId)
@@ -260,6 +290,15 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
         : undefined
 
       const settings = await getSettings()
+
+      const otherCharMemoriesRegen = new Map<string, CharacterMemory[]>()
+      for (let i = 0; i < characters.length; i++) {
+        const c = characters[i]
+        if (c.id !== activeSpeaker && !c.isUserPersona) {
+          otherCharMemoriesRegen.set(c.id, characterChains[i])
+        }
+      }
+
       const messages = assembleContext({
         story,
         characters: effectiveCharacters,
@@ -272,7 +311,9 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
         globalNote: settings.globalNote,
         currentLocation,
         locationOverrides,
-        relevantMemories,
+        locations,
+        speakerMemories: relevantMemories,
+        otherCharMemories: otherCharMemoriesRegen,
       })
 
       reply.raw.writeHead(200, {
@@ -366,6 +407,12 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
       const activeSpeaker = chat.activeSpeakers[0] ?? 'narrator'
       const settings = await getSettings()
 
+      const characterChains = await resolveCharacterChains(storyId, chatId, characters, chat.memoryTimelineCutoff)
+      const effectiveCharacters = characters.map((c, i) => {
+        const chain = characterChains[i]
+        return chain.length > 0 ? applyMemoryChain(c, chain) : c
+      })
+
       const currentLocation = chatState.currentLocationId
         ? locations.find((l) => l.id === chatState.currentLocationId)
         : undefined
@@ -375,18 +422,45 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
 
       const openerLength = chat.mode === 'storyteller' ? 'paragraph+' : 'medium'
 
+      // For the opener, use the speaker's genesis/anchor chain as history
+      const openerActiveSpeakerIdx = characters.findIndex((c) => c.id === activeSpeaker)
+      const openerSpeakerMemories = openerActiveSpeakerIdx >= 0 ? characterChains[openerActiveSpeakerIdx] : []
+
+      const openerOtherCharMemories = new Map<string, CharacterMemory[]>()
+      for (let i = 0; i < characters.length; i++) {
+        const c = characters[i]
+        if (c.id !== activeSpeaker && !c.isUserPersona) {
+          openerOtherCharMemories.set(c.id, characterChains[i])
+        }
+      }
+
       const messages = assembleContext({
-        story, characters, activeSpeaker,
+        story, characters: effectiveCharacters, activeSpeaker,
         recentTurns: [],
         mode: chat.mode,
         globalNote: settings.globalNote,
         currentLocation,
         locationOverrides,
+        locations,
         responseLength: openerLength,
         moodTags: [],
         feelText: '',
+        speakerMemories: openerSpeakerMemories,
+        otherCharMemories: openerOtherCharMemories,
       })
-      messages.push({ role: 'user', content: '[Begin. Write the opening scene or greeting.]' })
+      const sortedMems = [...openerSpeakerMemories].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+      const anchorMem = sortedMems[sortedMems.length - 1]
+      const anchorLocName = anchorMem?.locationId
+        ? locations.find((l) => l.id === anchorMem.locationId)?.name
+        : undefined
+      const sceneLoc = currentLocation?.name ?? anchorLocName
+
+      let openerContent = '[Begin the story.'
+      if (anchorMem?.summary) openerContent += ` Open directly in this moment: ${anchorMem.summary}.`
+      if (sceneLoc) openerContent += ` The scene is set at: ${sceneLoc}.`
+      openerContent += ' Ground yourself in this specific situation — no recap, no preamble.]'
+
+      messages.push({ role: 'user', content: openerContent })
 
       reply.raw.writeHead(200, {
         'Content-Type': 'application/x-ndjson',
@@ -474,20 +548,79 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
   )
 }
 
+async function resolveCharacterChains(
+  storyId: string,
+  chatId: string,
+  characters: import('@simplechat/types').Character[],
+  memoryTimelineCutoff: string | undefined,
+): Promise<import('@simplechat/types').CharacterMemory[][]> {
+  return Promise.all(
+    characters.map(async (c) => {
+      const mems = await storage.listCharacterMemories(storyId, c.id)
+      return resolveAccessibleMemories(mems, storyId, c.id, memoryTimelineCutoff, chatId)
+    }),
+  )
+}
+
+async function generateLocationFromContext(
+  name: string,
+  story: Story,
+  recentTurns: Turn[],
+): Promise<LocationCreate> {
+  const sceneText = recentTurns.map((t) => `${t.role}: ${t.text}`).join('\n')
+  let raw = ''
+  try {
+    await streamChat({
+      messages: [
+        {
+          role: 'system',
+          content: [
+            'You are a setting designer. Return ONLY valid JSON describing a location.',
+            'Return this shape: { "description": "", "atmosphere": "", "lighting": "", "soundscape": "", "smells": "", "layout": "", "notes": "", "tags": [] }',
+            'Infer sensory details from the scene context. Be evocative but concise (1-2 sentences per field).',
+          ].join('\n'),
+        },
+        {
+          role: 'user',
+          content: `Story: ${story.premise ?? story.title}\nNew location name: ${name}\nRecent scene:\n${sceneText}`,
+        },
+      ],
+      temperature: 0.3,
+      onChunk: (chunk) => { raw += chunk },
+    })
+    const data = extractJson(raw) as Record<string, unknown>
+    return {
+      name,
+      description: typeof data.description === 'string' ? data.description : '',
+      atmosphere: typeof data.atmosphere === 'string' ? data.atmosphere : '',
+      lighting: typeof data.lighting === 'string' ? data.lighting : '',
+      soundscape: typeof data.soundscape === 'string' ? data.soundscape : '',
+      smells: typeof data.smells === 'string' ? data.smells : '',
+      layout: typeof data.layout === 'string' ? data.layout : '',
+      notes: typeof data.notes === 'string' ? data.notes : '',
+      tags: Array.isArray(data.tags) ? (data.tags as string[]).filter((t) => typeof t === 'string') : [],
+    }
+  } catch {
+    return { name }
+  }
+}
+
 async function resolveAccessibleMemories(
   allMemories: CharacterMemory[],
   storyId: string,
   charId: string | undefined,
-  memoryAnchors: Record<string, string>,
+  memoryTimelineCutoff: string | undefined,
   chatId: string,
 ): Promise<CharacterMemory[]> {
   if (!charId || allMemories.length === 0) return []
 
-  const anchor = memoryAnchors[charId] ?? null
   let chain: CharacterMemory[]
 
-  if (anchor) {
-    chain = await storage.getMemoryChain(storyId, charId, anchor)
+  if (memoryTimelineCutoff) {
+    const eligible = allMemories.filter((m) => m.createdAt <= memoryTimelineCutoff)
+    if (eligible.length === 0) return []
+    const latest = eligible.sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]
+    chain = await storage.getMemoryChain(storyId, charId, latest.id)
   } else {
     const heads = await storage.getMemoryHeads(storyId, charId)
     const head = heads.sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]
