@@ -34,6 +34,7 @@ export const ChatSchema = z.object({
   parentChatId: z.string().optional(),
   branchedFromTurnId: z.string().optional(),
   memoryTimelineCutoff: z.string().optional(),
+  memoryAnchors: z.record(z.string(), z.string()).optional(),
 })
 export type Chat = z.infer<typeof ChatSchema>
 
@@ -44,6 +45,7 @@ export const ChatCreateSchema = z.object({
   activeSpeakers: z.array(z.string()).optional(),
   memoryTimelineCutoff: z.string().optional(),
   startingLocationId: z.string().optional(),
+  memoryAnchors: z.record(z.string(), z.string()).optional(),
 })
 export type ChatCreate = z.infer<typeof ChatCreateSchema>
 

@@ -116,14 +116,14 @@ export function CharacterModal({ initial, initialDraft, defaultIsPersona, onClos
 
   useEffect(() => {
     if (isEdit && initial && selectedStoryId) {
-      api.characterMemories.chain(selectedStoryId, initial.id).then(setMemories).catch(() => {})
-      api.characters.relationships(selectedStoryId, initial.id).then(setRelations).catch(() => {})
+      api.characterMemories.chain(selectedStoryId, initial.id).then(setMemories).catch((err: unknown) => setError(err instanceof Error ? err.message : 'Failed to load memories'))
+      api.characters.relationships(selectedStoryId, initial.id).then(setRelations).catch((err: unknown) => setError(err instanceof Error ? err.message : 'Failed to load relationships'))
     }
   }, [isEdit, initial?.id, selectedStoryId])
 
   const reloadMemories = () => {
     if (selectedStoryId && initial) {
-      api.characterMemories.chain(selectedStoryId, initial.id).then(setMemories).catch(() => {})
+      api.characterMemories.chain(selectedStoryId, initial.id).then(setMemories).catch((err: unknown) => setError(err instanceof Error ? err.message : 'Failed to load memories'))
     }
   }
 

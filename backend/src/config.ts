@@ -7,6 +7,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(__dirname, '..')
 
 let _settings: AppSettings | null = null
+let _writeQueue: Promise<void> = Promise.resolve()
 
 function settingsPath(): string {
   return resolve(ROOT, 'data', 'settings.json')
@@ -26,9 +27,12 @@ export async function getSettings(): Promise<AppSettings> {
 
 export async function saveSettings(settings: AppSettings): Promise<void> {
   _settings = settings
-  const path = settingsPath()
-  await mkdir(dirname(path), { recursive: true })
-  await writeFile(path, JSON.stringify(settings, null, 2))
+  _writeQueue = _writeQueue.then(async () => {
+    const path = settingsPath()
+    await mkdir(dirname(path), { recursive: true })
+    await writeFile(path, JSON.stringify(settings, null, 2))
+  })
+  await _writeQueue
 }
 
 export async function dataDir(): Promise<string> {

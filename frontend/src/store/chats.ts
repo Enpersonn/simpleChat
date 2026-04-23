@@ -142,9 +142,13 @@ export const useChatsStore = create<ChatsState>((set, get) => ({
       onDone: () => {
         const { activeStoryId: sid, activeChatId: cid } = get()
         if (sid && cid) {
-          api.chats.history(sid, cid).then((turns) => {
-            set({ turns, isStreaming: false, streamingText: '', abortController: null })
-          })
+          api.chats.history(sid, cid)
+            .then((turns) => {
+              set({ turns, isStreaming: false, streamingText: '', abortController: null })
+            })
+            .catch((err) => {
+              set({ error: err instanceof Error ? err.message : 'Failed to load history', isStreaming: false, streamingText: '', abortController: null })
+            })
         } else {
           set((s) => ({
             isStreaming: false,
@@ -210,9 +214,13 @@ export const useChatsStore = create<ChatsState>((set, get) => ({
       onDone: () => {
         const { activeStoryId: sid, activeChatId: cid } = get()
         if (sid && cid) {
-          api.chats.history(sid, cid).then((turns) => {
-            set({ turns, isStreaming: false, streamingText: '', abortController: null })
-          })
+          api.chats.history(sid, cid)
+            .then((turns) => {
+              set({ turns, isStreaming: false, streamingText: '', abortController: null })
+            })
+            .catch((err) => {
+              set({ error: err instanceof Error ? err.message : 'Failed to load history', isStreaming: false, streamingText: '', abortController: null })
+            })
         }
       },
       onError: (msg) => {
@@ -233,7 +241,7 @@ export const useChatsStore = create<ChatsState>((set, get) => ({
         .slice(0, turnIdx + 1)
         .map((t) => (t.id === turnId ? { ...t, text } : t))
 
-      const lastAsst = [...turns].reverse().find((t) => t.role === 'assistant')
+      const lastAsst = [...prunedTurns].reverse().find((t) => t.role === 'assistant')
       const streamingPlaceholder: Turn = {
         id: 'streaming',
         chatId: activeChatId,
@@ -270,9 +278,13 @@ export const useChatsStore = create<ChatsState>((set, get) => ({
         onDone: () => {
           const { activeStoryId: sid, activeChatId: cid } = get()
           if (sid && cid) {
-            api.chats.history(sid, cid).then((freshTurns) => {
-              set({ turns: freshTurns, isStreaming: false, streamingText: '', abortController: null })
-            })
+            api.chats.history(sid, cid)
+              .then((freshTurns) => {
+                set({ turns: freshTurns, isStreaming: false, streamingText: '', abortController: null })
+              })
+              .catch((err) => {
+                set({ error: err instanceof Error ? err.message : 'Failed to load history', isStreaming: false, streamingText: '', abortController: null })
+              })
           }
         },
         onError: (msg) => {
@@ -310,9 +322,13 @@ export const useChatsStore = create<ChatsState>((set, get) => ({
         }))
       },
       onDone: () => {
-        api.chats.history(storyId, chatId).then((turns) => {
-          set({ turns, isStreaming: false, streamingText: '', abortController: null })
-        })
+        api.chats.history(storyId, chatId)
+          .then((turns) => {
+            set({ turns, isStreaming: false, streamingText: '', abortController: null })
+          })
+          .catch((err) => {
+            set({ error: err instanceof Error ? err.message : 'Failed to load history', isStreaming: false, streamingText: '', abortController: null })
+          })
       },
       onError: (msg) => {
         set((s) => ({

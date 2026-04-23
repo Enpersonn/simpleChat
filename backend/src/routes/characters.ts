@@ -106,11 +106,7 @@ export async function charactersRoutes(app: FastifyInstance): Promise<void> {
       if (!char)
         return reply.status(404).send({ error: "Character not found" });
 
-      const allMemories = await storage.listCharacterMemories(storyId, charId);
-      const referenced = new Set(
-        allMemories.map((m) => m.previousMemoryId).filter(Boolean),
-      );
-      const heads = allMemories.filter((m) => !referenced.has(m.id));
+      const heads = await storage.getMemoryHeads(storyId, charId);
       const latestHead = heads.sort((a, b) =>
         b.createdAt.localeCompare(a.createdAt),
       )[0];

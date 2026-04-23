@@ -89,7 +89,7 @@ export function applyMemoryChain(
         const idx = effective.relationships.findIndex(
           (r) => r.charId === rel.charId,
         );
-        const base =
+        const existingRel =
           idx >= 0
             ? effective.relationships[idx]
             : {
@@ -102,7 +102,7 @@ export function applyMemoryChain(
                 emotion: "",
               };
         const updated = {
-          ...base,
+          ...existingRel,
           ...(rel.emotion !== undefined ? { emotion: rel.emotion } : {}),
           ...(rel.publicAttitude !== undefined
             ? { publicAttitude: rel.publicAttitude }

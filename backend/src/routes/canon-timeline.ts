@@ -1,3 +1,4 @@
+import { CanonEntryCreateSchema } from '@simplechat/types'
 import type { FastifyInstance } from 'fastify'
 import * as storage from '../storage.js'
 
@@ -12,9 +13,9 @@ export async function canonTimelineRoutes(app: FastifyInstance): Promise<void> {
   app.post<{ Params: { id: string } }>('/stories/:id/canon-timeline/entries', async (req, reply) => {
     const story = await storage.getStory(req.params.id)
     if (!story) return reply.status(404).send({ error: 'Story not found' })
-    const { characterId, memoryId, label } = req.body as { characterId?: string; memoryId?: string; label?: string }
-    if (!characterId || !memoryId) return reply.status(400).send({ error: 'characterId and memoryId are required' })
-    const timeline = await storage.addCanonEntry(req.params.id, { characterId, memoryId, label })
+    const body = CanonEntryCreateSchema.safeParse(req.body)
+    if (!body.success) return reply.status(400).send({ error: body.error.flatten() })
+    const timeline = await storage.addCanonEntry(req.params.id, body.data)
     return reply.status(201).send(timeline)
   })
 

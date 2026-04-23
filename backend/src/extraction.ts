@@ -1,5 +1,13 @@
 import type { Turn, Story, Location, ChatEntityState, LocationOverride } from '@simplechat/types'
+import { z } from 'zod'
 import { streamChat } from './ollama.js'
+import { extractJson } from './utils.js'
+
+const LocationExtractionSchema = z.object({
+  currentLocationId: z.union([z.string(), z.null()]).optional(),
+  newLocationName: z.string().optional(),
+  stateChanges: z.record(z.string(), z.string()).optional(),
+})
 
 export interface ExtractionContext {
   recentTurns: Turn[]
@@ -70,34 +78,35 @@ const locationExtractor: EntityExtractor = {
         onChunk: (chunk) => { raw += chunk },
       })
 
-      const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/)
-      const data = JSON.parse((fenced ? fenced[1] : raw).trim()) as Record<string, unknown>
+      const parsed = LocationExtractionSchema.safeParse(extractJson(raw))
+      if (!parsed.success) return {}
+      const data = parsed.data
 
       const result: Partial<ExtractionResult> = {}
 
-      if (typeof data.newLocationName === 'string' && data.newLocationName.trim()) {
+      if (data.newLocationName?.trim()) {
         result.newLocationName = data.newLocationName.trim()
         result.currentLocationId = null
-      } else if (typeof data.currentLocationId === 'string' && data.currentLocationId !== 'unchanged') {
-        result.currentLocationId = data.currentLocationId === 'null' || data.currentLocationId === ''
-          ? null
-          : data.currentLocationId
-      } else if (data.currentLocationId === null) {
-        result.currentLocationId = null
+      } else if (data.currentLocationId !== undefined && data.currentLocationId !== 'unchanged') {
+        result.currentLocationId =
+          data.currentLocationId === null ||
+          data.currentLocationId === 'null' ||
+          data.currentLocationId === ''
+            ? null
+            : data.currentLocationId
       }
 
-      const targetId = result.currentLocationId !== undefined
-        ? result.currentLocationId
-        : currentId
+      const targetId =
+        result.currentLocationId !== undefined ? result.currentLocationId : currentId
 
-      if (targetId && typeof data.stateChanges === 'object' && data.stateChanges !== null) {
-        const changes = data.stateChanges as Record<string, unknown>
+      if (targetId && data.stateChanges) {
+        const changes = data.stateChanges
         const override: LocationOverride = {}
-        if (typeof changes.lighting === 'string') override.lighting = changes.lighting
-        if (typeof changes.atmosphere === 'string') override.atmosphere = changes.atmosphere
-        if (typeof changes.soundscape === 'string') override.soundscape = changes.soundscape
-        if (typeof changes.smells === 'string') override.smells = changes.smells
-        if (typeof changes.description === 'string') override.description = changes.description
+        if (changes.lighting) override.lighting = changes.lighting
+        if (changes.atmosphere) override.atmosphere = changes.atmosphere
+        if (changes.soundscape) override.soundscape = changes.soundscape
+        if (changes.smells) override.smells = changes.smells
+        if (changes.description) override.description = changes.description
         if (Object.keys(override).length > 0) {
           result.locationOverrides = {
             ...ctx.currentState.locationOverrides,

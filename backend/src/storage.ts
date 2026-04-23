@@ -39,9 +39,7 @@ import { dataDir } from './config.js'
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 async function storyDir(storyId: string): Promise<string> {
-  const dir = join(await dataDir(), 'stories', storyId)
-  await mkdir(dir, { recursive: true })
-  return dir
+  return join(await dataDir(), 'stories', storyId)
 }
 
 async function readJson<T>(path: string, fallback: T): Promise<T> {
@@ -235,6 +233,7 @@ export async function createChat(data: ChatCreate): Promise<Chat> {
     mode: data.mode ?? 'interactive',
     activeSpeakers: data.activeSpeakers ?? [],
     memoryTimelineCutoff: data.memoryTimelineCutoff,
+    memoryAnchors: data.memoryAnchors,
     createdAt: now(),
     updatedAt: now(),
   })
@@ -281,16 +280,6 @@ export async function updateTurn(storyId: string, chatId: string, turnId: string
   const path = await chatLogPath(storyId, chatId)
   await writeFile(path, turns.map((t) => JSON.stringify(t)).join('\n') + '\n')
   return turns[idx]
-}
-
-export async function deleteFromTurn(storyId: string, chatId: string, turnId: string): Promise<boolean> {
-  const turns = await getTurns(storyId, chatId)
-  const idx = turns.findIndex((t) => t.id === turnId)
-  if (idx === -1) return false
-  const remaining = turns.slice(0, idx)
-  const path = await chatLogPath(storyId, chatId)
-  await writeFile(path, remaining.map((t) => JSON.stringify(t)).join('\n') + (remaining.length ? '\n' : ''))
-  return true
 }
 
 export async function deleteAfterTurn(storyId: string, chatId: string, turnId: string): Promise<boolean> {

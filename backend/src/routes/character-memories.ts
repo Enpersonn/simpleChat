@@ -31,6 +31,15 @@ export async function characterMemoriesRoutes(app: FastifyInstance): Promise<voi
     async (req, reply) => {
       const body = CharacterMemoryCreateSchema.safeParse(req.body)
       if (!body.success) return reply.status(400).send({ error: body.error.flatten() })
+      if (!body.data.previousMemoryId) {
+        const heads = await storage.getMemoryHeads(req.params.id, req.params.cid)
+        if (heads.length > 1) {
+          return reply.status(409).send({
+            error: 'Multiple memory branches exist. Specify previousMemoryId to indicate which branch to extend.',
+            heads: heads.map((h) => ({ id: h.id, branchLabel: h.branchLabel, createdAt: h.createdAt })),
+          })
+        }
+      }
       const memory = await storage.addCharacterMemory(req.params.id, req.params.cid, body.data)
       return reply.status(201).send(memory)
     },

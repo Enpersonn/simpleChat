@@ -4,6 +4,7 @@ import {
   ChatCreateSchema,
   ChatEntityStateSchema,
   type LocationCreate,
+  MemoryItemCreateSchema,
   SendMessageSchema,
   type Story,
   type Turn,
@@ -91,10 +92,13 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
     async (req, reply) => {
       const chat = await storage.getChat(req.params.storyId, req.params.chatId);
       if (!chat) return reply.status(404).send({ error: "Chat not found" });
+      const body = ChatEntityStateSchema.partial().safeParse(req.body);
+      if (!body.success)
+        return reply.status(400).send({ error: body.error.flatten() });
       const updated = await storage.updateChatState(
         req.params.storyId,
         req.params.chatId,
-        req.body as never,
+        body.data,
       );
       return updated;
     },
@@ -167,10 +171,11 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
         return chain.length > 0 ? applyMemoryChain(c, chain) : c;
       });
 
-      // Use the active speaker's chain for relevance retrieval
-      const activeSpeakerIdx = characters.findIndex(
-        (c) => c.id === activeSpeaker,
-      );
+      // Use the active speaker's chain for relevance retrieval; narrator has no personal memories
+      const activeSpeakerIdx =
+        activeSpeaker === "narrator"
+          ? -1
+          : characters.findIndex((c) => c.id === activeSpeaker);
       const accessibleMemories =
         activeSpeakerIdx >= 0 ? characterChains[activeSpeakerIdx] : [];
       const relevantMemories = await findRelevantMemories(
@@ -211,12 +216,20 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
         otherCharMemories,
       });
 
+      const allowedOrigins = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+      ];
+      const reqOrigin = req.headers.origin ?? "";
+      const corsOrigin = allowedOrigins.includes(reqOrigin)
+        ? reqOrigin
+        : allowedOrigins[0];
       reply.raw.writeHead(200, {
         "Content-Type": "application/x-ndjson",
         "Transfer-Encoding": "chunked",
         "Cache-Control": "no-cache",
         "X-Accel-Buffering": "no",
-        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Origin": corsOrigin,
       });
 
       const resolvedModel = effectiveModel ?? (await activeModel());
@@ -245,6 +258,8 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Stream error";
         reply.raw.write(JSON.stringify({ error: msg }) + "\n");
+        reply.raw.end();
+        return;
       }
 
       // Persist assistant turn
@@ -372,9 +387,11 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
         return chain.length > 0 ? applyMemoryChain(c, chain) : c;
       });
 
-      const activeSpeakerIdx = characters.findIndex(
-        (c) => c.id === activeSpeaker,
-      );
+      // narrator has no personal memories
+      const activeSpeakerIdx =
+        activeSpeaker === "narrator"
+          ? -1
+          : characters.findIndex((c) => c.id === activeSpeaker);
       const accessibleMemories =
         activeSpeakerIdx >= 0 ? characterChains[activeSpeakerIdx] : [];
       const relevantMemories = await findRelevantMemories(
@@ -416,12 +433,20 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
         otherCharMemories: otherCharMemoriesRegen,
       });
 
+      const allowedOriginsRegen = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+      ];
+      const reqOriginRegen = req.headers.origin ?? "";
+      const corsOriginRegen = allowedOriginsRegen.includes(reqOriginRegen)
+        ? reqOriginRegen
+        : allowedOriginsRegen[0];
       reply.raw.writeHead(200, {
         "Content-Type": "application/x-ndjson",
         "Transfer-Encoding": "chunked",
         "Cache-Control": "no-cache",
         "X-Accel-Buffering": "no",
-        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Origin": corsOriginRegen,
       });
 
       const resolvedModel = effectiveModel ?? (await activeModel());
@@ -450,10 +475,9 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Stream error";
         reply.raw.write(JSON.stringify({ error: msg }) + "\n");
+        reply.raw.end();
+        return;
       }
-
-      reply.raw.write(JSON.stringify({ done: true }) + "\n");
-      reply.raw.end();
 
       if (fullText) {
         await storage.appendTurn(storyId, {
@@ -467,6 +491,8 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
           meta: { mode: chat.mode },
         });
       }
+      reply.raw.write(JSON.stringify({ done: true }) + "\n");
+      reply.raw.end();
     },
   );
 
@@ -538,10 +564,11 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
       const openerLength =
         chat.mode === "storyteller" ? "paragraph+" : "medium";
 
-      // For the opener, use the speaker's genesis/anchor chain as history
-      const openerActiveSpeakerIdx = characters.findIndex(
-        (c) => c.id === activeSpeaker,
-      );
+      // For the opener, use the speaker's genesis/anchor chain as history; narrator has no personal memories
+      const openerActiveSpeakerIdx =
+        activeSpeaker === "narrator"
+          ? -1
+          : characters.findIndex((c) => c.id === activeSpeaker);
       const openerSpeakerMemories =
         openerActiveSpeakerIdx >= 0
           ? characterChains[openerActiveSpeakerIdx]
@@ -589,12 +616,20 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
 
       messages.push({ role: "user", content: openerContent });
 
+      const allowedOriginsOpener = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+      ];
+      const reqOriginOpener = req.headers.origin ?? "";
+      const corsOriginOpener = allowedOriginsOpener.includes(reqOriginOpener)
+        ? reqOriginOpener
+        : allowedOriginsOpener[0];
       reply.raw.writeHead(200, {
         "Content-Type": "application/x-ndjson",
         "Transfer-Encoding": "chunked",
         "Cache-Control": "no-cache",
         "X-Accel-Buffering": "no",
-        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Origin": corsOriginOpener,
       });
 
       const speakerChar = characters.find((c) => c.id === activeSpeaker);
@@ -624,10 +659,9 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
             error: err instanceof Error ? err.message : "Stream error",
           }) + "\n",
         );
+        reply.raw.end();
+        return;
       }
-
-      reply.raw.write(JSON.stringify({ done: true }) + "\n");
-      reply.raw.end();
 
       if (fullText) {
         await storage.appendTurn(storyId, {
@@ -641,6 +675,8 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
           meta: { mode: chat.mode },
         });
       }
+      reply.raw.write(JSON.stringify({ done: true }) + "\n");
+      reply.raw.end();
     },
   );
 
@@ -700,10 +736,13 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
   app.post<{ Params: { storyId: string; chatId: string } }>(
     "/stories/:storyId/chats/:chatId/memory",
     async (req, reply) => {
+      const body = MemoryItemCreateSchema.safeParse(req.body);
+      if (!body.success)
+        return reply.status(400).send({ error: body.error.flatten() });
       const item = await storage.addMemoryItem(
         req.params.storyId,
         req.params.chatId,
-        req.body as never,
+        body.data,
       );
       return reply.status(201).send(item);
     },
@@ -789,14 +828,18 @@ async function resolveAccessibleMemories(
   let chain: CharacterMemory[];
 
   if (memoryTimelineCutoff) {
-    const eligible = allMemories.filter(
-      (m) => m.createdAt <= memoryTimelineCutoff,
-    );
-    if (eligible.length === 0) return [];
-    const latest = eligible.sort((a, b) =>
+    const heads = await storage.getMemoryHeads(storyId, charId);
+    const head = heads.sort((a, b) =>
       b.createdAt.localeCompare(a.createdAt),
     )[0];
-    chain = await storage.getMemoryChain(storyId, charId, latest.id);
+    if (!head) return [];
+    const fullChain = await storage.getMemoryChain(storyId, charId, head.id);
+    // Walk newest-to-oldest to find the deepest chain node at or before the cutoff
+    const cutoffMem = [...fullChain]
+      .reverse()
+      .find((m) => m.createdAt <= memoryTimelineCutoff);
+    if (!cutoffMem) return [];
+    chain = await storage.getMemoryChain(storyId, charId, cutoffMem.id);
   } else {
     const heads = await storage.getMemoryHeads(storyId, charId);
     const head = heads.sort((a, b) =>
@@ -813,5 +856,6 @@ async function resolveAccessibleMemories(
     }
   }
 
+  chain.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   return chain;
 }

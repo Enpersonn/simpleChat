@@ -80,6 +80,68 @@ function parseLocationsArray(data: Record<string, unknown>) {
     .filter((l) => l.name);
 }
 
+function normaliseMemoryDeltas(data: Record<string, unknown>) {
+  const rawMems = Array.isArray(data.memories) ? data.memories : [];
+  return rawMems
+    .filter(
+      (m): m is Record<string, unknown> => typeof m === "object" && m !== null,
+    )
+    .map((m) => {
+      const rawDeltas =
+        typeof m.deltas === "object" && m.deltas !== null
+          ? (m.deltas as Record<string, unknown>)
+          : null;
+      const rawRelEffects =
+        rawDeltas && Array.isArray(rawDeltas.relationships)
+          ? rawDeltas.relationships
+          : [];
+      const relationshipEffects = rawRelEffects
+        .filter(
+          (r): r is Record<string, unknown> =>
+            typeof r === "object" && r !== null,
+        )
+        .map((r) => ({
+          otherCharacterName:
+            typeof r.otherCharacterName === "string" ? r.otherCharacterName : "",
+          emotion: typeof r.emotion === "string" ? r.emotion : "",
+          publicAttitude:
+            typeof r.publicAttitude === "string" ? r.publicAttitude : "",
+          privateAttitude:
+            typeof r.privateAttitude === "string" ? r.privateAttitude : "",
+          trustLevel:
+            typeof r.trustLevel === "number"
+              ? Math.min(10, Math.max(0, r.trustLevel))
+              : 5,
+        }))
+        .filter((r) => r.otherCharacterName);
+      const deltasWithoutRelationships = rawDeltas
+        ? Object.fromEntries(
+            Object.entries(rawDeltas).filter(([k]) => k !== "relationships"),
+          )
+        : undefined;
+      return {
+        characterName:
+          typeof m.characterName === "string" ? m.characterName : "",
+        summary: typeof m.summary === "string" ? m.summary : "",
+        tags: Array.isArray(m.tags)
+          ? m.tags.filter((t): t is string => typeof t === "string")
+          : [],
+        importance:
+          typeof m.importance === "number"
+            ? Math.min(1, Math.max(0, m.importance))
+            : 0.5,
+        deltas:
+          deltasWithoutRelationships &&
+          Object.keys(deltasWithoutRelationships).length > 0
+            ? deltasWithoutRelationships
+            : undefined,
+        relationshipEffects:
+          relationshipEffects.length > 0 ? relationshipEffects : undefined,
+      };
+    })
+    .filter((m) => m.characterName && m.summary);
+}
+
 const STORY_GENRES = [
   "Fantasy",
   "Sci-Fi",
@@ -473,71 +535,9 @@ export async function storiesRoutes(app: FastifyInstance): Promise<void> {
     });
 
     try {
-      const data = extractJson(raw) as Record<string, unknown>;
-      const rawMems = Array.isArray(data.memories) ? data.memories : [];
-      const memories = rawMems
-        .filter(
-          (m): m is Record<string, unknown> =>
-            typeof m === "object" && m !== null,
-        )
-        .map((m) => {
-          const rawDeltas =
-            typeof m.deltas === "object" && m.deltas !== null
-              ? (m.deltas as Record<string, unknown>)
-              : null;
-          const rawRelEffects =
-            rawDeltas && Array.isArray(rawDeltas.relationships)
-              ? rawDeltas.relationships
-              : [];
-          const relationshipEffects = rawRelEffects
-            .filter(
-              (r): r is Record<string, unknown> =>
-                typeof r === "object" && r !== null,
-            )
-            .map((r) => ({
-              otherCharacterName:
-                typeof r.otherCharacterName === "string"
-                  ? r.otherCharacterName
-                  : "",
-              emotion: typeof r.emotion === "string" ? r.emotion : "",
-              publicAttitude:
-                typeof r.publicAttitude === "string" ? r.publicAttitude : "",
-              privateAttitude:
-                typeof r.privateAttitude === "string" ? r.privateAttitude : "",
-              trustLevel:
-                typeof r.trustLevel === "number"
-                  ? Math.min(10, Math.max(0, r.trustLevel))
-                  : 5,
-            }))
-            .filter((r) => r.otherCharacterName);
-          const deltasWithoutRelationships = rawDeltas
-            ? Object.fromEntries(
-                Object.entries(rawDeltas).filter(
-                  ([k]) => k !== "relationships",
-                ),
-              )
-            : undefined;
-          return {
-            characterName:
-              typeof m.characterName === "string" ? m.characterName : "",
-            summary: typeof m.summary === "string" ? m.summary : "",
-            tags: Array.isArray(m.tags)
-              ? m.tags.filter((t): t is string => typeof t === "string")
-              : [],
-            importance:
-              typeof m.importance === "number"
-                ? Math.min(1, Math.max(0, m.importance))
-                : 0.5,
-            deltas:
-              deltasWithoutRelationships &&
-              Object.keys(deltasWithoutRelationships).length > 0
-                ? deltasWithoutRelationships
-                : undefined,
-            relationshipEffects:
-              relationshipEffects.length > 0 ? relationshipEffects : undefined,
-          };
-        })
-        .filter((m) => m.characterName && m.summary);
+      const memories = normaliseMemoryDeltas(
+        extractJson(raw) as Record<string, unknown>,
+      );
       return { memories };
     } catch {
       return reply
@@ -753,71 +753,9 @@ export async function storiesRoutes(app: FastifyInstance): Promise<void> {
     });
 
     try {
-      const data = extractJson(raw) as Record<string, unknown>;
-      const rawMems = Array.isArray(data.memories) ? data.memories : [];
-      const memories = rawMems
-        .filter(
-          (m): m is Record<string, unknown> =>
-            typeof m === "object" && m !== null,
-        )
-        .map((m) => {
-          const rawDeltas =
-            typeof m.deltas === "object" && m.deltas !== null
-              ? (m.deltas as Record<string, unknown>)
-              : null;
-          const rawRelEffects =
-            rawDeltas && Array.isArray(rawDeltas.relationships)
-              ? rawDeltas.relationships
-              : [];
-          const relationshipEffects = rawRelEffects
-            .filter(
-              (r): r is Record<string, unknown> =>
-                typeof r === "object" && r !== null,
-            )
-            .map((r) => ({
-              otherCharacterName:
-                typeof r.otherCharacterName === "string"
-                  ? r.otherCharacterName
-                  : "",
-              emotion: typeof r.emotion === "string" ? r.emotion : "",
-              publicAttitude:
-                typeof r.publicAttitude === "string" ? r.publicAttitude : "",
-              privateAttitude:
-                typeof r.privateAttitude === "string" ? r.privateAttitude : "",
-              trustLevel:
-                typeof r.trustLevel === "number"
-                  ? Math.min(10, Math.max(0, r.trustLevel))
-                  : 5,
-            }))
-            .filter((r) => r.otherCharacterName);
-          const deltasWithoutRelationships = rawDeltas
-            ? Object.fromEntries(
-                Object.entries(rawDeltas).filter(
-                  ([k]) => k !== "relationships",
-                ),
-              )
-            : undefined;
-          return {
-            characterName:
-              typeof m.characterName === "string" ? m.characterName : "",
-            summary: typeof m.summary === "string" ? m.summary : "",
-            tags: Array.isArray(m.tags)
-              ? m.tags.filter((t): t is string => typeof t === "string")
-              : [],
-            importance:
-              typeof m.importance === "number"
-                ? Math.min(1, Math.max(0, m.importance))
-                : 0.5,
-            deltas:
-              deltasWithoutRelationships &&
-              Object.keys(deltasWithoutRelationships).length > 0
-                ? deltasWithoutRelationships
-                : undefined,
-            relationshipEffects:
-              relationshipEffects.length > 0 ? relationshipEffects : undefined,
-          };
-        })
-        .filter((m) => m.characterName && m.summary);
+      const memories = normaliseMemoryDeltas(
+        extractJson(raw) as Record<string, unknown>,
+      );
       return { memories };
     } catch {
       return reply
