@@ -3,6 +3,7 @@ import type { MoodTag, ResponseLength } from '@simplechat/types'
 import { useSettingsStore } from '../../store/settings.js'
 import { useChatsStore } from '../../store/chats.js'
 import { useStoriesStore } from '../../store/stories.js'
+import { DebugPanel } from '../debug/DebugPanel.js'
 import s from './RightPanel.module.css'
 
 const MOOD_TAGS: MoodTag[] = [
@@ -23,15 +24,12 @@ export function RightPanel() {
   const characters = useStoriesStore((st) => st.characters)
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [showDebug, setShowDebug] = useState(false)
-  const [copied, setCopied] = useState(false)
   const [modelSwitched, setModelSwitched] = useState(false)
   const modelSwitchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const activeSpeakers = useChatsStore((st) =>
     st.chats.find((c) => c.id === st.activeChatId)?.activeSpeakers ?? null
   ) ?? []
-
-  const debugInfo = useChatsStore((st) => st.debugInfo)
 
   const chats = useChatsStore((st) => st.chats)
   const activeChat = chats.find((c) => c.id === activeChatId)
@@ -48,21 +46,12 @@ export function RightPanel() {
     .map((id) => characters.find((c) => c.id === id))
     .filter(Boolean)
 
-  const copyPrompt = () => {
-    if (!debugInfo) return
-    navigator.clipboard.writeText(debugInfo.systemPrompt)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
-  }
-
   const handleModelChange = (value: string) => {
     setGeneration({ model: value })
     setModelSwitched(true)
     if (modelSwitchTimer.current) clearTimeout(modelSwitchTimer.current)
     modelSwitchTimer.current = setTimeout(() => setModelSwitched(false), 2000)
   }
-
-  const effectiveModel = generation.model || appSettings.activeModel
 
   const ollamaStatusClass = ollamaHealthy === true ? s.dotOk : ollamaHealthy === false ? s.dotFail : s.dotUnknown
 
@@ -228,28 +217,7 @@ export function RightPanel() {
           <span>Debug</span>
           <span class={s.chevron} data-open={showDebug ? 'true' : undefined}>▾</span>
         </button>
-
-        {showDebug && (
-          <div class={s.debugPanel}>
-            <div class={s.debugRow}>
-              <span class={s.debugKey}>Model</span>
-              <span class={s.debugVal}>{debugInfo?.model ?? effectiveModel}</span>
-            </div>
-            {debugInfo ? (
-              <>
-                <div class={s.debugPromptHeader}>
-                  <span class={s.debugKey}>System Prompt</span>
-                  <button class={s.copyBtn} onClick={copyPrompt}>
-                    {copied ? '✓ Copied' : 'Copy'}
-                  </button>
-                </div>
-                <pre class={s.debugPrompt}>{debugInfo.systemPrompt}</pre>
-              </>
-            ) : (
-              <div class={s.debugEmpty}>Send a message to see the system prompt</div>
-            )}
-          </div>
-        )}
+        {showDebug && <DebugPanel />}
       </div>
     </div>
   )

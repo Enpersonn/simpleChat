@@ -1,0 +1,277 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.empty {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 16px 0;
+}
+
+.step {
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.stepHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 6px;
+  cursor: pointer;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  user-select: none;
+}
+
+.stepHeader:hover {
+  background: var(--bg-hover);
+}
+
+.stepHeader[data-open='true'] {
+  border-radius: 4px 4px 0 0;
+  border-bottom-color: transparent;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--border);
+}
+
+.dot[data-status='complete'] {
+  background: #4ade80;
+}
+
+.dot[data-status='error'] {
+  background: #f87171;
+}
+
+.dot[data-status='running'] {
+  background: var(--accent);
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.stepLabel {
+  flex: 1;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.duration {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.chevron {
+  font-size: 10px;
+  color: var(--text-muted);
+  transition: transform 0.15s;
+  flex-shrink: 0;
+}
+
+.chevron[data-open='true'] {
+  transform: rotate(180deg);
+}
+
+.stepBody {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 4px 4px;
+  padding: 8px;
+  font-size: 10px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+/* ── Data load ────────────────────────────────────────────────────────────── */
+
+.statRow {
+  display: flex;
+  gap: 12px;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.statNum {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.statLabel {
+  font-size: 9px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* ── Memory chain ─────────────────────────────────────────────────────────── */
+
+.chainTable {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.chainTable td {
+  padding: 2px 4px;
+  vertical-align: top;
+}
+
+.chainName {
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.chainLen {
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.chainDiff {
+  color: var(--text-secondary);
+  font-size: 9px;
+}
+
+.diffAdd {
+  color: #4ade80;
+}
+
+.diffRemove {
+  color: #f87171;
+}
+
+.diffChanged {
+  color: #fbbf24;
+}
+
+/* ── Memory retrieval ─────────────────────────────────────────────────────── */
+
+.memPills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.memPill {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 3px 6px;
+  border-radius: 3px;
+  font-size: 9px;
+  max-width: 160px;
+}
+
+.memPill[data-reason='always_include'] {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+.memPill[data-reason='tag_match'] {
+  background: color-mix(in srgb, #4ade80 15%, transparent);
+  border: 1px solid color-mix(in srgb, #4ade80 35%, transparent);
+}
+
+.memPill[data-reason='llm_picked'] {
+  background: color-mix(in srgb, #fbbf24 15%, transparent);
+  border: 1px solid color-mix(in srgb, #fbbf24 35%, transparent);
+}
+
+.memPillSummary {
+  color: var(--text-primary);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.memPillReason {
+  color: var(--text-muted);
+  font-size: 8px;
+}
+
+.llmBanner {
+  margin-top: 6px;
+  padding: 3px 6px;
+  background: color-mix(in srgb, #fbbf24 15%, transparent);
+  border: 1px solid color-mix(in srgb, #fbbf24 30%, transparent);
+  border-radius: 3px;
+  font-size: 9px;
+  color: #fbbf24;
+}
+
+.noResults {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* ── Context assembly / LLM call ─────────────────────────────────────────── */
+
+.kv {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.kvRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.kvKey {
+  color: var(--text-muted);
+}
+
+.kvVal {
+  color: var(--text-primary);
+  font-weight: 500;
+  text-align: right;
+}
+
+/* ── Extraction ───────────────────────────────────────────────────────────── */
+
+.extractResult {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.extractBadge {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 9px;
+  font-weight: 500;
+}
+
+.extractBadge[data-ok='true'] {
+  background: color-mix(in srgb, #4ade80 15%, transparent);
+  color: #4ade80;
+}
+
+.extractBadge[data-ok='false'] {
+  background: var(--bg-hover);
+  color: var(--text-muted);
+}

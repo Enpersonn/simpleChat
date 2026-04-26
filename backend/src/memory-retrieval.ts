@@ -1,12 +1,26 @@
 import type { CharacterMemory, Turn } from '@simplechat/types'
 import { streamChat } from './ollama.js'
 
+export type MemoryReason = 'always_include' | 'tag_match' | 'llm_picked'
+
+export interface MemoryWithReason {
+  memory: CharacterMemory
+  reason: MemoryReason
+  score?: number
+}
+
+export interface RelevantMemoryResult {
+  memories: CharacterMemory[]
+  reasons: Record<string, MemoryReason>
+  details: MemoryWithReason[]
+  llmFallbackFired: boolean
+}
+
 function extractKeywords(turns: Turn[]): Set<string> {
   const text = turns
     .slice(-5)
     .map((t) => t.text.toLowerCase())
     .join(' ')
-  // Split on non-word chars, filter short/common words
   const stopWords = new Set(['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'is', 'was', 'are', 'were', 'i', 'you', 'he', 'she', 'it', 'we', 'they', 'that', 'this', 'have', 'had', 'has', 'do', 'did', 'not', 'be', 'been'])
   return new Set(
     text
@@ -23,28 +37,40 @@ export async function findRelevantMemories(
   memories: CharacterMemory[],
   recentTurns: Turn[],
   maxResults = 5,
-): Promise<CharacterMemory[]> {
-  if (memories.length === 0) return []
+): Promise<RelevantMemoryResult> {
+  if (memories.length === 0) {
+    return { memories: [], reasons: {}, details: [], llmFallbackFired: false }
+  }
 
   const alwaysInclude = memories.filter((m) => m.importance >= 0.8)
   const alwaysIds = new Set(alwaysInclude.map((m) => m.id))
+  const alwaysDetails: MemoryWithReason[] = alwaysInclude.map((m) => ({
+    memory: m,
+    reason: 'always_include',
+  }))
 
   const keywords = extractKeywords(recentTurns)
-  const tagMatches = memories
+  const tagMatchDetails: MemoryWithReason[] = memories
     .filter((m) => !alwaysIds.has(m.id))
-    .map((m) => ({ memory: m, score: scoreByTags(m, keywords) }))
-    .filter((x) => x.score >= 1)
-    .sort((a, b) => b.score - a.score)
-    .map((x) => x.memory)
+    .map((m) => ({ memory: m, reason: 'tag_match' as MemoryReason, score: scoreByTags(m, keywords) }))
+    .filter((x) => x.score! >= 1)
+    .sort((a, b) => b.score! - a.score!)
 
-  const combined = [...alwaysInclude, ...tagMatches]
+  const combined = [...alwaysDetails, ...tagMatchDetails]
   if (combined.length >= maxResults) {
-    return combined.slice(0, maxResults)
+    const sliced = combined.slice(0, maxResults)
+    const reasons: Record<string, MemoryReason> = {}
+    for (const d of sliced) reasons[d.memory.id] = d.reason
+    return { memories: sliced.map((d) => d.memory), reasons, details: sliced, llmFallbackFired: false }
   }
 
-  // LLM fallback: find additional relevant memories not yet included
-  const remaining = memories.filter((m) => !new Set(combined.map((c) => c.id)).has(m.id))
-  if (remaining.length === 0) return combined.slice(0, maxResults)
+  const combinedIds = new Set(combined.map((d) => d.memory.id))
+  const remaining = memories.filter((m) => !combinedIds.has(m.id))
+  if (remaining.length === 0) {
+    const reasons: Record<string, MemoryReason> = {}
+    for (const d of combined) reasons[d.memory.id] = d.reason
+    return { memories: combined.map((d) => d.memory).slice(0, maxResults), reasons, details: combined.slice(0, maxResults), llmFallbackFired: false }
+  }
 
   const needed = maxResults - combined.length
   const contextText = recentTurns
@@ -56,6 +82,7 @@ export async function findRelevantMemories(
     .join('\n')
 
   let raw = ''
+  let llmFallbackFired = false
   try {
     await streamChat({
       messages: [
@@ -75,16 +102,27 @@ export async function findRelevantMemories(
       onChunk: (chunk) => { raw += chunk },
     })
 
+    llmFallbackFired = true
     const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/)
     const ids: unknown = JSON.parse((fenced ? fenced[1] : raw).trim())
     if (Array.isArray(ids)) {
       const idSet = new Set(ids.filter((x): x is string => typeof x === 'string'))
-      const llmPicked = remaining.filter((m) => idSet.has(m.id)).slice(0, needed)
-      return [...combined, ...llmPicked].slice(0, maxResults)
+      const llmDetails: MemoryWithReason[] = remaining
+        .filter((m) => idSet.has(m.id))
+        .slice(0, needed)
+        .map((m) => ({ memory: m, reason: 'llm_picked' }))
+
+      const allDetails = [...combined, ...llmDetails].slice(0, maxResults)
+      const reasons: Record<string, MemoryReason> = {}
+      for (const d of allDetails) reasons[d.memory.id] = d.reason
+      return { memories: allDetails.map((d) => d.memory), reasons, details: allDetails, llmFallbackFired }
     }
   } catch {
     // LLM call failed — return what tag matching found
   }
 
-  return combined.slice(0, maxResults)
+  const fallbackDetails = combined.slice(0, maxResults)
+  const reasons: Record<string, MemoryReason> = {}
+  for (const d of fallbackDetails) reasons[d.memory.id] = d.reason
+  return { memories: fallbackDetails.map((d) => d.memory), reasons, details: fallbackDetails, llmFallbackFired }
 }

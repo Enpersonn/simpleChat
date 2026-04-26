@@ -3,6 +3,7 @@ import type { Chat, Turn, ChatMode } from '@simplechat/types'
 import { api } from '../lib/api.js'
 import { sendMessageStream, regenerateStream, openerStream, type DebugInfo, type StateUpdate } from '../lib/stream.js'
 import { useStoriesStore } from './stories.js'
+import { useDebugStore } from './debug.js'
 
 interface StreamingState {
   isStreaming: boolean
@@ -87,6 +88,7 @@ export const useChatsStore = create<ChatsState>((set, get) => ({
   sendMessage: async (params: SendParams) => {
     const { activeChatId, activeStoryId, isStreaming } = get()
     if (!activeChatId || !activeStoryId || isStreaming) return
+    useDebugStore.getState().clear()
 
     const userTurn: Turn = {
       id: `temp-${Date.now()}`,
@@ -124,6 +126,8 @@ export const useChatsStore = create<ChatsState>((set, get) => ({
       body: params,
       signal: ac.signal,
       onDebug: (info) => set({ debugInfo: info }),
+      onPipelineEvent: (event) => useDebugStore.getState().addEvent(event),
+      onContextSnapshot: (snapshot) => useDebugStore.getState().setSnapshot(snapshot),
       onStateUpdate: (update) => {
         set({ lastStateUpdate: update })
         if (update.newLocationCreated) {
@@ -173,6 +177,7 @@ export const useChatsStore = create<ChatsState>((set, get) => ({
   regenerate: async (params: RegenerateParams) => {
     const { activeChatId, activeStoryId, isStreaming, turns } = get()
     if (!activeChatId || !activeStoryId || isStreaming) return
+    useDebugStore.getState().clear()
 
     const lastAsst = [...turns].reverse().find((t) => t.role === 'assistant')
     if (!lastAsst) return
@@ -203,6 +208,8 @@ export const useChatsStore = create<ChatsState>((set, get) => ({
       body: params,
       signal: ac.signal,
       onDebug: (info) => set({ debugInfo: info }),
+      onPipelineEvent: (event) => useDebugStore.getState().addEvent(event),
+      onContextSnapshot: (snapshot) => useDebugStore.getState().setSnapshot(snapshot),
       onChunk: (text) => {
         set((s) => ({
           streamingText: s.streamingText + text,
@@ -232,6 +239,7 @@ export const useChatsStore = create<ChatsState>((set, get) => ({
   editAndResend: async (turnId: string, text: string, params: RegenerateParams) => {
     const { activeChatId, activeStoryId, isStreaming, turns } = get()
     if (!activeChatId || !activeStoryId || isStreaming) return
+    useDebugStore.getState().clear()
     try {
       await api.chats.editTurn(activeStoryId, activeChatId, turnId, text)
       await api.chats.deleteAfterTurn(activeStoryId, activeChatId, turnId)
@@ -267,6 +275,8 @@ export const useChatsStore = create<ChatsState>((set, get) => ({
         body: params,
         signal: ac.signal,
         onDebug: (info) => set({ debugInfo: info }),
+        onPipelineEvent: (event) => useDebugStore.getState().addEvent(event),
+        onContextSnapshot: (snapshot) => useDebugStore.getState().setSnapshot(snapshot),
         onChunk: (chunk) => {
           set((s) => ({
             streamingText: s.streamingText + chunk,
@@ -299,6 +309,7 @@ export const useChatsStore = create<ChatsState>((set, get) => ({
   generateOpener: async (storyId: string, chatId: string) => {
     const { isStreaming } = get()
     if (isStreaming) return
+    useDebugStore.getState().clear()
 
     const streamingPlaceholder: Turn = {
       id: 'streaming',
@@ -315,6 +326,8 @@ export const useChatsStore = create<ChatsState>((set, get) => ({
     await openerStream(storyId, chatId, {
       signal: ac.signal,
       onDebug: (info) => set({ debugInfo: info }),
+      onPipelineEvent: (event) => useDebugStore.getState().addEvent(event),
+      onContextSnapshot: (snapshot) => useDebugStore.getState().setSnapshot(snapshot),
       onChunk: (text) => {
         set((s) => ({
           streamingText: s.streamingText + text,

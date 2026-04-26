@@ -193,65 +193,6 @@
   font-style: italic;
 }
 
-/* Debug panel */
-.debugPanel {
-  margin-top: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.debugRow {
-  display: flex;
-  gap: 8px;
-  align-items: baseline;
-  font-size: 11px;
-}
-.debugKey {
-  color: var(--text-muted);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  flex-shrink: 0;
-}
-.debugVal {
-  color: var(--accent);
-  font-family: monospace;
-  word-break: break-all;
-}
-.debugPromptHeader {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.copyBtn {
-  font-size: 10px;
-  padding: 2px 7px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--bg-secondary);
-  color: var(--text-muted);
-  transition: all 0.15s;
-}
-.copyBtn:hover { border-color: var(--accent); color: var(--accent); }
-.debugPrompt {
-  font-family: monospace;
-  font-size: 11px;
-  color: var(--text-secondary);
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 8px;
-  white-space: pre-wrap;
-  word-break: break-word;
-  max-height: 300px;
-  overflow-y: auto;
-  margin: 0;
-}
-.debugEmpty {
-  font-size: 11px;
-  color: var(--text-muted);
-  font-style: italic;
-}
 
 /* Active speakers */
 .speakerRow {

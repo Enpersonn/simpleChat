@@ -1,3 +1,5 @@
+import type { PipelineEvent, ContextSnapshot } from './debug-types.js'
+
 export interface DebugInfo {
   systemPrompt: string
   model: string
@@ -18,6 +20,8 @@ export interface StreamOptions {
   onError: (msg: string) => void
   onDebug?: (info: DebugInfo) => void
   onStateUpdate?: (update: StateUpdate) => void
+  onPipelineEvent?: (event: PipelineEvent) => void
+  onContextSnapshot?: (snapshot: ContextSnapshot) => void
   signal?: AbortSignal
 }
 
@@ -28,6 +32,8 @@ async function readStream(
   onError: (msg: string) => void,
   onDebug?: (info: DebugInfo) => void,
   onStateUpdate?: (update: StateUpdate) => void,
+  onPipelineEvent?: (event: PipelineEvent) => void,
+  onContextSnapshot?: (snapshot: ContextSnapshot) => void,
 ): Promise<void> {
   if (!res.body) { onError(`Request failed: ${res.status}`); return }
 
@@ -52,7 +58,17 @@ async function readStream(
     for (const line of lines) {
       if (!line.trim()) continue
       try {
-        const msg = JSON.parse(line) as { content?: string; done?: boolean; error?: string; debug?: DebugInfo; stateUpdate?: StateUpdate }
+        const msg = JSON.parse(line) as {
+          content?: string
+          done?: boolean
+          error?: string
+          debug?: DebugInfo
+          stateUpdate?: StateUpdate
+          pipelineEvent?: PipelineEvent
+          contextSnapshot?: ContextSnapshot
+        }
+        if (msg.pipelineEvent) { onPipelineEvent?.(msg.pipelineEvent); continue }
+        if (msg.contextSnapshot) { onContextSnapshot?.(msg.contextSnapshot); continue }
         if (msg.debug) { onDebug?.(msg.debug); continue }
         if (msg.stateUpdate) { onStateUpdate?.(msg.stateUpdate); continue }
         if (msg.error) { onError(msg.error); return }
@@ -84,13 +100,13 @@ export async function sendMessageStream(opts: StreamOptions): Promise<void> {
   }
 
   if (!res.ok || !res.body) { onError(`Request failed: ${res.status}`); return }
-  await readStream(res, onChunk, onDone, onError, onDebug, opts.onStateUpdate)
+  await readStream(res, onChunk, onDone, onError, onDebug, opts.onStateUpdate, opts.onPipelineEvent, opts.onContextSnapshot)
 }
 
 export async function openerStream(
   storyId: string,
   chatId: string,
-  handlers: Pick<StreamOptions, 'onChunk' | 'onDone' | 'onError' | 'onDebug' | 'signal'>,
+  handlers: Pick<StreamOptions, 'onChunk' | 'onDone' | 'onError' | 'onDebug' | 'onPipelineEvent' | 'onContextSnapshot' | 'signal'>,
 ): Promise<void> {
   let res: Response
   try {
@@ -106,7 +122,7 @@ export async function openerStream(
     return
   }
   if (!res.ok || !res.body) { handlers.onError(`Request failed: ${res.status}`); return }
-  await readStream(res, handlers.onChunk, handlers.onDone, handlers.onError, handlers.onDebug)
+  await readStream(res, handlers.onChunk, handlers.onDone, handlers.onError, handlers.onDebug, undefined, handlers.onPipelineEvent, handlers.onContextSnapshot)
 }
 
 export async function regenerateStream(opts: StreamOptions): Promise<void> {
@@ -127,5 +143,5 @@ export async function regenerateStream(opts: StreamOptions): Promise<void> {
   }
 
   if (!res.ok || !res.body) { onError(`Request failed: ${res.status}`); return }
-  await readStream(res, onChunk, onDone, onError, onDebug, opts.onStateUpdate)
+  await readStream(res, onChunk, onDone, onError, onDebug, opts.onStateUpdate, opts.onPipelineEvent, opts.onContextSnapshot)
 }

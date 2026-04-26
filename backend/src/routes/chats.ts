@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
+import type { IncomingMessage, ServerResponse } from "node:http";
 import {
+  type Character,
   type CharacterMemory,
   ChatCreateSchema,
   ChatEntityStateSchema,
@@ -14,10 +16,75 @@ import { applyMemoryChain } from "../character-state.js";
 import { getSettings } from "../config.js";
 import { assembleContext } from "../context.js";
 import { runExtraction } from "../extraction.js";
-import { findRelevantMemories } from "../memory-retrieval.js";
+import { type MemoryReason, findRelevantMemories } from "../memory-retrieval.js";
 import { activeModel, streamChat } from "../ollama.js";
 import * as storage from "../storage.js";
 import { extractJson } from "../utils.js";
+
+// ── Pipeline event helpers ────────────────────────────────────────────────────
+
+type PipelineStep =
+  | "data_load"
+  | "memory_chain"
+  | "memory_retrieval"
+  | "context_assembly"
+  | "llm_call"
+  | "extraction";
+
+function emitFrame(raw: ServerResponse, frame: object): void {
+  raw.write(JSON.stringify(frame) + "\n");
+}
+
+function emitPipeline(
+  raw: ServerResponse,
+  step: PipelineStep,
+  status: "start" | "complete" | "error",
+  startedAt?: number,
+  data?: object,
+): void {
+  const event: Record<string, unknown> = { step, status };
+  if (startedAt !== undefined && status !== "start") {
+    event.durationMs = Date.now() - startedAt;
+  }
+  if (data !== undefined && status === "complete") {
+    event.data = data;
+  }
+  raw.write(JSON.stringify({ pipelineEvent: event }) + "\n");
+}
+
+function buildChainDiffs(
+  characters: Character[],
+  effectiveCharacters: Character[],
+  chains: CharacterMemory[][],
+) {
+  return characters.map((base, i) => {
+    const eff = effectiveCharacters[i];
+    return {
+      characterId: base.id,
+      characterName: base.name,
+      chainLength: chains[i].length,
+      hasGenesisMemory: !!base.genesisMemoryId,
+      effectiveDiff: {
+        personalityAdded: eff.public.personality.filter(
+          (t) => !base.public.personality.includes(t),
+        ),
+        personalityRemoved: base.public.personality.filter(
+          (t) => !eff.public.personality.includes(t),
+        ),
+        fearsAdded: eff.private.fears.filter(
+          (f) => !base.private.fears.includes(f),
+        ),
+        speechStyleChanged: eff.public.speechStyle !== base.public.speechStyle,
+        trueMotivestChanged:
+          eff.private.trueMotives !== base.private.trueMotives,
+        hiddenEmotionalStateChanged:
+          eff.private.hiddenEmotionalState !== base.private.hiddenEmotionalState,
+      },
+    };
+  });
+}
+
+// ── Routes ────────────────────────────────────────────────────────────────────
 
 export async function chatsRoutes(app: FastifyInstance): Promise<void> {
   app.get<{ Params: { storyId: string } }>(
@@ -152,14 +219,35 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
       };
       await storage.appendTurn(storyId, userTurn);
 
-      const activeSpeaker = chat.activeSpeakers[0] ?? "narrator";
-      const speakerChar = characters.find((c) => c.id === activeSpeaker);
-      const effectiveModel = speakerChar?.modelOverride || model || undefined;
-      const settings = await getSettings();
-
       const allTurns = [...existingTurns, userTurn];
 
-      // Apply memory chains to ALL characters scoped to the chat's timeline anchors
+      const allowedOrigins = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+      ];
+      const reqOrigin = req.headers.origin ?? "";
+      const corsOrigin = allowedOrigins.includes(reqOrigin)
+        ? reqOrigin
+        : allowedOrigins[0];
+      reply.raw.writeHead(200, {
+        "Content-Type": "application/x-ndjson",
+        "Transfer-Encoding": "chunked",
+        "Cache-Control": "no-cache",
+        "X-Accel-Buffering": "no",
+        "Access-Control-Allow-Origin": corsOrigin,
+      });
+
+      emitPipeline(reply.raw, "data_load", "complete", undefined, {
+        characterCount: characters.length,
+        locationCount: locations.length,
+        turnCount: allTurns.length,
+      });
+
+      // ── Memory chain ──────────────────────────────────────────────────────
+
+      let t = Date.now();
+      emitPipeline(reply.raw, "memory_chain", "start");
+
       const characterChains = await resolveCharacterChains(
         storyId,
         chatId,
@@ -171,19 +259,44 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
         return chain.length > 0 ? applyMemoryChain(c, chain) : c;
       });
 
-      // Use the active speaker's chain for relevance retrieval; narrator has no personal memories
+      emitPipeline(reply.raw, "memory_chain", "complete", t, {
+        chains: buildChainDiffs(characters, effectiveCharacters, characterChains),
+      });
+
+      // ── Memory retrieval ──────────────────────────────────────────────────
+
+      const activeSpeaker = chat.activeSpeakers[0] ?? "narrator";
       const activeSpeakerIdx =
         activeSpeaker === "narrator"
           ? -1
           : characters.findIndex((c) => c.id === activeSpeaker);
       const accessibleMemories =
         activeSpeakerIdx >= 0 ? characterChains[activeSpeakerIdx] : [];
-      const relevantMemories = await findRelevantMemories(
-        accessibleMemories,
-        allTurns,
-      );
 
-      // Resolve current location and its state overrides
+      t = Date.now();
+      emitPipeline(reply.raw, "memory_retrieval", "start");
+
+      const memResult = await findRelevantMemories(accessibleMemories, allTurns);
+      const relevantMemories = memResult.memories;
+
+      emitPipeline(reply.raw, "memory_retrieval", "complete", t, {
+        accessibleCount: accessibleMemories.length,
+        results: memResult.details.map((d) => ({
+          memoryId: d.memory.id,
+          summary: d.memory.summary.slice(0, 100),
+          reason: d.reason,
+          score: d.score,
+          tags: d.memory.tags,
+        })),
+        llmFallbackFired: memResult.llmFallbackFired,
+      });
+
+      // ── Context assembly ──────────────────────────────────────────────────
+
+      const speakerChar = characters.find((c) => c.id === activeSpeaker);
+      const effectiveModel = speakerChar?.modelOverride || model || undefined;
+      const settings = await getSettings();
+
       const currentLocation = chatState.currentLocationId
         ? locations.find((l) => l.id === chatState.currentLocationId)
         : undefined;
@@ -198,6 +311,9 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
           otherCharMemories.set(c.id, characterChains[i]);
         }
       }
+
+      t = Date.now();
+      emitPipeline(reply.raw, "context_assembly", "start");
 
       const messages = assembleContext({
         story,
@@ -216,31 +332,71 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
         otherCharMemories,
       });
 
-      const allowedOrigins = [
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-      ];
-      const reqOrigin = req.headers.origin ?? "";
-      const corsOrigin = allowedOrigins.includes(reqOrigin)
-        ? reqOrigin
-        : allowedOrigins[0];
-      reply.raw.writeHead(200, {
-        "Content-Type": "application/x-ndjson",
-        "Transfer-Encoding": "chunked",
-        "Cache-Control": "no-cache",
-        "X-Accel-Buffering": "no",
-        "Access-Control-Allow-Origin": corsOrigin,
+      const systemPromptText = messages[0]?.content ?? "";
+      emitPipeline(reply.raw, "context_assembly", "complete", t, {
+        systemPromptLength: systemPromptText.length,
+        injectedMemoryIds: relevantMemories.map((m) => m.id),
+        activeSpeakerId: activeSpeaker,
+        currentLocationId: chatState.currentLocationId,
+        moodTagCount: (moodTags ?? []).length,
       });
 
+      // ── Context snapshot ──────────────────────────────────────────────────
+
       const resolvedModel = effectiveModel ?? (await activeModel());
-      reply.raw.write(
-        JSON.stringify({
-          debug: {
-            systemPrompt: messages[0]?.content ?? "",
-            model: resolvedModel,
-          },
-        }) + "\n",
-      );
+
+      emitFrame(reply.raw, {
+        contextSnapshot: {
+          story: { id: story.id, title: story.title },
+          activeSpeakerId: activeSpeaker,
+          characters: characters.map((base, i) => {
+            const eff = effectiveCharacters[i];
+            return {
+              id: base.id,
+              name: base.name,
+              role: base.role,
+              isUserPersona: base.isUserPersona,
+              isNarrator: base.isNarrator,
+              basePersonality: base.public.personality,
+              effectivePersonality: eff.public.personality,
+              baseSpeechStyle: base.public.speechStyle ?? "",
+              effectiveSpeechStyle: eff.public.speechStyle ?? "",
+              baseTrueMotives: base.private.trueMotives ?? "",
+              effectiveTrueMotives: eff.private.trueMotives ?? "",
+              baseFears: base.private.fears,
+              effectiveFears: eff.private.fears,
+            };
+          }),
+          accessibleMemories: accessibleMemories.map((m) => ({
+            id: m.id,
+            summary: m.summary.slice(0, 100),
+            tags: m.tags,
+            importance: m.importance,
+            previousMemoryId: m.previousMemoryId,
+          })),
+          injectedMemoryIds: relevantMemories.map((m) => m.id),
+          memoryReasons: memResult.reasons,
+          locations: locations.map((l) => ({
+            id: l.id,
+            name: l.name,
+            isCurrent: l.id === chatState.currentLocationId,
+          })),
+          currentLocationId: chatState.currentLocationId,
+          moodTags: moodTags ?? [],
+          responseLength: responseLength ?? "medium",
+          feelText: feelText ?? "",
+          model: resolvedModel,
+        },
+      });
+
+      emitFrame(reply.raw, {
+        debug: { systemPrompt: systemPromptText, model: resolvedModel },
+      });
+
+      // ── LLM call ─────────────────────────────────────────────────────────
+
+      t = Date.now();
+      emitPipeline(reply.raw, "llm_call", "start");
 
       let fullText = "";
       try {
@@ -256,13 +412,21 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
           },
         });
       } catch (err) {
+        emitPipeline(reply.raw, "llm_call", "error", t);
         const msg = err instanceof Error ? err.message : "Stream error";
-        reply.raw.write(JSON.stringify({ error: msg }) + "\n");
+        emitFrame(reply.raw, { error: msg });
         reply.raw.end();
         return;
       }
 
-      // Persist assistant turn
+      emitPipeline(reply.raw, "llm_call", "complete", t, {
+        model: resolvedModel,
+        tokenCount: fullText.split(/\s+/).length,
+        durationMs: Date.now() - t,
+      });
+
+      // ── Persist + extraction ──────────────────────────────────────────────
+
       if (fullText) {
         const assistantTurn: Turn = {
           id: randomUUID(),
@@ -276,8 +440,9 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
         };
         await storage.appendTurn(storyId, assistantTurn);
 
-        // Run entity extraction and emit state update frame
         if (locations.length > 0) {
+          t = Date.now();
+          emitPipeline(reply.raw, "extraction", "start");
           try {
             const completedTurns = [...allTurns, assistantTurn];
             const extracted = await runExtraction({
@@ -296,10 +461,7 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
                 story,
                 completedTurns.slice(-4),
               );
-              const newLoc = await storage.createLocation(
-                storyId,
-                newLocFields,
-              );
+              const newLoc = await storage.createLocation(storyId, newLocFields);
               locations.push(newLoc);
               finalState = {
                 ...extracted,
@@ -316,33 +478,40 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
             const overridesChanged =
               JSON.stringify(finalState.locationOverrides) !==
               JSON.stringify(chatState.locationOverrides);
+
+            emitPipeline(reply.raw, "extraction", "complete", t, {
+              locationChanged,
+              newLocationCreated,
+              newLocationId: finalState.currentLocationId ?? null,
+              newLocationName: extracted.newLocationName ?? null,
+              overridesChanged,
+            });
+
             if (locationChanged || overridesChanged || newLocationCreated) {
               const locationName = finalState.currentLocationId
                 ? (locations.find((l) => l.id === finalState.currentLocationId)
                     ?.name ?? null)
                 : null;
-              reply.raw.write(
-                JSON.stringify({
-                  stateUpdate: {
-                    currentLocationId: finalState.currentLocationId,
-                    locationName,
-                    newLocationCreated,
-                  },
-                }) + "\n",
-              );
+              emitFrame(reply.raw, {
+                stateUpdate: {
+                  currentLocationId: finalState.currentLocationId,
+                  locationName,
+                  newLocationCreated,
+                },
+              });
             }
           } catch {
-            // Extraction failure is non-fatal
+            emitPipeline(reply.raw, "extraction", "error", t);
           }
         }
       }
 
-      reply.raw.write(JSON.stringify({ done: true }) + "\n");
+      emitFrame(reply.raw, { done: true });
       reply.raw.end();
     },
   );
 
-  // ─── Regenerate last assistant turn ───────────────────────────────────────
+  // ─── Regenerate last assistant turn ──────────────────────────────────────
 
   app.post<{ Params: { storyId: string; chatId: string } }>(
     "/stories/:storyId/chats/:chatId/regenerate",
@@ -371,10 +540,33 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
         await storage.deleteSingleTurn(storyId, chatId, lastAssistant.id);
 
       const freshTurns = await storage.getTurns(storyId, chatId);
-      const activeSpeaker = chat.activeSpeakers[0] ?? "narrator";
-      const speakerChar = characters.find((c) => c.id === activeSpeaker);
-      const effectiveModel =
-        speakerChar?.modelOverride || params.model || undefined;
+
+      const allowedOriginsRegen = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+      ];
+      const reqOriginRegen = req.headers.origin ?? "";
+      const corsOriginRegen = allowedOriginsRegen.includes(reqOriginRegen)
+        ? reqOriginRegen
+        : allowedOriginsRegen[0];
+      reply.raw.writeHead(200, {
+        "Content-Type": "application/x-ndjson",
+        "Transfer-Encoding": "chunked",
+        "Cache-Control": "no-cache",
+        "X-Accel-Buffering": "no",
+        "Access-Control-Allow-Origin": corsOriginRegen,
+      });
+
+      emitPipeline(reply.raw, "data_load", "complete", undefined, {
+        characterCount: characters.length,
+        locationCount: locations.length,
+        turnCount: freshTurns.length,
+      });
+
+      // ── Memory chain ──────────────────────────────────────────────────────
+
+      let t = Date.now();
+      emitPipeline(reply.raw, "memory_chain", "start");
 
       const characterChains = await resolveCharacterChains(
         storyId,
@@ -387,17 +579,43 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
         return chain.length > 0 ? applyMemoryChain(c, chain) : c;
       });
 
-      // narrator has no personal memories
+      emitPipeline(reply.raw, "memory_chain", "complete", t, {
+        chains: buildChainDiffs(characters, effectiveCharacters, characterChains),
+      });
+
+      // ── Memory retrieval ──────────────────────────────────────────────────
+
+      const activeSpeaker = chat.activeSpeakers[0] ?? "narrator";
       const activeSpeakerIdx =
         activeSpeaker === "narrator"
           ? -1
           : characters.findIndex((c) => c.id === activeSpeaker);
       const accessibleMemories =
         activeSpeakerIdx >= 0 ? characterChains[activeSpeakerIdx] : [];
-      const relevantMemories = await findRelevantMemories(
-        accessibleMemories,
-        freshTurns,
-      );
+
+      t = Date.now();
+      emitPipeline(reply.raw, "memory_retrieval", "start");
+
+      const memResult = await findRelevantMemories(accessibleMemories, freshTurns);
+      const relevantMemories = memResult.memories;
+
+      emitPipeline(reply.raw, "memory_retrieval", "complete", t, {
+        accessibleCount: accessibleMemories.length,
+        results: memResult.details.map((d) => ({
+          memoryId: d.memory.id,
+          summary: d.memory.summary.slice(0, 100),
+          reason: d.reason,
+          score: d.score,
+          tags: d.memory.tags,
+        })),
+        llmFallbackFired: memResult.llmFallbackFired,
+      });
+
+      // ── Context assembly ──────────────────────────────────────────────────
+
+      const speakerChar = characters.find((c) => c.id === activeSpeaker);
+      const effectiveModel =
+        speakerChar?.modelOverride || params.model || undefined;
 
       const currentLocation = chatState.currentLocationId
         ? locations.find((l) => l.id === chatState.currentLocationId)
@@ -416,6 +634,9 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
         }
       }
 
+      t = Date.now();
+      emitPipeline(reply.raw, "context_assembly", "start");
+
       const messages = assembleContext({
         story,
         characters: effectiveCharacters,
@@ -433,31 +654,69 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
         otherCharMemories: otherCharMemoriesRegen,
       });
 
-      const allowedOriginsRegen = [
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-      ];
-      const reqOriginRegen = req.headers.origin ?? "";
-      const corsOriginRegen = allowedOriginsRegen.includes(reqOriginRegen)
-        ? reqOriginRegen
-        : allowedOriginsRegen[0];
-      reply.raw.writeHead(200, {
-        "Content-Type": "application/x-ndjson",
-        "Transfer-Encoding": "chunked",
-        "Cache-Control": "no-cache",
-        "X-Accel-Buffering": "no",
-        "Access-Control-Allow-Origin": corsOriginRegen,
+      const systemPromptText = messages[0]?.content ?? "";
+      emitPipeline(reply.raw, "context_assembly", "complete", t, {
+        systemPromptLength: systemPromptText.length,
+        injectedMemoryIds: relevantMemories.map((m) => m.id),
+        activeSpeakerId: activeSpeaker,
+        currentLocationId: chatState.currentLocationId,
+        moodTagCount: (params.moodTags ?? []).length,
       });
 
       const resolvedModel = effectiveModel ?? (await activeModel());
-      reply.raw.write(
-        JSON.stringify({
-          debug: {
-            systemPrompt: messages[0]?.content ?? "",
-            model: resolvedModel,
-          },
-        }) + "\n",
-      );
+
+      emitFrame(reply.raw, {
+        contextSnapshot: {
+          story: { id: story.id, title: story.title },
+          activeSpeakerId: activeSpeaker,
+          characters: characters.map((base, i) => {
+            const eff = effectiveCharacters[i];
+            return {
+              id: base.id,
+              name: base.name,
+              role: base.role,
+              isUserPersona: base.isUserPersona,
+              isNarrator: base.isNarrator,
+              basePersonality: base.public.personality,
+              effectivePersonality: eff.public.personality,
+              baseSpeechStyle: base.public.speechStyle ?? "",
+              effectiveSpeechStyle: eff.public.speechStyle ?? "",
+              baseTrueMotives: base.private.trueMotives ?? "",
+              effectiveTrueMotives: eff.private.trueMotives ?? "",
+              baseFears: base.private.fears,
+              effectiveFears: eff.private.fears,
+            };
+          }),
+          accessibleMemories: accessibleMemories.map((m) => ({
+            id: m.id,
+            summary: m.summary.slice(0, 100),
+            tags: m.tags,
+            importance: m.importance,
+            previousMemoryId: m.previousMemoryId,
+          })),
+          injectedMemoryIds: relevantMemories.map((m) => m.id),
+          memoryReasons: memResult.reasons,
+          locations: locations.map((l) => ({
+            id: l.id,
+            name: l.name,
+            isCurrent: l.id === chatState.currentLocationId,
+          })),
+          currentLocationId: chatState.currentLocationId,
+          moodTags: params.moodTags ?? [],
+          responseLength: params.responseLength ?? "medium",
+          feelText: params.feelText ?? "",
+          model: resolvedModel,
+        },
+      });
+
+      emitFrame(reply.raw, {
+        debug: { systemPrompt: systemPromptText, model: resolvedModel },
+      });
+
+      // ── LLM call ─────────────────────────────────────────────────────────
+
+      t = Date.now();
+      emitPipeline(reply.raw, "llm_call", "start");
 
       let fullText = "";
       try {
@@ -473,11 +732,18 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
           },
         });
       } catch (err) {
+        emitPipeline(reply.raw, "llm_call", "error", t);
         const msg = err instanceof Error ? err.message : "Stream error";
-        reply.raw.write(JSON.stringify({ error: msg }) + "\n");
+        emitFrame(reply.raw, { error: msg });
         reply.raw.end();
         return;
       }
+
+      emitPipeline(reply.raw, "llm_call", "complete", t, {
+        model: resolvedModel,
+        tokenCount: fullText.split(/\s+/).length,
+        durationMs: Date.now() - t,
+      });
 
       if (fullText) {
         await storage.appendTurn(storyId, {
@@ -491,7 +757,7 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
           meta: { mode: chat.mode },
         });
       }
-      reply.raw.write(JSON.stringify({ done: true }) + "\n");
+      emitFrame(reply.raw, { done: true });
       reply.raw.end();
     },
   );
@@ -543,6 +809,33 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
       const activeSpeaker = chat.activeSpeakers[0] ?? "narrator";
       const settings = await getSettings();
 
+      const allowedOriginsOpener = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+      ];
+      const reqOriginOpener = req.headers.origin ?? "";
+      const corsOriginOpener = allowedOriginsOpener.includes(reqOriginOpener)
+        ? reqOriginOpener
+        : allowedOriginsOpener[0];
+      reply.raw.writeHead(200, {
+        "Content-Type": "application/x-ndjson",
+        "Transfer-Encoding": "chunked",
+        "Cache-Control": "no-cache",
+        "X-Accel-Buffering": "no",
+        "Access-Control-Allow-Origin": corsOriginOpener,
+      });
+
+      emitPipeline(reply.raw, "data_load", "complete", undefined, {
+        characterCount: characters.length,
+        locationCount: locations.length,
+        turnCount: 0,
+      });
+
+      // ── Memory chain ──────────────────────────────────────────────────────
+
+      let t = Date.now();
+      emitPipeline(reply.raw, "memory_chain", "start");
+
       const characterChains = await resolveCharacterChains(
         storyId,
         chatId,
@@ -554,6 +847,37 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
         return chain.length > 0 ? applyMemoryChain(c, chain) : c;
       });
 
+      emitPipeline(reply.raw, "memory_chain", "complete", t, {
+        chains: buildChainDiffs(characters, effectiveCharacters, characterChains),
+      });
+
+      // ── Memory retrieval (opener uses full chain directly) ────────────────
+
+      const openerActiveSpeakerIdx =
+        activeSpeaker === "narrator"
+          ? -1
+          : characters.findIndex((c) => c.id === activeSpeaker);
+      const openerSpeakerMemories =
+        openerActiveSpeakerIdx >= 0
+          ? characterChains[openerActiveSpeakerIdx]
+          : [];
+
+      const syntheticReasons: Record<string, MemoryReason> = {};
+      for (const m of openerSpeakerMemories) syntheticReasons[m.id] = "always_include";
+
+      emitPipeline(reply.raw, "memory_retrieval", "complete", undefined, {
+        accessibleCount: openerSpeakerMemories.length,
+        results: openerSpeakerMemories.map((m) => ({
+          memoryId: m.id,
+          summary: m.summary.slice(0, 100),
+          reason: "always_include" as MemoryReason,
+          tags: m.tags,
+        })),
+        llmFallbackFired: false,
+      });
+
+      // ── Context assembly ──────────────────────────────────────────────────
+
       const currentLocation = chatState.currentLocationId
         ? locations.find((l) => l.id === chatState.currentLocationId)
         : undefined;
@@ -564,16 +888,6 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
       const openerLength =
         chat.mode === "storyteller" ? "paragraph+" : "medium";
 
-      // For the opener, use the speaker's genesis/anchor chain as history; narrator has no personal memories
-      const openerActiveSpeakerIdx =
-        activeSpeaker === "narrator"
-          ? -1
-          : characters.findIndex((c) => c.id === activeSpeaker);
-      const openerSpeakerMemories =
-        openerActiveSpeakerIdx >= 0
-          ? characterChains[openerActiveSpeakerIdx]
-          : [];
-
       const openerOtherCharMemories = new Map<string, CharacterMemory[]>();
       for (let i = 0; i < characters.length; i++) {
         const c = characters[i];
@@ -581,6 +895,9 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
           openerOtherCharMemories.set(c.id, characterChains[i]);
         }
       }
+
+      t = Date.now();
+      emitPipeline(reply.raw, "context_assembly", "start");
 
       const messages = assembleContext({
         story,
@@ -598,6 +915,16 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
         speakerMemories: openerSpeakerMemories,
         otherCharMemories: openerOtherCharMemories,
       });
+
+      const systemPromptText = messages[0]?.content ?? "";
+      emitPipeline(reply.raw, "context_assembly", "complete", t, {
+        systemPromptLength: systemPromptText.length,
+        injectedMemoryIds: openerSpeakerMemories.map((m) => m.id),
+        activeSpeakerId: activeSpeaker,
+        currentLocationId: chatState.currentLocationId,
+        moodTagCount: 0,
+      });
+
       const sortedMems = [...openerSpeakerMemories].sort((a, b) =>
         a.createdAt.localeCompare(b.createdAt),
       );
@@ -613,36 +940,64 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
       if (sceneLoc) openerContent += ` The scene is set at: ${sceneLoc}.`;
       openerContent +=
         " Ground yourself in this specific situation — no recap, no preamble.]";
-
       messages.push({ role: "user", content: openerContent });
-
-      const allowedOriginsOpener = [
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-      ];
-      const reqOriginOpener = req.headers.origin ?? "";
-      const corsOriginOpener = allowedOriginsOpener.includes(reqOriginOpener)
-        ? reqOriginOpener
-        : allowedOriginsOpener[0];
-      reply.raw.writeHead(200, {
-        "Content-Type": "application/x-ndjson",
-        "Transfer-Encoding": "chunked",
-        "Cache-Control": "no-cache",
-        "X-Accel-Buffering": "no",
-        "Access-Control-Allow-Origin": corsOriginOpener,
-      });
 
       const speakerChar = characters.find((c) => c.id === activeSpeaker);
       const effectiveModel = speakerChar?.modelOverride || undefined;
       const resolvedModel = effectiveModel ?? (await activeModel());
-      reply.raw.write(
-        JSON.stringify({
-          debug: {
-            systemPrompt: messages[0]?.content ?? "",
-            model: resolvedModel,
-          },
-        }) + "\n",
-      );
+
+      emitFrame(reply.raw, {
+        contextSnapshot: {
+          story: { id: story.id, title: story.title },
+          activeSpeakerId: activeSpeaker,
+          characters: characters.map((base, i) => {
+            const eff = effectiveCharacters[i];
+            return {
+              id: base.id,
+              name: base.name,
+              role: base.role,
+              isUserPersona: base.isUserPersona,
+              isNarrator: base.isNarrator,
+              basePersonality: base.public.personality,
+              effectivePersonality: eff.public.personality,
+              baseSpeechStyle: base.public.speechStyle ?? "",
+              effectiveSpeechStyle: eff.public.speechStyle ?? "",
+              baseTrueMotives: base.private.trueMotives ?? "",
+              effectiveTrueMotives: eff.private.trueMotives ?? "",
+              baseFears: base.private.fears,
+              effectiveFears: eff.private.fears,
+            };
+          }),
+          accessibleMemories: openerSpeakerMemories.map((m) => ({
+            id: m.id,
+            summary: m.summary.slice(0, 100),
+            tags: m.tags,
+            importance: m.importance,
+            previousMemoryId: m.previousMemoryId,
+          })),
+          injectedMemoryIds: openerSpeakerMemories.map((m) => m.id),
+          memoryReasons: syntheticReasons,
+          locations: locations.map((l) => ({
+            id: l.id,
+            name: l.name,
+            isCurrent: l.id === chatState.currentLocationId,
+          })),
+          currentLocationId: chatState.currentLocationId,
+          moodTags: [],
+          responseLength: openerLength,
+          feelText: "",
+          model: resolvedModel,
+        },
+      });
+
+      emitFrame(reply.raw, {
+        debug: { systemPrompt: systemPromptText, model: resolvedModel },
+      });
+
+      // ── LLM call ─────────────────────────────────────────────────────────
+
+      t = Date.now();
+      emitPipeline(reply.raw, "llm_call", "start");
 
       let fullText = "";
       try {
@@ -654,14 +1009,19 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
           },
         });
       } catch (err) {
-        reply.raw.write(
-          JSON.stringify({
-            error: err instanceof Error ? err.message : "Stream error",
-          }) + "\n",
-        );
+        emitPipeline(reply.raw, "llm_call", "error", t);
+        emitFrame(reply.raw, {
+          error: err instanceof Error ? err.message : "Stream error",
+        });
         reply.raw.end();
         return;
       }
+
+      emitPipeline(reply.raw, "llm_call", "complete", t, {
+        model: resolvedModel,
+        tokenCount: fullText.split(/\s+/).length,
+        durationMs: Date.now() - t,
+      });
 
       if (fullText) {
         await storage.appendTurn(storyId, {
@@ -675,7 +1035,7 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
           meta: { mode: chat.mode },
         });
       }
-      reply.raw.write(JSON.stringify({ done: true }) + "\n");
+      emitFrame(reply.raw, { done: true });
       reply.raw.end();
     },
   );
@@ -748,6 +1108,8 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
     },
   );
 }
+
+// ─── Private helpers ──────────────────────────────────────────────────────────
 
 async function resolveCharacterChains(
   storyId: string,
@@ -834,7 +1196,6 @@ async function resolveAccessibleMemories(
     )[0];
     if (!head) return [];
     const fullChain = await storage.getMemoryChain(storyId, charId, head.id);
-    // Walk newest-to-oldest to find the deepest chain node at or before the cutoff
     const cutoffMem = [...fullChain]
       .reverse()
       .find((m) => m.createdAt <= memoryTimelineCutoff);
@@ -848,7 +1209,6 @@ async function resolveAccessibleMemories(
     chain = head ? await storage.getMemoryChain(storyId, charId, head.id) : [];
   }
 
-  // Also include any memories created in this chat that aren't in the chain
   const chainIds = new Set(chain.map((m) => m.id));
   for (const m of allMemories) {
     if (m.sourceChatId === chatId && !chainIds.has(m.id)) {
