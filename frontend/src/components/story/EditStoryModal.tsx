@@ -3,7 +3,9 @@ import type { Story, Character } from '@simplechat/types'
 import { useStoriesStore } from '../../store/stories.js'
 import { api } from '../../lib/api.js'
 import { CharacterModal } from './CharacterModal.js'
+import { DmChatTab } from './DmChatTab.js'
 import s from './StoryCreateModal.module.css'
+import dm from './EditStoryModal.module.css'
 
 const GENRE_OPTIONS = ['Fantasy', 'Sci-Fi', 'Horror', 'Romance', 'Mystery', 'Thriller', 'Historical', 'Contemporary']
 const TONE_OPTIONS = ['Dark', 'Light', 'Grim', 'Hopeful', 'Intimate', 'Epic', 'Tense', 'Whimsical', 'Melancholic', 'Romantic']
@@ -30,6 +32,7 @@ export function EditStoryModal({ story, onClose, onSaved }: Props) {
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState('')
   const [editingChar, setEditingChar] = useState<Character | null | 'new' | 'new-persona'>(null)
+  const [activeTab, setActiveTab] = useState<'settings' | 'dm'>('settings')
 
   const toggle = (arr: string[], val: string, setArr: (a: string[]) => void) => {
     setArr(arr.includes(val) ? arr.filter((x) => x !== val) : [...arr, val])
@@ -97,6 +100,26 @@ export function EditStoryModal({ story, onClose, onSaved }: Props) {
             <button class={s.closeBtn} onClick={onClose}>✕</button>
           </div>
 
+          <div class={dm.tabBar}>
+            <button
+              class={dm.tab}
+              data-active={activeTab === 'settings' ? 'true' : undefined}
+              onClick={() => setActiveTab('settings')}
+            >
+              Settings
+            </button>
+            <button
+              class={dm.tab}
+              data-active={activeTab === 'dm' ? 'true' : undefined}
+              onClick={() => setActiveTab('dm')}
+            >
+              DM Chat
+            </button>
+          </div>
+
+          {activeTab === 'dm' && <DmChatTab storyId={story.id} />}
+
+          {activeTab === 'settings' && <>
           {error && <div style={{ color: 'var(--error)', fontSize: '12px' }}>{error}</div>}
 
           <div class={s.field}>
@@ -243,6 +266,7 @@ export function EditStoryModal({ story, onClose, onSaved }: Props) {
               {submitting ? 'Saving…' : 'Save Changes'}
             </button>
           </div>
+          </>}
         </div>
       </div>
 

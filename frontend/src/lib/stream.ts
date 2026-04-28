@@ -1,3 +1,4 @@
+import type { DmProposal } from '@simplechat/types'
 import type { PipelineEvent, ContextSnapshot } from './debug-types.js'
 
 export interface DebugInfo {
@@ -22,6 +23,19 @@ export interface StreamOptions {
   onStateUpdate?: (update: StateUpdate) => void
   onPipelineEvent?: (event: PipelineEvent) => void
   onContextSnapshot?: (snapshot: ContextSnapshot) => void
+  onProposals?: (proposals: DmProposal[]) => void
+  signal?: AbortSignal
+}
+
+export interface PlanStreamOptions {
+  storyId: string
+  chatId: string
+  text: string
+  model?: string
+  onChunk: (text: string) => void
+  onDone: () => void
+  onError: (msg: string) => void
+  onProposals?: (proposals: DmProposal[]) => void
   signal?: AbortSignal
 }
 
@@ -34,6 +48,7 @@ async function readStream(
   onStateUpdate?: (update: StateUpdate) => void,
   onPipelineEvent?: (event: PipelineEvent) => void,
   onContextSnapshot?: (snapshot: ContextSnapshot) => void,
+  onProposals?: (proposals: DmProposal[]) => void,
 ): Promise<void> {
   if (!res.body) { onError(`Request failed: ${res.status}`); return }
 
@@ -66,11 +81,13 @@ async function readStream(
           stateUpdate?: StateUpdate
           pipelineEvent?: PipelineEvent
           contextSnapshot?: ContextSnapshot
+          proposals?: DmProposal[]
         }
         if (msg.pipelineEvent) { onPipelineEvent?.(msg.pipelineEvent); continue }
         if (msg.contextSnapshot) { onContextSnapshot?.(msg.contextSnapshot); continue }
         if (msg.debug) { onDebug?.(msg.debug); continue }
         if (msg.stateUpdate) { onStateUpdate?.(msg.stateUpdate); continue }
+        if (msg.proposals) { onProposals?.(msg.proposals); continue }
         if (msg.error) { onError(msg.error); return }
         if (msg.content) onChunk(msg.content)
         if (msg.done) { onDone(); return }
@@ -100,7 +117,7 @@ export async function sendMessageStream(opts: StreamOptions): Promise<void> {
   }
 
   if (!res.ok || !res.body) { onError(`Request failed: ${res.status}`); return }
-  await readStream(res, onChunk, onDone, onError, onDebug, opts.onStateUpdate, opts.onPipelineEvent, opts.onContextSnapshot)
+  await readStream(res, onChunk, onDone, onError, onDebug, opts.onStateUpdate, opts.onPipelineEvent, opts.onContextSnapshot, opts.onProposals)
 }
 
 export async function openerStream(
@@ -143,5 +160,26 @@ export async function regenerateStream(opts: StreamOptions): Promise<void> {
   }
 
   if (!res.ok || !res.body) { onError(`Request failed: ${res.status}`); return }
-  await readStream(res, onChunk, onDone, onError, onDebug, opts.onStateUpdate, opts.onPipelineEvent, opts.onContextSnapshot)
+  await readStream(res, onChunk, onDone, onError, onDebug, opts.onStateUpdate, opts.onPipelineEvent, opts.onContextSnapshot, opts.onProposals)
+}
+
+export async function planMessageStream(opts: PlanStreamOptions): Promise<void> {
+  const { storyId, chatId, text, model, onChunk, onDone, onError, onProposals, signal } = opts
+
+  let res: Response
+  try {
+    res = await fetch(`/stories/${storyId}/chats/${chatId}/plan-message`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, model }),
+      signal,
+    })
+  } catch (err) {
+    if ((err as Error).name === 'AbortError') return
+    onError((err as Error).message)
+    return
+  }
+
+  if (!res.ok || !res.body) { onError(`Request failed: ${res.status}`); return }
+  await readStream(res, onChunk, onDone, onError, undefined, undefined, undefined, undefined, onProposals)
 }

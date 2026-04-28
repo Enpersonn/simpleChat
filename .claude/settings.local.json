@@ -21,7 +21,9 @@
       "Bash(node_modules/.bin/tsc --project frontend/tsconfig.json --noEmit)",
       "Bash(grep -v \".ts$\")",
       "Read(//c/Users/nicbaaki/.claude/projects/c--Users-nicbaaki-Documents-PersonalProjects-a-chat-simpleChat/**)",
-      "Bash(python *)"
+      "Bash(python *)",
+      "Bash(npx @biomejs/biome check frontend/src/components/story/DmChatTab.tsx frontend/src/components/story/DmProposalCard.tsx frontend/src/lib/stream.ts backend/src/routes/chats.ts)",
+      "Bash(npx kill-port *)"
     ],
     "additionalDirectories": [
       "C:\\Users\\nicbaaki\\.claude\\projects\\c--Users-nicbaaki-Documents-PersonalProjects-a-chat-simpleChat"

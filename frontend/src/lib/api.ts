@@ -159,6 +159,7 @@ export const api = {
 
   chats: {
     list: (storyId: string) => request<Chat[]>(`/stories/${storyId}/chats`),
+    get: (storyId: string, chatId: string) => request<Chat>(`/stories/${storyId}/chats/${chatId}`),
     create: (storyId: string, data: Omit<ChatCreate, 'storyId'> & { startingLocationId?: string }) =>
       request<Chat>(`/stories/${storyId}/chats`, { method: 'POST', body: JSON.stringify(data) }),
     history: (storyId: string, chatId: string) =>

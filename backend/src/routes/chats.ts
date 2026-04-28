@@ -4,6 +4,7 @@ import {
   type Character,
   ChatCreateSchema,
   ChatEntityStateSchema,
+  type DmProposal,
   type LocationCreate,
   type MemoryItem,
   MemoryItemCreateSchema,
@@ -17,6 +18,7 @@ import { applyMemoryChain } from "../character-state.js";
 import { getSettings } from "../config.js";
 import { assembleContext } from "../context.js";
 import { runExtraction } from "../extraction.js";
+import { dmProposalExtractorAgent } from "../generation/agents.js";
 import {
   findRelevantMemories,
   type MemoryReason,
@@ -1068,6 +1070,142 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
     },
   );
 
+  // ─── Planning chat message (DM collaborator, streaming) ─────────────────
+
+  app.post<{ Params: { storyId: string; chatId: string } }>(
+    "/stories/:storyId/chats/:chatId/plan-message",
+    async (req, reply) => {
+      const { storyId, chatId } = req.params;
+      const { text, model } = req.body as { text?: string; model?: string };
+      if (!text?.trim())
+        return reply.status(400).send({ error: "text is required" });
+
+      const [story, chat, characters, locations, existingTurns] =
+        await Promise.all([
+          stories_store.get(storyId),
+          chat_store.get(chatId),
+          characters_store.list({ storyId }),
+          locations_store.list({ storyId }),
+          turn_store.list({ chatId }),
+        ]);
+
+      if (!story) return reply.status(404).send({ error: "Story not found" });
+      if (!chat) return reply.status(404).send({ error: "Chat not found" });
+      if (chat.mode !== "planning")
+        return reply
+          .status(400)
+          .send({ error: "Chat is not a planning chat" });
+
+      const userTurn: Turn = {
+        id: randomUUID(),
+        chatId,
+        speaker: "user",
+        role: "user",
+        text: text.trim(),
+        timestamp: new Date().toISOString(),
+        pinned: false,
+        meta: { mode: "planning" },
+      };
+      await appendTurn(userTurn);
+
+      const allTurns = [...existingTurns, userTurn];
+
+      const allowedOrigins = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+      ];
+      const reqOrigin = req.headers.origin ?? "";
+      const corsOrigin = allowedOrigins.includes(reqOrigin)
+        ? reqOrigin
+        : allowedOrigins[0];
+      reply.raw.writeHead(200, {
+        "Content-Type": "application/x-ndjson",
+        "Transfer-Encoding": "chunked",
+        "Cache-Control": "no-cache",
+        "X-Accel-Buffering": "no",
+        "Access-Control-Allow-Origin": corsOrigin,
+      });
+
+      const systemPrompt = buildDmSystemPrompt(story, characters, locations);
+
+      const messages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
+        { role: "system", content: systemPrompt },
+        ...allTurns.map((t) => ({
+          role: t.role as "user" | "assistant",
+          content: t.text,
+        })),
+      ];
+
+      let fullText = "";
+      try {
+        fullText = await streamChat({
+          messages,
+          model: model || undefined,
+          temperature: 0.85,
+          onChunk: (chunk) => {
+            reply.raw.write(JSON.stringify({ content: chunk }) + "\n");
+          },
+        });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Stream error";
+        reply.raw.write(JSON.stringify({ error: msg }) + "\n");
+        reply.raw.end();
+        return;
+      }
+
+      if (fullText) {
+        await appendTurn({
+          id: randomUUID(),
+          chatId,
+          speaker: "dm",
+          role: "assistant",
+          text: fullText,
+          timestamp: new Date().toISOString(),
+          pinned: false,
+          meta: { mode: "planning" },
+        });
+
+        const charNames = characters.map((c) => c.name).join(", ");
+        const extractorInput = [
+          `Story: ${story.title}`,
+          charNames ? `Existing characters: ${charNames}` : "",
+          `DM response:\n${fullText}`,
+        ]
+          .filter(Boolean)
+          .join("\n");
+
+        let proposals: DmProposal[] = [];
+        try {
+          const extracted = await dmProposalExtractorAgent.run(extractorInput);
+          const raw = Array.isArray(extracted.proposals)
+            ? (extracted.proposals as unknown[])
+            : [];
+          proposals = raw
+            .filter((p): p is Record<string, unknown> => !!p && typeof p === "object")
+            .map((p) => ({
+              id: randomUUID(),
+              type: (p.type as DmProposal["type"]) ?? "character",
+              rationale: typeof p.rationale === "string" ? p.rationale : "",
+              entityData:
+                p.entityData && typeof p.entityData === "object"
+                  ? (p.entityData as Record<string, unknown>)
+                  : {},
+            }))
+            .filter((p) =>
+              ["character", "location", "memory"].includes(p.type),
+            );
+        } catch {
+          // non-fatal: proposals remain empty
+        }
+
+        reply.raw.write(JSON.stringify({ proposals }) + "\n");
+      }
+
+      reply.raw.write(JSON.stringify({ done: true }) + "\n");
+      reply.raw.end();
+    },
+  );
+
   // ─── Turn management ──────────────────────────────────────────────────────
 
   app.patch<{ Params: { storyId: string; chatId: string; turnId: string } }>(
@@ -1145,6 +1283,61 @@ async function resolveCharacterChains(
       getMemoryChainForCharacter(c.id, memoryTimelineCutoff),
     ),
   );
+}
+
+function buildDmSystemPrompt(
+  story: Story,
+  characters: import("@simplechat/types").Character[],
+  locations: import("@simplechat/types").Location[],
+): string {
+  const parts: string[] = [
+    "You are a creative collaborator helping plan and develop a story. You are the author's thoughtful story architect and Dungeon Master.",
+    "",
+    `STORY: ${story.title}`,
+  ];
+  if (story.premise) parts.push(`PREMISE: ${story.premise}`);
+  if (story.genres?.length)
+    parts.push(`GENRE: ${story.genres.join(", ")}`);
+  if (story.tone?.length)
+    parts.push(`TONE: ${story.tone.join(", ")}`);
+  if (story.rules?.length) {
+    parts.push("WORLD RULES:");
+    for (const rule of story.rules) parts.push(`- ${rule}`);
+  }
+
+  if (characters.length > 0) {
+    parts.push("", "EXISTING CHARACTERS:");
+    for (const c of characters) {
+      const traits = c.public?.personality?.join(", ") ?? "";
+      const appearance = c.public?.appearance ?? "";
+      let line = `- ${c.name}`;
+      if (c.role) line += ` (${c.role})`;
+      if (appearance) line += `: ${appearance}`;
+      if (traits) line += `. Traits: ${traits}`;
+      parts.push(line);
+    }
+  }
+
+  if (locations.length > 0) {
+    parts.push("", "EXISTING LOCATIONS:");
+    for (const l of locations) {
+      let line = `- ${l.name}`;
+      if (l.description) line += `: ${l.description}`;
+      parts.push(line);
+    }
+  }
+
+  parts.push(
+    "",
+    "YOUR ROLE:",
+    "- Be a proactive creative partner — suggest what the story needs, don't just respond passively",
+    "- When you propose a specific character, location, or backstory event, describe it with concrete details",
+    "- Stay true to the established tone and world rules",
+    "- Be concise but substantive; you are building this story together with the author",
+    "- If the author agrees to add something, confirm and describe it fully so it can be saved",
+  );
+
+  return parts.join("\n");
 }
 
 async function generateLocationFromContext(

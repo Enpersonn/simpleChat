@@ -1,7 +1,15 @@
 import { z } from 'zod'
 
-export const ChatModeSchema = z.enum(['interactive', 'storyteller'])
+export const ChatModeSchema = z.enum(['interactive', 'storyteller', 'planning'])
 export type ChatMode = z.infer<typeof ChatModeSchema>
+
+export const DmProposalSchema = z.object({
+  id: z.string(),
+  type: z.enum(['character', 'location', 'memory']),
+  rationale: z.string(),
+  entityData: z.record(z.unknown()),
+})
+export type DmProposal = z.infer<typeof DmProposalSchema>
 
 export const TurnSchema = z.object({
   id: z.string(),

@@ -87,7 +87,7 @@ export function LeftPanel() {
   }
 
   const selectedStory = stories.find((s) => s.id === selectedStoryId)
-  const storyChats = chats.filter((c) => c.storyId === selectedStoryId)
+  const storyChats = chats.filter((c) => c.storyId === selectedStoryId && c.mode !== 'planning')
 
   return (
     <div class={s.root}>
