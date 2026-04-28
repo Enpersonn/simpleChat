@@ -74,6 +74,7 @@ export const CharacterCreateSchema = CharacterSchema.omit({
   createdAt: true,
   updatedAt: true,
 }).partial({
+  storyId: true,
   role: true,
   isUserPersona: true,
   isNarrator: true,

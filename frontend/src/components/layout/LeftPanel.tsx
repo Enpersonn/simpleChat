@@ -226,8 +226,8 @@ export function LeftPanel() {
                       <div class={s.empty}>No memories yet</div>
                     )}
                     {[...(characterMemories[char.id] ?? [])]
-                      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-                      .map((mem) => {
+                      .sort((a, b) => a.relation.createdAt.localeCompare(b.relation.createdAt))
+                      .map(({ relation, memory: mem }) => {
                         const locName = mem.locationId
                           ? locations.find((l) => l.id === mem.locationId)?.name
                           : undefined
@@ -245,7 +245,7 @@ export function LeftPanel() {
                             <button
                               type="button"
                               class={s.branchBtn}
-                              onClick={() => handleBranchFromMemory(char.id, mem.id)}
+                              onClick={() => handleBranchFromMemory(char.id, relation.id)}
                               title="Start a new chat from this point in the timeline"
                             >
                               Branch

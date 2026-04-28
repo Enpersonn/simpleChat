@@ -1,18 +1,17 @@
 import {
   type Character,
   CharacterCreateSchema,
-  type CharacterDelta,
-  type CharacterMemoryCreateSchema,
+  type MemoryDeltaEffect,
   CharacterUpdateSchema,
 } from "@simplechat/types";
 import type { FastifyInstance } from "fastify";
 import { applyMemoryChain } from "../character-state.js";
 import { GenerateAgent } from "../generate.js";
 import { characters_store } from "../storage/characters/index.js";
+import { now } from "../storage/helpers.js";
 import {
-  character_memories_store,
-  getMemoryChain,
-  getMemoryHeads,
+  character_memory_relations_store,
+  getMemoryChainForCharacter,
   memories_store,
 } from "../storage/memories/index.js";
 import { stories_store } from "../storage/stories/index.js";
@@ -20,33 +19,35 @@ import { stories_store } from "../storage/stories/index.js";
 async function createGenesisMemory(char: Character): Promise<Character> {
   if (char.genesisMemoryId) return char;
 
-  const deltas: CharacterDelta = {};
-  if (char.public.personality.length)
-    deltas.personality = { add: char.public.personality, remove: [] };
-  if (char.public.appearance) deltas.appearance = char.public.appearance;
-  if (char.public.speechStyle) deltas.speechStyle = char.public.speechStyle;
-  if (char.public.reputation) deltas.reputation = char.public.reputation;
-  if (char.public.clothing) deltas.clothing = char.public.clothing;
-  if (char.private.trueMotives) deltas.trueMotives = char.private.trueMotives;
-  if (char.private.fears.length)
-    deltas.fears = { add: char.private.fears, remove: [] };
-  if (char.private.privateKnowledge.length)
-    deltas.privateKnowledge = {
-      add: char.private.privateKnowledge,
-      remove: [],
-    };
-  if (char.private.moralLimits) deltas.moralLimits = char.private.moralLimits;
-  if (char.private.hiddenEmotionalState)
-    deltas.hiddenEmotionalState = char.private.hiddenEmotionalState;
-  if (char.relationships.length) {
-    deltas.relationships = char.relationships.map((r) => ({
-      charId: r.charId,
-      emotion: r.emotion,
-      publicAttitude: r.publicAttitude,
-      privateAttitude: r.privateAttitude,
-      trustLevel: r.trustLevel,
-    }));
+  const effects: MemoryDeltaEffect[] = [];
+
+  for (const trait of char.public.personality) {
+    effects.push({ path: "public.personality", op: "add", value: trait, weight: 1, entityType: "character" });
   }
+  for (const fear of char.private.fears) {
+    effects.push({ path: "private.fears", op: "add", value: fear, weight: 1, entityType: "character" });
+  }
+  for (const item of char.private.privateKnowledge) {
+    effects.push({ path: "private.privateKnowledge", op: "add", value: item, weight: 1, entityType: "character" });
+  }
+  if (char.public.appearance)
+    effects.push({ path: "public.appearance", op: "set", value: char.public.appearance, weight: 1, entityType: "character" });
+  if (char.public.speechStyle)
+    effects.push({ path: "public.speechStyle", op: "set", value: char.public.speechStyle, weight: 1, entityType: "character" });
+  if (char.public.reputation)
+    effects.push({ path: "public.reputation", op: "set", value: char.public.reputation, weight: 1, entityType: "character" });
+  if (char.public.clothing)
+    effects.push({ path: "public.clothing", op: "set", value: char.public.clothing, weight: 1, entityType: "character" });
+  if (char.private.trueMotives)
+    effects.push({ path: "private.trueMotives", op: "set", value: char.private.trueMotives, weight: 1, entityType: "character" });
+  if (char.private.moralLimits)
+    effects.push({ path: "private.moralLimits", op: "set", value: char.private.moralLimits, weight: 1, entityType: "character" });
+  if (char.private.hiddenEmotionalState)
+    effects.push({ path: "private.hiddenEmotionalState", op: "set", value: char.private.hiddenEmotionalState, weight: 1, entityType: "character" });
+  if (char.relationships.length > 0)
+    effects.push({ path: "relationships", op: "set", value: char.relationships as Record<string, unknown>[], weight: 1, entityType: "character" });
+  if (char.locationRelationships.length > 0)
+    effects.push({ path: "locationRelationships", op: "set", value: char.locationRelationships as Record<string, unknown>[], weight: 1, entityType: "character" });
 
   const summaryParts: string[] = [];
   if (char.role) summaryParts.push(`${char.name} is a ${char.role}.`);
@@ -57,14 +58,22 @@ async function createGenesisMemory(char: Character): Promise<Character> {
     summaryParts.push(`True motives: ${char.private.trueMotives}`);
   if (!summaryParts.length) summaryParts.push(`${char.name} — starting state.`);
 
-  const genesis = await character_memories_store.add<
-    typeof CharacterMemoryCreateSchema
-  >({
+  const t = now();
+  const genesis = await memories_store.add({
     summary: summaryParts.join(" "),
-    characterId: char.id,
+    storyId: char.storyId,
     tags: [...char.public.personality, ...char.private.fears].slice(0, 10),
     importance: 1.0,
-    deltas: Object.keys(deltas).length > 0 ? deltas : undefined,
+    deltas: { effects },
+    createdAt: t,
+    updatedAt: t,
+  });
+
+  await character_memory_relations_store.add({
+    storyId: char.storyId,
+    characterId: char.id,
+    memoryId: genesis.id,
+    createdAt: t,
   });
 
   const updated = await characters_store.update(char.id, {
@@ -77,9 +86,7 @@ export async function charactersRoutes(app: FastifyInstance): Promise<void> {
   app.get<{ Params: { id: string } }>(
     "/stories/:id/characters",
     async (req) => {
-      return characters_store.list({
-        storyId: req.params.id,
-      });
+      return characters_store.list({ storyId: req.params.id });
     },
   );
 
@@ -89,7 +96,7 @@ export async function charactersRoutes(app: FastifyInstance): Promise<void> {
       const body = CharacterCreateSchema.safeParse(req.body);
       if (!body.success)
         return reply.status(400).send({ error: body.error.flatten() });
-      const char = await characters_store.add<typeof CharacterCreateSchema>({
+      const char = await characters_store.add({
         ...body.data,
         storyId: req.params.id,
       });
@@ -128,15 +135,7 @@ export async function charactersRoutes(app: FastifyInstance): Promise<void> {
       if (!char)
         return reply.status(404).send({ error: "Character not found" });
 
-      const heads = await getMemoryHeads(storyId, charId);
-      const latestHead = heads.sort((a, b) =>
-        b.createdAt.localeCompare(a.createdAt),
-      )[0];
-      const memories = await memories_store.list();
-      const chain = latestHead
-        ? await getMemoryChain(latestHead.id, memories)
-        : [];
-
+      const chain = await getMemoryChainForCharacter(charId);
       const effective = applyMemoryChain(char, chain);
       const allChars = await characters_store.list({ storyId });
       const charMap = new Map(allChars.map((c) => [c.id, c.name]));

@@ -1,5 +1,3 @@
-import { writeFile } from "node:fs/promises";
-import { join } from "node:path";
 import {
   ChatEntityStateSchema,
   ChatSchema,
@@ -7,17 +5,11 @@ import {
   TurnSchema,
 } from "@simplechat/types";
 import { BaseStorageObject } from "../base";
-import { storyDir } from "../helpers";
 
-async function chatLogPath(storyId: string, chatId: string): Promise<string> {
-  const dir = await storyDir(storyId);
-  return join(dir, "chats", `${chatId}.jsonl`);
-}
-
-export const chat_store = new BaseStorageObject("characters", ChatSchema);
-export const turn_store = new BaseStorageObject("characters", TurnSchema);
+export const chat_store = new BaseStorageObject("chats", ChatSchema);
+export const turn_store = new BaseStorageObject("turns", TurnSchema);
 export const chat_state_store = new BaseStorageObject(
-  "characters",
+  "chat_states",
   ChatEntityStateSchema,
 );
 
@@ -27,35 +19,25 @@ export async function appendTurn(turn: Turn): Promise<void> {
 }
 
 export async function deleteAfterTurn(
-  storyId: string,
+  _storyId: string,
   chatId: string,
   turnId: string,
 ): Promise<boolean> {
   const turns = await turn_store.list({ chatId });
   const idx = turns.findIndex((t) => t.id === turnId);
   if (idx === -1) return false;
-  const remaining = turns.slice(0, idx + 1);
-  const path = await chatLogPath(storyId, chatId);
-  await writeFile(
-    path,
-    `${remaining.map((t) => JSON.stringify(t)).join("\n")}\n`,
-  );
+  await turn_store.replaceAll(turns.slice(0, idx + 1));
   return true;
 }
 
 export async function deleteSingleTurn(
-  storyId: string,
+  _storyId: string,
   chatId: string,
   turnId: string,
 ): Promise<boolean> {
   const turns = await turn_store.list({ chatId });
   const filtered = turns.filter((t) => t.id !== turnId);
   if (filtered.length === turns.length) return false;
-  const path = await chatLogPath(storyId, chatId);
-  await writeFile(
-    path,
-    filtered.map((t) => JSON.stringify(t)).join("\n") +
-      (filtered.length ? "\n" : ""),
-  );
+  await turn_store.replaceAll(filtered);
   return true;
 }

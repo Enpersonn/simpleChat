@@ -6,6 +6,7 @@ export const DeltaValueSchema = z.union([
   z.boolean(),
   z.null(),
   z.array(z.string()),
+  z.array(z.record(z.unknown())),
   z.record(z.unknown()),
 ]);
 
@@ -23,9 +24,7 @@ export const MemoryDeltaEffectSchema = z.object({
   op: DeltaOperationSchema,
   value: DeltaValueSchema.optional(),
   weight: z.number().min(0).max(1).default(1),
-  scope: z
-    .enum(["Memory", "relationship", "location", "memory"])
-    .default("Memory"),
+  entityType: z.string().min(1).default("character"),
   targetId: z.string().optional(),
 });
 
@@ -39,7 +38,6 @@ export type MemoryDeltaEffect = z.infer<typeof MemoryDeltaEffectSchema>;
 export const MemoryItemSchema = z.object({
   id: z.string(),
   storyId: z.string(),
-  MemoryId: z.string(),
   summary: z.string().min(1),
   tags: z.array(z.string()).default([]),
   importance: z.number().min(0).max(1).default(0.5),
@@ -47,8 +45,6 @@ export const MemoryItemSchema = z.object({
   locationId: z.string().optional(),
   sourceChatId: z.string().optional(),
   sourceTurnId: z.string().optional(),
-  previousMemoryId: z.string().optional(),
-  branchLabel: z.string().optional(),
 
   deltas: MemoryDeltaSchema.default({ effects: [] }),
 
@@ -62,4 +58,45 @@ export const MemoryItemCreateSchema = MemoryItemSchema.omit({
   createdAt: true,
   updatedAt: true,
 });
+
+// ─── CharacterMemoryRelation (join table) ────────────────────────────────────
+
+export const CharacterMemoryRelationSchema = z.object({
+  id: z.string(),
+  storyId: z.string(),
+  characterId: z.string(),
+  memoryId: z.string(),
+  previousRelationId: z.string().optional(),
+  branchLabel: z.string().optional(),
+  createdAt: z.string(),
+});
+
+export const CharacterMemoryRelationCreateSchema =
+  CharacterMemoryRelationSchema.omit({ id: true, createdAt: true });
+
+// Combined payload for POST /memories — content + relation fields bundled
+export const CharacterMemoryWithRelationCreateSchema =
+  MemoryItemCreateSchema.extend({
+    previousRelationId: z.string().optional(),
+    branchLabel: z.string().optional(),
+  });
+
+export const CharacterMemoryUpdateSchema =
+  CharacterMemoryWithRelationCreateSchema.partial();
+
 export type MemoryItem = z.infer<typeof MemoryItemSchema>;
+export type MemoryItemCreate = z.infer<typeof MemoryItemCreateSchema>;
+
+export type CharacterMemory = MemoryItem;
+export type CharacterMemoryRelation = z.infer<
+  typeof CharacterMemoryRelationSchema
+>;
+export type CharacterMemoryRelationCreate = z.infer<
+  typeof CharacterMemoryRelationCreateSchema
+>;
+export type CharacterMemoryCreate = z.infer<
+  typeof CharacterMemoryWithRelationCreateSchema
+>;
+export type CharacterMemoryUpdate = z.infer<
+  typeof CharacterMemoryUpdateSchema
+>;

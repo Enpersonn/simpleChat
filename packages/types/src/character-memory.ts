@@ -1,9 +1,11 @@
-import { z } from "zod";
-
-export const CharacterMemoryRelationSchema = z.object({
-  memoryid: z.string(),
-  characterId: z.string(),
-});
-export type CharacterMemoryRelation = z.infer<
-  typeof CharacterMemoryRelationSchema
->;
+export {
+  CharacterMemoryWithRelationCreateSchema,
+  CharacterMemoryUpdateSchema,
+  CharacterMemoryRelationSchema,
+  CharacterMemoryRelationCreateSchema,
+  type CharacterMemory,
+  type CharacterMemoryCreate,
+  type CharacterMemoryUpdate,
+  type CharacterMemoryRelation,
+  type CharacterMemoryRelationCreate,
+} from "./memory.js";

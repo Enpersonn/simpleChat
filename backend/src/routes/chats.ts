@@ -34,8 +34,7 @@ import {
 import { now } from "../storage/helpers.js";
 import { locations_store } from "../storage/locations/index.js";
 import {
-  getCharacterMemories,
-  getMemoryChain,
+  getMemoryChainForCharacter,
   memories_store,
 } from "../storage/memories/index.js";
 import { stories_store } from "../storage/stories/index.js";
@@ -124,7 +123,7 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
       });
       if (!body.success)
         return reply.status(400).send({ error: body.error.flatten() });
-      const chat = await chat_store.add<typeof ChatCreateSchema>(body.data);
+      const chat = await chat_store.add(body.data);
       if (body.data.startingLocationId) {
         await chat_state_store.update(
           chat.id,
@@ -389,7 +388,6 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
             summary: m.summary.slice(0, 100),
             tags: m.tags,
             importance: m.importance,
-            previousMemoryId: m.previousMemoryId,
           })),
           injectedMemoryIds: relevantMemories.map((m) => m.id),
           memoryReasons: memResult.reasons,
@@ -719,7 +717,6 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
             summary: m.summary.slice(0, 100),
             tags: m.tags,
             importance: m.importance,
-            previousMemoryId: m.previousMemoryId,
           })),
           injectedMemoryIds: relevantMemories.map((m) => m.id),
           memoryReasons: memResult.reasons,
@@ -1005,7 +1002,6 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
             summary: m.summary.slice(0, 100),
             tags: m.tags,
             importance: m.importance,
-            previousMemoryId: m.previousMemoryId,
           })),
           injectedMemoryIds: openerSpeakerMemories.map((m) => m.id),
           memoryReasons: syntheticReasons,
@@ -1126,7 +1122,7 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
       const body = MemoryItemCreateSchema.safeParse(req.body);
       if (!body.success)
         return reply.status(400).send({ error: body.error.flatten() });
-      const item = await memories_store.add<typeof MemoryItemSchema>({
+      const item = await memories_store.add({
         ...body.data,
         id: randomUUID(),
         createdAt: now(),
@@ -1145,11 +1141,9 @@ async function resolveCharacterChains(
   memoryTimelineCutoff: string | undefined,
 ): Promise<import("@simplechat/types").MemoryItem[][]> {
   return Promise.all(
-    characters.map(async (c) => {
-      const mems = await getCharacterMemories(c.id);
-      if (!memoryTimelineCutoff) return mems;
-      return getMemoryChain(memoryTimelineCutoff, mems);
-    }),
+    characters.map((c) =>
+      getMemoryChainForCharacter(c.id, memoryTimelineCutoff),
+    ),
   );
 }
 

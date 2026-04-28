@@ -1,16 +1,16 @@
-import type { CharacterMemory, Turn } from '@simplechat/types'
+import type { MemoryItem, Turn } from '@simplechat/types'
 import { streamChat } from './ollama.js'
 
 export type MemoryReason = 'always_include' | 'tag_match' | 'llm_picked'
 
 export interface MemoryWithReason {
-  memory: CharacterMemory
+  memory: MemoryItem
   reason: MemoryReason
   score?: number
 }
 
 export interface RelevantMemoryResult {
-  memories: CharacterMemory[]
+  memories: MemoryItem[]
   reasons: Record<string, MemoryReason>
   details: MemoryWithReason[]
   llmFallbackFired: boolean
@@ -29,12 +29,12 @@ function extractKeywords(turns: Turn[]): Set<string> {
   )
 }
 
-function scoreByTags(memory: CharacterMemory, keywords: Set<string>): number {
+function scoreByTags(memory: MemoryItem, keywords: Set<string>): number {
   return memory.tags.filter((tag) => keywords.has(tag.toLowerCase())).length
 }
 
 export async function findRelevantMemories(
-  memories: CharacterMemory[],
+  memories: MemoryItem[],
   recentTurns: Turn[],
   maxResults = 5,
 ): Promise<RelevantMemoryResult> {

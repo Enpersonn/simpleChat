@@ -1,6 +1,9 @@
 import { StoryCreateSchema, StoryUpdateSchema } from "@simplechat/types";
 import type { FastifyInstance } from "fastify";
-import * as storage from "../storage.js";
+import { characters_store } from "../storage/characters/index.js";
+import { locations_store } from "../storage/locations/index.js";
+import { seedDefaultFieldDefs } from "../storage/field-defs/index.js";
+import { stories_store } from "../storage/stories/index.js";
 import { extractJson } from "../utils.js";
 
 function normaliseCharacter(c: Record<string, unknown>) {
@@ -917,14 +920,16 @@ export async function storiesRoutes(app: FastifyInstance): Promise<void> {
   // ─── Stories CRUD ─────────────────────────────────────────────────────────
 
   app.get("/stories", async () => {
-    return storage.listStories();
+    return stories_store.list();
   });
 
   app.get<{ Params: { id: string } }>("/stories/:id", async (req, reply) => {
-    const story = await storage.getStory(req.params.id);
+    const story = await stories_store.get(req.params.id);
     if (!story) return reply.status(404).send({ error: "Story not found" });
-    const characters = await storage.listCharacters(req.params.id);
-    const locations = await storage.listLocations(req.params.id);
+    const [characters, locations] = await Promise.all([
+      characters_store.list({ storyId: req.params.id }),
+      locations_store.list({ storyId: req.params.id }),
+    ]);
     return { story, characters, locations };
   });
 
@@ -932,7 +937,8 @@ export async function storiesRoutes(app: FastifyInstance): Promise<void> {
     const body = StoryCreateSchema.safeParse(req.body);
     if (!body.success)
       return reply.status(400).send({ error: body.error.flatten() });
-    const story = await storage.createStory(body.data);
+    const story = await stories_store.add(body.data);
+    await seedDefaultFieldDefs(story.id);
     return reply.status(201).send(story);
   });
 
@@ -940,13 +946,13 @@ export async function storiesRoutes(app: FastifyInstance): Promise<void> {
     const body = StoryUpdateSchema.safeParse(req.body);
     if (!body.success)
       return reply.status(400).send({ error: body.error.flatten() });
-    const story = await storage.updateStory(req.params.id, body.data);
+    const story = await stories_store.update(req.params.id, body.data);
     if (!story) return reply.status(404).send({ error: "Story not found" });
     return story;
   });
 
   app.delete<{ Params: { id: string } }>("/stories/:id", async (req, reply) => {
-    const ok = await storage.deleteStory(req.params.id);
+    const ok = await stories_store.delete(req.params.id);
     if (!ok) return reply.status(404).send({ error: "Story not found" });
     return { ok: true };
   });
@@ -956,7 +962,7 @@ export async function storiesRoutes(app: FastifyInstance): Promise<void> {
   app.post<{ Params: { id: string } }>(
     "/stories/:id/generate-supporting",
     async (req, reply) => {
-      const story = await storage.getStory(req.params.id);
+      const story = await stories_store.get(req.params.id);
       if (!story) return reply.status(404).send({ error: "Story not found" });
       if (!story.premise?.trim())
         return reply

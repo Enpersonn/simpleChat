@@ -1,11 +1,20 @@
 import { useState, useEffect } from 'preact/hooks'
-import type { Character, CharacterCreate, CharacterMemory, CharacterMemoryCreate, CharacterDelta, LocationRelationship } from '@simplechat/types'
+import type {
+  Character,
+  CharacterCreate,
+  CharacterMemoryRelation,
+  EntityFieldDef,
+  LocationRelationship,
+  MemoryDeltaEffect,
+  MemoryItem,
+} from '@simplechat/types'
 import { useStoriesStore } from '../../store/stories.js'
 import { api } from '../../lib/api.js'
 import s from './StoryCreateModal.module.css'
 import ms from './CharacterModal.module.css'
 
 type RelationEntry = { charId: string; otherCharName: string; emotion: string; publicAttitude: string; privateAttitude: string; trustLevel: number; sourceMemoryId?: string }
+type MemoryPair = { relation: CharacterMemoryRelation; memory: MemoryItem }
 
 interface Props {
   initial?: Character
@@ -16,69 +25,108 @@ interface Props {
   onSaveData?: (data: CharacterCreate) => void
 }
 
-interface MemoryForm {
+interface MemoryFormState {
   id?: string
+  relationId?: string
   summary: string
   tags: string
   importance: number
   branchLabel: string
-  personalityAdd: string
-  personalityRemove: string
-  fearsAdd: string
-  fearsRemove: string
-  speechStyle: string
-  trueMotives: string
-  hiddenEmotionalState: string
-  moralLimits: string
-  showAdvanced: boolean
+  effects: MemoryDeltaEffect[]
 }
 
-const emptyMemoryForm = (): MemoryForm => ({
-  summary: '', tags: '', importance: 0.5, branchLabel: '',
-  personalityAdd: '', personalityRemove: '',
-  fearsAdd: '', fearsRemove: '',
-  speechStyle: '', trueMotives: '', hiddenEmotionalState: '', moralLimits: '',
-  showAdvanced: false,
+const emptyMemoryForm = (): MemoryFormState => ({
+  summary: '', tags: '', importance: 0.5, branchLabel: '', effects: [],
 })
 
-function buildDelta(form: MemoryForm): CharacterDelta | undefined {
-  const toArr = (s: string) => s.split(',').map((x) => x.trim()).filter(Boolean)
-  const pAdd = toArr(form.personalityAdd)
-  const pRem = toArr(form.personalityRemove)
-  const fAdd = toArr(form.fearsAdd)
-  const fRem = toArr(form.fearsRemove)
-  const hasPersonality = pAdd.length > 0 || pRem.length > 0
-  const hasFears = fAdd.length > 0 || fRem.length > 0
-  const hasStrings = form.speechStyle || form.trueMotives || form.hiddenEmotionalState || form.moralLimits
+// ─── EffectsEditor ────────────────────────────────────────────────────────────
 
-  if (!hasPersonality && !hasFears && !hasStrings) return undefined
-
-  return {
-    ...(hasPersonality ? { personality: { add: pAdd, remove: pRem } } : {}),
-    ...(hasFears ? { fears: { add: fAdd, remove: fRem } } : {}),
-    ...(form.speechStyle ? { speechStyle: form.speechStyle } : {}),
-    ...(form.trueMotives ? { trueMotives: form.trueMotives } : {}),
-    ...(form.hiddenEmotionalState ? { hiddenEmotionalState: form.hiddenEmotionalState } : {}),
-    ...(form.moralLimits ? { moralLimits: form.moralLimits } : {}),
-  }
+interface EffectsEditorProps {
+  effects: MemoryDeltaEffect[]
+  onChange: (effects: MemoryDeltaEffect[]) => void
+  fieldDefs: EntityFieldDef[]
 }
 
-function deltaToFormFields(d: CharacterDelta | undefined): Partial<MemoryForm> {
-  if (!d) return {}
-  return {
-    personalityAdd: (d.personality?.add ?? []).join(', '),
-    personalityRemove: (d.personality?.remove ?? []).join(', '),
-    fearsAdd: (d.fears?.add ?? []).join(', '),
-    fearsRemove: (d.fears?.remove ?? []).join(', '),
-    speechStyle: d.speechStyle ?? '',
-    trueMotives: d.trueMotives ?? '',
-    hiddenEmotionalState: d.hiddenEmotionalState ?? '',
-    moralLimits: d.moralLimits ?? '',
+const ALL_OPS = ['set', 'unset', 'add', 'remove', 'increment', 'decrement'] as const
+
+function EffectsEditor({ effects, onChange, fieldDefs }: EffectsEditorProps) {
+  const update = (idx: number, patch: Partial<MemoryDeltaEffect>) => {
+    const next = effects.map((e, i) => (i === idx ? { ...e, ...patch } : e))
+    onChange(next)
   }
+
+  const remove = (idx: number) => onChange(effects.filter((_, i) => i !== idx))
+
+  const add = () =>
+    onChange([...effects, { path: '', op: 'set' as const, value: '', weight: 1, entityType: 'character' }])
+
+  const getOpsForPath = (path: string) => {
+    const def = fieldDefs.find((d) => d.path === path)
+    return def?.suggestedOps?.length ? def.suggestedOps : ALL_OPS
+  }
+
+  const getLabelForPath = (path: string) => {
+    const def = fieldDefs.find((d) => d.path === path)
+    return def?.label ?? path
+  }
+
+  return (
+    <div class={ms.effectsEditor}>
+      <datalist id="effect-paths-list">
+        {fieldDefs.map((d) => (
+          <option key={d.id} value={d.path}>{d.label}</option>
+        ))}
+      </datalist>
+
+      {effects.length === 0 && (
+        <div style={{ fontSize: '12px', color: 'var(--text-muted)', padding: '4px 0 8px' }}>
+          No effects yet. Add one to change character or location attributes.
+        </div>
+      )}
+
+      {effects.map((effect, idx) => (
+        <div key={idx} class={ms.effectRow}>
+          <div class={ms.effectPathWrap}>
+            <input
+              class={s.input}
+              list="effect-paths-list"
+              placeholder="Path (e.g. public.personality)"
+              value={effect.path}
+              onInput={(e) => update(idx, { path: (e.target as HTMLInputElement).value })}
+              title={getLabelForPath(effect.path) !== effect.path ? getLabelForPath(effect.path) : undefined}
+            />
+          </div>
+          <select
+            class={ms.effectOp}
+            value={effect.op}
+            onChange={(e) => update(idx, { op: (e.target as HTMLSelectElement).value as MemoryDeltaEffect['op'] })}
+          >
+            {getOpsForPath(effect.path).map((op) => (
+              <option key={op} value={op}>{op}</option>
+            ))}
+          </select>
+          {effect.op !== 'unset' && (
+            <input
+              class={s.input}
+              style={{ flex: 1 }}
+              placeholder="Value"
+              value={typeof effect.value === 'string' ? effect.value : effect.value != null ? String(effect.value) : ''}
+              onInput={(e) => update(idx, { value: (e.target as HTMLInputElement).value })}
+            />
+          )}
+          <button class={s.iconActionBtn} onClick={() => remove(idx)} title="Remove effect">✕</button>
+        </div>
+      ))}
+
+      <button class={s.aiBtn} onClick={add} style={{ marginTop: '6px' }}>+ Add effect</button>
+    </div>
+  )
 }
+
+// ─── CharacterModal ───────────────────────────────────────────────────────────
 
 export function CharacterModal({ initial, initialDraft, defaultIsPersona, onClose, onSaved, onSaveData }: Props) {
-  const { createCharacter, updateCharacter, selectedStoryId, locations } = useStoriesStore()
+  const { createCharacter, updateCharacter, selectedStoryId, locations, fieldDefs } = useStoriesStore()
   const isEdit = !!initial
 
   const [activeTab, setActiveTab] = useState<'character' | 'memories' | 'relations' | 'locations'>('character')
@@ -100,15 +148,12 @@ export function CharacterModal({ initial, initialDraft, defaultIsPersona, onClos
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
 
-  // Memories tab state
-  const [memories, setMemories] = useState<CharacterMemory[]>([])
-  const [memoryForm, setMemoryForm] = useState<MemoryForm | null>(null)
+  const [pairs, setPairs] = useState<MemoryPair[]>([])
+  const [memoryForm, setMemoryForm] = useState<MemoryFormState | null>(null)
   const [memSaving, setMemSaving] = useState(false)
 
-  // Relations tab state
   const [relations, setRelations] = useState<RelationEntry[]>([])
 
-  // Location feelings tab state
   const [locFeelings, setLocFeelings] = useState<LocationRelationship[]>(
     initial?.locationRelationships ?? [],
   )
@@ -116,18 +161,24 @@ export function CharacterModal({ initial, initialDraft, defaultIsPersona, onClos
 
   useEffect(() => {
     if (isEdit && initial && selectedStoryId) {
-      api.characterMemories.chain(selectedStoryId, initial.id).then(setMemories).catch((err: unknown) => setError(err instanceof Error ? err.message : 'Failed to load memories'))
-      api.characters.relationships(selectedStoryId, initial.id).then(setRelations).catch((err: unknown) => setError(err instanceof Error ? err.message : 'Failed to load relationships'))
+      api.characterMemories.chain(selectedStoryId, initial.id)
+        .then(setPairs)
+        .catch((err: unknown) => setError(err instanceof Error ? err.message : 'Failed to load memories'))
+      api.characters.relationships(selectedStoryId, initial.id)
+        .then(setRelations)
+        .catch((err: unknown) => setError(err instanceof Error ? err.message : 'Failed to load relationships'))
     }
   }, [isEdit, initial?.id, selectedStoryId])
 
   const reloadMemories = () => {
     if (selectedStoryId && initial) {
-      api.characterMemories.chain(selectedStoryId, initial.id).then(setMemories).catch((err: unknown) => setError(err instanceof Error ? err.message : 'Failed to load memories'))
+      api.characterMemories.chain(selectedStoryId, initial.id)
+        .then(setPairs)
+        .catch((err: unknown) => setError(err instanceof Error ? err.message : 'Failed to reload memories'))
     }
   }
 
-  const toArray = (s: string) => s.split(',').map((x) => x.trim()).filter(Boolean)
+  const toArray = (str: string) => str.split(',').map((x) => x.trim()).filter(Boolean)
 
   const handleGenerate = async () => {
     if (!genPrompt.trim() || !selectedStoryId || generating) return
@@ -199,16 +250,16 @@ export function CharacterModal({ initial, initialDraft, defaultIsPersona, onClos
 
   const openNewMemory = () => setMemoryForm(emptyMemoryForm())
 
-  const openEditMemory = (m: CharacterMemory) => {
+  const openEditMemory = ({ relation, memory }: MemoryPair) => {
     setMemoryForm({
-      id: m.id,
-      summary: m.summary,
-      tags: m.tags.join(', '),
-      importance: m.importance,
-      branchLabel: m.branchLabel ?? '',
-      ...deltaToFormFields(m.deltas),
-      showAdvanced: !!(m.deltas && (m.deltas.speechStyle || m.deltas.trueMotives || m.deltas.hiddenEmotionalState || m.deltas.moralLimits)),
-    } as MemoryForm)
+      id: memory.id,
+      relationId: relation.id,
+      summary: memory.summary,
+      tags: memory.tags.join(', '),
+      importance: memory.importance,
+      branchLabel: relation.branchLabel ?? '',
+      effects: memory.deltas.effects,
+    })
   }
 
   const handleSaveMemory = async () => {
@@ -216,17 +267,22 @@ export function CharacterModal({ initial, initialDraft, defaultIsPersona, onClos
     if (!memoryForm.summary.trim()) return
     setMemSaving(true)
     try {
-      const payload: CharacterMemoryCreate = {
-        summary: memoryForm.summary.trim(),
-        tags: toArray(memoryForm.tags),
-        importance: memoryForm.importance,
-        branchLabel: memoryForm.branchLabel.trim() || undefined,
-        deltas: buildDelta(memoryForm),
-      }
       if (memoryForm.id) {
-        await api.characterMemories.update(selectedStoryId, initial.id, memoryForm.id, payload)
+        await api.characterMemories.update(selectedStoryId, initial.id, memoryForm.id, {
+          summary: memoryForm.summary.trim(),
+          tags: toArray(memoryForm.tags),
+          importance: memoryForm.importance,
+          branchLabel: memoryForm.branchLabel.trim() || undefined,
+          deltas: { effects: memoryForm.effects },
+        })
       } else {
-        await api.characterMemories.create(selectedStoryId, initial.id, payload)
+        await api.characterMemories.create(selectedStoryId, initial.id, {
+          summary: memoryForm.summary.trim(),
+          tags: toArray(memoryForm.tags),
+          importance: memoryForm.importance,
+          branchLabel: memoryForm.branchLabel.trim() || undefined,
+          deltas: { effects: memoryForm.effects },
+        })
       }
       reloadMemories()
       setMemoryForm(null)
@@ -243,7 +299,10 @@ export function CharacterModal({ initial, initialDraft, defaultIsPersona, onClos
     reloadMemories()
   }
 
-  const setMF = (patch: Partial<MemoryForm>) => setMemoryForm((prev) => prev ? { ...prev, ...patch } : prev)
+  const setMF = (patch: Partial<MemoryFormState>) =>
+    setMemoryForm((prev) => prev ? { ...prev, ...patch } : prev)
+
+  const memories = pairs.map((p) => p.memory)
 
   return (
     <div class={s.overlay} onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
@@ -466,9 +525,7 @@ export function CharacterModal({ initial, initialDraft, defaultIsPersona, onClos
                       {r.emotion && <span class={ms.memBranch}>{r.emotion}</span>}
                       <span class={ms.memImportance} style={{ marginLeft: 'auto' }}>{r.trustLevel}/10</span>
                     </div>
-                    {r.publicAttitude && (
-                      <div class={ms.memSummary}>{r.publicAttitude}</div>
-                    )}
+                    {r.publicAttitude && <div class={ms.memSummary}>{r.publicAttitude}</div>}
                     {r.privateAttitude && (
                       <div class={ms.memSummary} style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Private: {r.privateAttitude}</div>
                     )}
@@ -489,26 +546,26 @@ export function CharacterModal({ initial, initialDraft, defaultIsPersona, onClos
             {memoryForm === null ? (
               <>
                 <div class={ms.memHeader}>
-                  <span class={ms.memCount}>{memories.length} {memories.length === 1 ? 'memory' : 'memories'} in chain</span>
+                  <span class={ms.memCount}>{pairs.length} {pairs.length === 1 ? 'memory' : 'memories'} in chain</span>
                   <button class={s.aiBtn} onClick={openNewMemory}>+ Add Memory</button>
                 </div>
 
-                {memories.length === 0 && (
+                {pairs.length === 0 && (
                   <div style={{ fontSize: '12px', color: 'var(--text-muted)', padding: '8px 0' }}>
                     No memories yet. Add memories to shape how this character evolves over time.
                   </div>
                 )}
 
                 <div class={ms.memList}>
-                  {memories.map((m) => (
+                  {pairs.map(({ relation, memory: m }) => (
                     <div key={m.id} class={ms.memCard}>
                       <div class={ms.memCardHeader}>
                         <span class={ms.memImportance} data-high={m.importance >= 0.8 ? 'true' : undefined}>
                           {Math.round(m.importance * 100)}%
                         </span>
-                        {m.branchLabel && <span class={ms.memBranch}>{m.branchLabel}</span>}
+                        {relation.branchLabel && <span class={ms.memBranch}>{relation.branchLabel}</span>}
                         <div class={ms.memActions}>
-                          <button class={s.iconActionBtn} onClick={() => openEditMemory(m)}>✎</button>
+                          <button class={s.iconActionBtn} onClick={() => openEditMemory({ relation, memory: m })}>✎</button>
                           <button class={s.iconActionBtn} onClick={() => handleDeleteMemory(m.id)}>✕</button>
                         </div>
                       </div>
@@ -516,18 +573,11 @@ export function CharacterModal({ initial, initialDraft, defaultIsPersona, onClos
                       {m.tags.length > 0 && (
                         <div class={ms.memTags}>{m.tags.map((t) => <span key={t} class={ms.memTag}>{t}</span>)}</div>
                       )}
-                      {m.deltas && (
+                      {m.deltas.effects.length > 0 && (
                         <div class={ms.memDelta}>
-                          {m.deltas.personality?.add && m.deltas.personality.add.length > 0 && (
-                            <span class={ms.deltaItem} data-type="add">+{m.deltas.personality.add.join(', ')}</span>
-                          )}
-                          {m.deltas.personality?.remove && m.deltas.personality.remove.length > 0 && (
-                            <span class={ms.deltaItem} data-type="remove">−{m.deltas.personality.remove.join(', ')}</span>
-                          )}
-                          {m.deltas.fears?.add && m.deltas.fears.add.length > 0 && (
-                            <span class={ms.deltaItem} data-type="fear">fear: {m.deltas.fears.add.join(', ')}</span>
-                          )}
-                          {m.deltas.speechStyle && <span class={ms.deltaItem} data-type="override">speech override</span>}
+                          <span class={ms.deltaItem} data-type="add">
+                            {m.deltas.effects.length} {m.deltas.effects.length === 1 ? 'effect' : 'effects'}
+                          </span>
                         </div>
                       )}
                     </div>
@@ -580,60 +630,14 @@ export function CharacterModal({ initial, initialDraft, defaultIsPersona, onClos
                   />
                 </div>
 
-                <div class={ms.advancedToggle}>
-                  <button
-                    class={ms.advancedBtn}
-                    onClick={() => setMF({ showAdvanced: !memoryForm.showAdvanced })}
-                  >
-                    {memoryForm.showAdvanced ? '▾' : '▸'} Character Changes
-                  </button>
+                <div class={s.field}>
+                  <label class={s.label}>Character Effects</label>
+                  <EffectsEditor
+                    effects={memoryForm.effects}
+                    onChange={(effects) => setMF({ effects })}
+                    fieldDefs={fieldDefs}
+                  />
                 </div>
-
-                {memoryForm.showAdvanced && (
-                  <div class={ms.advancedSection}>
-                    <div class={s.infoGrid}>
-                      <div class={s.infoCell}>
-                        <span class={s.subLabel}>Personality gained</span>
-                        <input class={s.input} placeholder="e.g. paranoid, bitter" value={memoryForm.personalityAdd} onInput={(e) => setMF({ personalityAdd: (e.target as HTMLInputElement).value })} />
-                      </div>
-                      <div class={s.infoCell}>
-                        <span class={s.subLabel}>Personality lost</span>
-                        <input class={s.input} placeholder="e.g. naive, trusting" value={memoryForm.personalityRemove} onInput={(e) => setMF({ personalityRemove: (e.target as HTMLInputElement).value })} />
-                      </div>
-                    </div>
-
-                    <div class={s.infoGrid} style={{ marginTop: '8px' }}>
-                      <div class={s.infoCell}>
-                        <span class={s.subLabel}>Fears gained</span>
-                        <input class={s.input} placeholder="e.g. darkness" value={memoryForm.fearsAdd} onInput={(e) => setMF({ fearsAdd: (e.target as HTMLInputElement).value })} />
-                      </div>
-                      <div class={s.infoCell}>
-                        <span class={s.subLabel}>Fears overcome</span>
-                        <input class={s.input} placeholder="e.g. heights" value={memoryForm.fearsRemove} onInput={(e) => setMF({ fearsRemove: (e.target as HTMLInputElement).value })} />
-                      </div>
-                    </div>
-
-                    <div class={s.field} style={{ marginTop: '8px' }}>
-                      <label class={s.label}>Speech style override <span style={{ color: 'var(--text-muted)', fontWeight: 400, textTransform: 'none' }}>(blank = no change)</span></label>
-                      <input class={s.input} placeholder="Leave blank to keep current speech style" value={memoryForm.speechStyle} onInput={(e) => setMF({ speechStyle: (e.target as HTMLInputElement).value })} />
-                    </div>
-
-                    <div class={s.field}>
-                      <label class={s.label}>True motives override</label>
-                      <input class={s.input} placeholder="Leave blank to keep current" value={memoryForm.trueMotives} onInput={(e) => setMF({ trueMotives: (e.target as HTMLInputElement).value })} />
-                    </div>
-
-                    <div class={s.field}>
-                      <label class={s.label}>Hidden emotional state override</label>
-                      <input class={s.input} placeholder="Leave blank to keep current" value={memoryForm.hiddenEmotionalState} onInput={(e) => setMF({ hiddenEmotionalState: (e.target as HTMLInputElement).value })} />
-                    </div>
-
-                    <div class={s.field}>
-                      <label class={s.label}>Moral limits override</label>
-                      <input class={s.input} placeholder="Leave blank to keep current" value={memoryForm.moralLimits} onInput={(e) => setMF({ moralLimits: (e.target as HTMLInputElement).value })} />
-                    </div>
-                  </div>
-                )}
 
                 <div class={s.footer}>
                   <button class={s.cancelBtn} onClick={() => setMemoryForm(null)}>Cancel</button>

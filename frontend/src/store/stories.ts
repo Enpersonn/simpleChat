@@ -2,11 +2,13 @@ import type {
   CanonTimeline,
   Character,
   CharacterCreate,
-  CharacterMemory,
   CharacterUpdate,
+  CharacterMemoryRelation,
+  EntityFieldDef,
   Location,
   LocationCreate,
   LocationUpdate,
+  MemoryItem,
   Story,
   StoryCreate,
   StoryUpdate,
@@ -20,7 +22,8 @@ interface StoriesState {
   characters: Character[];
   locations: Location[];
   canonTimeline: CanonTimeline | null;
-  characterMemories: Record<string, CharacterMemory[]>;
+  characterMemories: Record<string, Array<{ relation: CharacterMemoryRelation; memory: MemoryItem }>>;
+  fieldDefs: EntityFieldDef[];
   loading: boolean;
   error: string | null;
 
@@ -37,6 +40,7 @@ interface StoriesState {
   ) => Promise<Character>;
   deleteCharacter: (charId: string) => Promise<void>;
   loadCharacterTimeline: (charId: string) => Promise<void>;
+  loadFieldDefs: (storyId: string) => Promise<void>;
   initCharacterGenesis: (charId: string) => Promise<void>;
   reloadLocations: () => Promise<void>;
   createLocation: (data: LocationCreate) => Promise<Location>;
@@ -61,6 +65,7 @@ export const useStoriesStore = create<StoriesState>((set, get) => ({
   locations: [],
   canonTimeline: null,
   characterMemories: {},
+  fieldDefs: [],
   loading: false,
   error: null,
 
@@ -80,6 +85,7 @@ export const useStoriesStore = create<StoriesState>((set, get) => ({
       characters: [],
       locations: [],
       canonTimeline: null,
+      fieldDefs: [],
     });
     try {
       const { characters, locations } = await api.stories.get(id);
@@ -92,6 +98,12 @@ export const useStoriesStore = create<StoriesState>((set, get) => ({
       set({ canonTimeline });
     } catch {
       // timeline may not exist yet for older stories
+    }
+    try {
+      const fieldDefs = await api.fieldDefs.list(id);
+      set({ fieldDefs });
+    } catch {
+      // field defs not yet seeded for this story
     }
   },
 
@@ -159,10 +171,15 @@ export const useStoriesStore = create<StoriesState>((set, get) => ({
   loadCharacterTimeline: async (charId: string) => {
     const { selectedStoryId } = get();
     if (!selectedStoryId) return;
-    const chain = await api.characterMemories.chain(selectedStoryId, charId);
+    const pairs = await api.characterMemories.chain(selectedStoryId, charId);
     set((s) => ({
-      characterMemories: { ...s.characterMemories, [charId]: chain },
+      characterMemories: { ...s.characterMemories, [charId]: pairs },
     }));
+  },
+
+  loadFieldDefs: async (storyId: string) => {
+    const defs = await api.fieldDefs.list(storyId);
+    set({ fieldDefs: defs });
   },
 
   initCharacterGenesis: async (charId: string) => {
@@ -172,10 +189,9 @@ export const useStoriesStore = create<StoriesState>((set, get) => ({
     set((s) => ({
       characters: s.characters.map((c) => (c.id === charId ? updated : c)),
     }));
-    // Reload timeline after genesis is created
-    const chain = await api.characterMemories.chain(selectedStoryId, charId);
+    const pairs = await api.characterMemories.chain(selectedStoryId, charId);
     set((s) => ({
-      characterMemories: { ...s.characterMemories, [charId]: chain },
+      characterMemories: { ...s.characterMemories, [charId]: pairs },
     }));
   },
 

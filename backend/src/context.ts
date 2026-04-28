@@ -1,9 +1,9 @@
 import type {
   Character,
-  CharacterMemory,
   ChatMode,
   Location,
   LocationOverride,
+  MemoryItem,
   OllamaMessage,
   Story,
   Turn,
@@ -49,7 +49,7 @@ function buildSpeakerInstructions(
   speaker: Character | undefined,
   userPersonas: Character[],
   otherChars: Character[],
-  speakerMemories: CharacterMemory[] = [],
+  speakerMemories: MemoryItem[] = [],
   locations?: Location[],
 ): string {
   const parts: string[] = [];
@@ -184,7 +184,7 @@ function buildPersonasBlock(userPersonas: Character[]): string {
 
 function buildOtherCharsBlock(
   otherChars: Character[],
-  otherCharMemories: Map<string, CharacterMemory[]> = new Map(),
+  otherCharMemories: Map<string, MemoryItem[]> = new Map(),
 ): string {
   if (otherChars.length === 0) return "";
   const descriptions = otherChars
@@ -271,7 +271,7 @@ export function buildRelationshipsBlock(
 
 export function buildCharacterMemoriesBlock(
   characterName: string,
-  memories: CharacterMemory[],
+  memories: MemoryItem[],
   locations?: Location[],
 ): string {
   if (memories.length === 0) return "";
@@ -326,11 +326,11 @@ export interface AssembleOptions {
   locationOverrides?: LocationOverride;
   locations?: Location[];
   /** Memories relevant to the active speaker — shown as their lived history. */
-  speakerMemories?: CharacterMemory[];
+  speakerMemories?: MemoryItem[];
   /** Key memories per non-speaker character — appended as one-line context. */
-  otherCharMemories?: Map<string, CharacterMemory[]>;
+  otherCharMemories?: Map<string, MemoryItem[]>;
   /** @deprecated Use speakerMemories instead. Kept for callers not yet updated. */
-  relevantMemories?: CharacterMemory[];
+  relevantMemories?: MemoryItem[];
 }
 
 export function assembleContext(opts: AssembleOptions): OllamaMessage[] {

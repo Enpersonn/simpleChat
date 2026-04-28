@@ -113,7 +113,6 @@ export interface SnapshotMemory {
   summary: string
   tags: string[]
   importance: number
-  previousMemoryId?: string
 }
 
 export interface SnapshotLocation {

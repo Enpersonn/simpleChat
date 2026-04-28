@@ -131,3 +131,47 @@
   border-radius: var(--radius-sm);
   background: var(--bg-tertiary);
 }
+
+.effectsEditor {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.effectRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.effectPathWrap {
+  flex: 2;
+  min-width: 0;
+}
+.effectPathWrap input {
+  width: 100%;
+}
+
+.effectOp {
+  flex: 0 0 110px;
+}
+
+.effectValue {
+  flex: 1;
+  min-width: 0;
+}
+
+.addEffectBtn {
+  font-size: 12px;
+  color: var(--accent);
+  padding: 3px 8px;
+  border: 1px dashed var(--accent);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  cursor: pointer;
+  align-self: flex-start;
+  margin-top: 2px;
+}
+.addEffectBtn:hover {
+  background: rgba(124, 106, 247, 0.08);
+}

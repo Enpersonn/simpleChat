@@ -8,9 +8,14 @@ import type {
   Location,
   LocationCreate,
   LocationUpdate,
-  CharacterMemory,
+  MemoryItem,
+  MemoryItemCreate,
   CharacterMemoryCreate,
   CharacterMemoryUpdate,
+  CharacterMemoryRelation,
+  EntityFieldDef,
+  EntityFieldDefCreate,
+  EntityFieldDefUpdate,
   ChatEntityState,
   Chat,
   ChatCreate,
@@ -228,18 +233,18 @@ export const api = {
 
   characterMemories: {
     list: (storyId: string, charId: string) =>
-      request<CharacterMemory[]>(`/stories/${storyId}/characters/${charId}/memories`),
+      request<MemoryItem[]>(`/stories/${storyId}/characters/${charId}/memories`),
     chain: (storyId: string, charId: string, from?: string) =>
-      request<CharacterMemory[]>(
+      request<Array<{ relation: CharacterMemoryRelation; memory: MemoryItem }>>(
         `/stories/${storyId}/characters/${charId}/memories/chain${from ? `?from=${from}` : ''}`,
       ),
     create: (storyId: string, charId: string, data: CharacterMemoryCreate) =>
-      request<CharacterMemory>(`/stories/${storyId}/characters/${charId}/memories`, {
-        method: 'POST',
-        body: JSON.stringify(data),
-      }),
+      request<{ relation: CharacterMemoryRelation; memory: MemoryItem }>(
+        `/stories/${storyId}/characters/${charId}/memories`,
+        { method: 'POST', body: JSON.stringify(data) },
+      ),
     update: (storyId: string, charId: string, memoryId: string, data: CharacterMemoryUpdate) =>
-      request<CharacterMemory>(`/stories/${storyId}/characters/${charId}/memories/${memoryId}`, {
+      request<MemoryItem>(`/stories/${storyId}/characters/${charId}/memories/${memoryId}`, {
         method: 'PATCH',
         body: JSON.stringify(data),
       }),
@@ -247,6 +252,25 @@ export const api = {
       request<{ ok: boolean }>(`/stories/${storyId}/characters/${charId}/memories/${memoryId}`, {
         method: 'DELETE',
       }),
+  },
+
+  fieldDefs: {
+    list: (storyId: string, entityType?: string) =>
+      request<EntityFieldDef[]>(
+        `/stories/${storyId}/field-defs${entityType ? `?entityType=${encodeURIComponent(entityType)}` : ''}`,
+      ),
+    create: (storyId: string, data: EntityFieldDefCreate) =>
+      request<EntityFieldDef>(`/stories/${storyId}/field-defs`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    update: (storyId: string, defId: string, data: EntityFieldDefUpdate) =>
+      request<EntityFieldDef>(`/stories/${storyId}/field-defs/${defId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+    delete: (storyId: string, defId: string) =>
+      request<{ ok: boolean }>(`/stories/${storyId}/field-defs/${defId}`, { method: 'DELETE' }),
   },
 
   chatState: {

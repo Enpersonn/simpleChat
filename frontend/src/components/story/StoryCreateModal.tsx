@@ -1,5 +1,5 @@
 import { useState } from 'preact/hooks'
-import type { Story, CharacterCreate, LocationCreate, CharacterDelta } from '@simplechat/types'
+import type { Story, CharacterCreate, LocationCreate, MemoryDeltaEffect } from '@simplechat/types'
 import { useStoriesStore } from '../../store/stories.js'
 import { api } from '../../lib/api.js'
 import { CharacterModal } from './CharacterModal.js'
@@ -22,6 +22,34 @@ interface PendingMemory {
   importance: number
   deltas?: Record<string, unknown>
   relationshipEffects?: RawRelation[]
+}
+
+function convertDeltasToEffects(deltas: Record<string, unknown>): MemoryDeltaEffect[] {
+  const effects: MemoryDeltaEffect[] = []
+  for (const [field, path] of [
+    ['personality', 'public.personality'],
+    ['fears', 'private.fears'],
+    ['privateKnowledge', 'private.privateKnowledge'],
+  ] as const) {
+    const group = deltas[field] as { add?: string[]; remove?: string[] } | undefined
+    for (const v of group?.add ?? [])
+      effects.push({ path, op: 'add', value: v, weight: 1, entityType: 'character' })
+    for (const v of group?.remove ?? [])
+      effects.push({ path, op: 'remove', value: v, weight: 1, entityType: 'character' })
+  }
+  for (const [field, path] of [
+    ['speechStyle', 'public.speechStyle'],
+    ['appearance', 'public.appearance'],
+    ['clothing', 'public.clothing'],
+    ['reputation', 'public.reputation'],
+    ['trueMotives', 'private.trueMotives'],
+    ['hiddenEmotionalState', 'private.hiddenEmotionalState'],
+    ['moralLimits', 'private.moralLimits'],
+  ] as const) {
+    if (typeof deltas[field] === 'string')
+      effects.push({ path, op: 'set', value: deltas[field] as string, weight: 1, entityType: 'character' })
+  }
+  return effects
 }
 
 interface LivePreview {
@@ -285,14 +313,17 @@ export function StoryCreateModal({ onClose, onCreated }: Props) {
             return { charId: other.id, emotion: r.emotion || undefined, publicAttitude: r.publicAttitude || undefined, privateAttitude: r.privateAttitude || undefined, trustLevel: r.trustLevel }
           })
           .filter((r): r is NonNullable<typeof r> => r !== null)
-        const mergedDeltas: CharacterDelta | undefined = resolvedRelDelta.length
-          ? { ...(deltas as CharacterDelta | undefined), relationships: resolvedRelDelta }
-          : (deltas as CharacterDelta | undefined)
-        const memory = await api.characterMemories.create(story.id, char.id, {
+        const effects: MemoryDeltaEffect[] = [
+          ...convertDeltasToEffects(deltas ?? {}),
+          ...(resolvedRelDelta.length
+            ? [{ path: 'relationships', op: 'set' as const, value: resolvedRelDelta as Record<string, unknown>[], weight: 1, entityType: 'character' }]
+            : []),
+        ]
+        const { memory } = await api.characterMemories.create(story.id, char.id, {
           summary,
           tags,
           importance,
-          deltas: mergedDeltas,
+          deltas: { effects },
         })
         await api.canonTimeline.addEntry(story.id, {
           characterId: char.id,
