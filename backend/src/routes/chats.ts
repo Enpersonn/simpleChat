@@ -1,12 +1,13 @@
 import { randomUUID } from "node:crypto";
-import type { IncomingMessage, ServerResponse } from "node:http";
+import type { ServerResponse } from "node:http";
 import {
   type Character,
-  type CharacterMemory,
   ChatCreateSchema,
   ChatEntityStateSchema,
   type LocationCreate,
+  type MemoryItem,
   MemoryItemCreateSchema,
+  type MemoryItemSchema,
   SendMessageSchema,
   type Story,
   type Turn,
@@ -16,9 +17,28 @@ import { applyMemoryChain } from "../character-state.js";
 import { getSettings } from "../config.js";
 import { assembleContext } from "../context.js";
 import { runExtraction } from "../extraction.js";
-import { type MemoryReason, findRelevantMemories } from "../memory-retrieval.js";
+import {
+  findRelevantMemories,
+  type MemoryReason,
+} from "../memory-retrieval.js";
 import { activeModel, streamChat } from "../ollama.js";
-import * as storage from "../storage.js";
+import { characters_store } from "../storage/characters/index.js";
+import {
+  appendTurn,
+  chat_state_store,
+  chat_store,
+  deleteAfterTurn,
+  deleteSingleTurn,
+  turn_store,
+} from "../storage/chats";
+import { now } from "../storage/helpers.js";
+import { locations_store } from "../storage/locations/index.js";
+import {
+  getCharacterMemories,
+  getMemoryChain,
+  memories_store,
+} from "../storage/memories/index.js";
+import { stories_store } from "../storage/stories/index.js";
 import { extractJson } from "../utils.js";
 
 // ── Pipeline event helpers ────────────────────────────────────────────────────
@@ -32,7 +52,7 @@ type PipelineStep =
   | "extraction";
 
 function emitFrame(raw: ServerResponse, frame: object): void {
-  raw.write(JSON.stringify(frame) + "\n");
+  raw.write(`${JSON.stringify(frame)}\n`);
 }
 
 function emitPipeline(
@@ -49,13 +69,13 @@ function emitPipeline(
   if (data !== undefined && status === "complete") {
     event.data = data;
   }
-  raw.write(JSON.stringify({ pipelineEvent: event }) + "\n");
+  raw.write(`${JSON.stringify({ pipelineEvent: event })}\n`);
 }
 
 function buildChainDiffs(
   characters: Character[],
   effectiveCharacters: Character[],
-  chains: CharacterMemory[][],
+  chains: MemoryItem[][],
 ) {
   return characters.map((base, i) => {
     const eff = effectiveCharacters[i];
@@ -78,7 +98,8 @@ function buildChainDiffs(
         trueMotivestChanged:
           eff.private.trueMotives !== base.private.trueMotives,
         hiddenEmotionalStateChanged:
-          eff.private.hiddenEmotionalState !== base.private.hiddenEmotionalState,
+          eff.private.hiddenEmotionalState !==
+          base.private.hiddenEmotionalState,
       },
     };
   });
@@ -90,7 +111,7 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
   app.get<{ Params: { storyId: string } }>(
     "/stories/:storyId/chats",
     async (req) => {
-      return storage.listChats(req.params.storyId);
+      return chat_store.list({ storyId: req.params.storyId });
     },
   );
 
@@ -103,10 +124,9 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
       });
       if (!body.success)
         return reply.status(400).send({ error: body.error.flatten() });
-      const chat = await storage.createChat(body.data);
+      const chat = await chat_store.add<typeof ChatCreateSchema>(body.data);
       if (body.data.startingLocationId) {
-        await storage.updateChatState(
-          req.params.storyId,
+        await chat_state_store.update(
           chat.id,
           ChatEntityStateSchema.parse({
             chatId: chat.id,
@@ -124,7 +144,7 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
   app.get<{ Params: { storyId: string; chatId: string } }>(
     "/stories/:storyId/chats/:chatId",
     async (req, reply) => {
-      const chat = await storage.getChat(req.params.storyId, req.params.chatId);
+      const chat = await chat_store.get(req.params.chatId);
       if (!chat) return reply.status(404).send({ error: "Chat not found" });
       return chat;
     },
@@ -133,12 +153,9 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
   app.get<{ Params: { storyId: string; chatId: string } }>(
     "/stories/:storyId/chats/:chatId/history",
     async (req, reply) => {
-      const chat = await storage.getChat(req.params.storyId, req.params.chatId);
+      const chat = await chat_store.get(req.params.chatId);
       if (!chat) return reply.status(404).send({ error: "Chat not found" });
-      const turns = await storage.getTurns(
-        req.params.storyId,
-        req.params.chatId,
-      );
+      const turns = await turn_store.list({ chatId: req.params.chatId });
       return turns;
     },
   );
@@ -148,25 +165,21 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
   app.get<{ Params: { storyId: string; chatId: string } }>(
     "/stories/:storyId/chats/:chatId/state",
     async (req, reply) => {
-      const chat = await storage.getChat(req.params.storyId, req.params.chatId);
+      const chat = await chat_store.get(req.params.chatId);
       if (!chat) return reply.status(404).send({ error: "Chat not found" });
-      return storage.getChatState(req.params.storyId, req.params.chatId);
+      return chat_state_store.get(req.params.chatId);
     },
   );
 
   app.patch<{ Params: { storyId: string; chatId: string } }>(
     "/stories/:storyId/chats/:chatId/state",
     async (req, reply) => {
-      const chat = await storage.getChat(req.params.storyId, req.params.chatId);
+      const chat = await chat_store.get(req.params.chatId);
       if (!chat) return reply.status(404).send({ error: "Chat not found" });
       const body = ChatEntityStateSchema.partial().safeParse(req.body);
       if (!body.success)
         return reply.status(400).send({ error: body.error.flatten() });
-      const updated = await storage.updateChatState(
-        req.params.storyId,
-        req.params.chatId,
-        body.data,
-      );
+      const updated = chat_state_store.update(req.params.chatId, body.data);
       return updated;
     },
   );
@@ -183,16 +196,18 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
 
       const [story, chat, characters, existingTurns, locations, chatState] =
         await Promise.all([
-          storage.getStory(storyId),
-          storage.getChat(storyId, chatId),
-          storage.listCharacters(storyId),
-          storage.getTurns(storyId, chatId),
-          storage.listLocations(storyId),
-          storage.getChatState(storyId, chatId),
+          stories_store.get(storyId),
+          chat_store.get(chatId),
+          characters_store.list({ storyId }),
+          turn_store.list({ chatId }),
+          locations_store.list({ storyId }),
+          chat_state_store.get(chatId),
         ]);
 
       if (!story) return reply.status(404).send({ error: "Story not found" });
       if (!chat) return reply.status(404).send({ error: "Chat not found" });
+      if (!chatState)
+        return reply.status(404).send({ error: "Chat state not found" });
 
       const {
         text,
@@ -217,14 +232,11 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
         pinned: false,
         meta: { mode: chat.mode },
       };
-      await storage.appendTurn(storyId, userTurn);
+      await appendTurn(userTurn);
 
       const allTurns = [...existingTurns, userTurn];
 
-      const allowedOrigins = [
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-      ];
+      const allowedOrigins = ["http://localhost:5173", "http://127.0.0.1:5173"];
       const reqOrigin = req.headers.origin ?? "";
       const corsOrigin = allowedOrigins.includes(reqOrigin)
         ? reqOrigin
@@ -249,8 +261,6 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
       emitPipeline(reply.raw, "memory_chain", "start");
 
       const characterChains = await resolveCharacterChains(
-        storyId,
-        chatId,
         characters,
         chat.memoryTimelineCutoff,
       );
@@ -260,7 +270,11 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
       });
 
       emitPipeline(reply.raw, "memory_chain", "complete", t, {
-        chains: buildChainDiffs(characters, effectiveCharacters, characterChains),
+        chains: buildChainDiffs(
+          characters,
+          effectiveCharacters,
+          characterChains,
+        ),
       });
 
       // ── Memory retrieval ──────────────────────────────────────────────────
@@ -276,7 +290,10 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
       t = Date.now();
       emitPipeline(reply.raw, "memory_retrieval", "start");
 
-      const memResult = await findRelevantMemories(accessibleMemories, allTurns);
+      const memResult = await findRelevantMemories(
+        accessibleMemories,
+        allTurns,
+      );
       const relevantMemories = memResult.memories;
 
       emitPipeline(reply.raw, "memory_retrieval", "complete", t, {
@@ -304,7 +321,7 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
         ? chatState.locationOverrides[chatState.currentLocationId]
         : undefined;
 
-      const otherCharMemories = new Map<string, CharacterMemory[]>();
+      const otherCharMemories = new Map<string, MemoryItem[]>();
       for (let i = 0; i < characters.length; i++) {
         const c = characters[i];
         if (c.id !== activeSpeaker && !c.isUserPersona) {
@@ -438,7 +455,7 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
           pinned: false,
           meta: { mode: chat.mode },
         };
-        await storage.appendTurn(storyId, assistantTurn);
+        await appendTurn(assistantTurn);
 
         if (locations.length > 0) {
           t = Date.now();
@@ -461,7 +478,10 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
                 story,
                 completedTurns.slice(-4),
               );
-              const newLoc = await storage.createLocation(storyId, newLocFields);
+              const newLoc = await locations_store.add({
+                storyId,
+                ...newLocFields,
+              });
               locations.push(newLoc);
               finalState = {
                 ...extracted,
@@ -471,7 +491,7 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
               newLocationCreated = true;
             }
 
-            await storage.updateChatState(storyId, chatId, finalState);
+            await chat_state_store.update(chatId, finalState);
 
             const locationChanged =
               finalState.currentLocationId !== chatState.currentLocationId;
@@ -522,24 +542,26 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
 
       const [story, chat, characters, locations, chatState] = await Promise.all(
         [
-          storage.getStory(storyId),
-          storage.getChat(storyId, chatId),
-          storage.listCharacters(storyId),
-          storage.listLocations(storyId),
-          storage.getChatState(storyId, chatId),
+          stories_store.get(storyId),
+          chat_store.get(chatId),
+          characters_store.list({ storyId }),
+          locations_store.list({ storyId }),
+          chat_state_store.get(chatId),
         ],
       );
       if (!story) return reply.status(404).send({ error: "Story not found" });
       if (!chat) return reply.status(404).send({ error: "Chat not found" });
+      if (!chatState)
+        return reply.status(404).send({ error: "Chat state not found" });
 
-      const turns = await storage.getTurns(storyId, chatId);
+      const turns = await turn_store.list({ chatId });
       const lastAssistant = [...turns]
         .reverse()
         .find((t) => t.role === "assistant");
       if (lastAssistant)
-        await storage.deleteSingleTurn(storyId, chatId, lastAssistant.id);
+        await deleteSingleTurn(storyId, chatId, lastAssistant.id);
 
-      const freshTurns = await storage.getTurns(storyId, chatId);
+      const freshTurns = await turn_store.list({ chatId });
 
       const allowedOriginsRegen = [
         "http://localhost:5173",
@@ -569,8 +591,6 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
       emitPipeline(reply.raw, "memory_chain", "start");
 
       const characterChains = await resolveCharacterChains(
-        storyId,
-        chatId,
         characters,
         chat.memoryTimelineCutoff,
       );
@@ -580,7 +600,11 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
       });
 
       emitPipeline(reply.raw, "memory_chain", "complete", t, {
-        chains: buildChainDiffs(characters, effectiveCharacters, characterChains),
+        chains: buildChainDiffs(
+          characters,
+          effectiveCharacters,
+          characterChains,
+        ),
       });
 
       // ── Memory retrieval ──────────────────────────────────────────────────
@@ -596,7 +620,10 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
       t = Date.now();
       emitPipeline(reply.raw, "memory_retrieval", "start");
 
-      const memResult = await findRelevantMemories(accessibleMemories, freshTurns);
+      const memResult = await findRelevantMemories(
+        accessibleMemories,
+        freshTurns,
+      );
       const relevantMemories = memResult.memories;
 
       emitPipeline(reply.raw, "memory_retrieval", "complete", t, {
@@ -626,7 +653,7 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
 
       const settings = await getSettings();
 
-      const otherCharMemoriesRegen = new Map<string, CharacterMemory[]>();
+      const otherCharMemoriesRegen = new Map<string, MemoryItem[]>();
       for (let i = 0; i < characters.length; i++) {
         const c = characters[i];
         if (c.id !== activeSpeaker && !c.isUserPersona) {
@@ -746,7 +773,7 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
       });
 
       if (fullText) {
-        await storage.appendTurn(storyId, {
+        await appendTurn({
           id: randomUUID(),
           chatId,
           speaker: activeSpeaker,
@@ -767,11 +794,11 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
   app.post<{ Params: { storyId: string; chatId: string } }>(
     "/stories/:storyId/chats/:chatId/seed",
     async (req, reply) => {
-      const { storyId, chatId } = req.params;
+      const { chatId } = req.params;
       const { text } = req.body as { text?: string };
       if (!text?.trim())
         return reply.status(400).send({ error: "text is required" });
-      const chat = await storage.getChat(storyId, chatId);
+      const chat = await chat_store.get(chatId);
       if (!chat) return reply.status(404).send({ error: "Chat not found" });
       const turn: Turn = {
         id: randomUUID(),
@@ -783,7 +810,7 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
         pinned: false,
         meta: { mode: chat.mode },
       };
-      await storage.appendTurn(storyId, turn);
+      await appendTurn(turn);
       return reply.status(201).send(turn);
     },
   );
@@ -796,15 +823,17 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
       const { storyId, chatId } = req.params;
       const [story, chat, characters, locations, chatState] = await Promise.all(
         [
-          storage.getStory(storyId),
-          storage.getChat(storyId, chatId),
-          storage.listCharacters(storyId),
-          storage.listLocations(storyId),
-          storage.getChatState(storyId, chatId),
+          stories_store.get(storyId),
+          chat_store.get(chatId),
+          characters_store.list({ storyId }),
+          locations_store.list({ storyId }),
+          chat_state_store.get(chatId),
         ],
       );
       if (!story) return reply.status(404).send({ error: "Story not found" });
       if (!chat) return reply.status(404).send({ error: "Chat not found" });
+      if (!chatState)
+        return reply.status(404).send({ error: "Chat state not found" });
 
       const activeSpeaker = chat.activeSpeakers[0] ?? "narrator";
       const settings = await getSettings();
@@ -837,8 +866,6 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
       emitPipeline(reply.raw, "memory_chain", "start");
 
       const characterChains = await resolveCharacterChains(
-        storyId,
-        chatId,
         characters,
         chat.memoryTimelineCutoff,
       );
@@ -848,7 +875,11 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
       });
 
       emitPipeline(reply.raw, "memory_chain", "complete", t, {
-        chains: buildChainDiffs(characters, effectiveCharacters, characterChains),
+        chains: buildChainDiffs(
+          characters,
+          effectiveCharacters,
+          characterChains,
+        ),
       });
 
       // ── Memory retrieval (opener uses full chain directly) ────────────────
@@ -863,7 +894,8 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
           : [];
 
       const syntheticReasons: Record<string, MemoryReason> = {};
-      for (const m of openerSpeakerMemories) syntheticReasons[m.id] = "always_include";
+      for (const m of openerSpeakerMemories)
+        syntheticReasons[m.id] = "always_include";
 
       emitPipeline(reply.raw, "memory_retrieval", "complete", undefined, {
         accessibleCount: openerSpeakerMemories.length,
@@ -888,7 +920,7 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
       const openerLength =
         chat.mode === "storyteller" ? "paragraph+" : "medium";
 
-      const openerOtherCharMemories = new Map<string, CharacterMemory[]>();
+      const openerOtherCharMemories = new Map<string, MemoryItem[]>();
       for (let i = 0; i < characters.length; i++) {
         const c = characters[i];
         if (c.id !== activeSpeaker && !c.isUserPersona) {
@@ -1024,7 +1056,7 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
       });
 
       if (fullText) {
-        await storage.appendTurn(storyId, {
+        await appendTurn({
           id: randomUUID(),
           chatId,
           speaker: activeSpeaker,
@@ -1047,12 +1079,7 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
     async (req, reply) => {
       const { text } = req.body as { text?: string };
       if (!text) return reply.status(400).send({ error: "text is required" });
-      const turn = await storage.updateTurn(
-        req.params.storyId,
-        req.params.chatId,
-        req.params.turnId,
-        text,
-      );
+      const turn = await turn_store.update(req.params.turnId, { text });
       if (!turn) return reply.status(404).send({ error: "Turn not found" });
       return turn;
     },
@@ -1061,7 +1088,7 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
   app.delete<{ Params: { storyId: string; chatId: string; turnId: string } }>(
     "/stories/:storyId/chats/:chatId/turns/:turnId",
     async (req, reply) => {
-      const ok = await storage.deleteSingleTurn(
+      const ok = await deleteSingleTurn(
         req.params.storyId,
         req.params.chatId,
         req.params.turnId,
@@ -1074,7 +1101,7 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
   app.delete<{ Params: { storyId: string; chatId: string; turnId: string } }>(
     "/stories/:storyId/chats/:chatId/turns/:turnId/after",
     async (req, reply) => {
-      const ok = await storage.deleteAfterTurn(
+      const ok = await deleteAfterTurn(
         req.params.storyId,
         req.params.chatId,
         req.params.turnId,
@@ -1089,7 +1116,7 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
   app.get<{ Params: { storyId: string; chatId: string } }>(
     "/stories/:storyId/chats/:chatId/memory",
     async (req) => {
-      return storage.listMemoryItems(req.params.storyId, req.params.chatId);
+      return memories_store.list({ storyId: req.params.storyId });
     },
   );
 
@@ -1099,11 +1126,13 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
       const body = MemoryItemCreateSchema.safeParse(req.body);
       if (!body.success)
         return reply.status(400).send({ error: body.error.flatten() });
-      const item = await storage.addMemoryItem(
-        req.params.storyId,
-        req.params.chatId,
-        body.data,
-      );
+      const item = await memories_store.add<typeof MemoryItemSchema>({
+        ...body.data,
+        id: randomUUID(),
+        createdAt: now(),
+        updatedAt: now(),
+        storyId: req.params.storyId,
+      });
       return reply.status(201).send(item);
     },
   );
@@ -1112,21 +1141,14 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
 // ─── Private helpers ──────────────────────────────────────────────────────────
 
 async function resolveCharacterChains(
-  storyId: string,
-  chatId: string,
   characters: import("@simplechat/types").Character[],
   memoryTimelineCutoff: string | undefined,
-): Promise<import("@simplechat/types").CharacterMemory[][]> {
+): Promise<import("@simplechat/types").MemoryItem[][]> {
   return Promise.all(
     characters.map(async (c) => {
-      const mems = await storage.listCharacterMemories(storyId, c.id);
-      return resolveAccessibleMemories(
-        mems,
-        storyId,
-        c.id,
-        memoryTimelineCutoff,
-        chatId,
-      );
+      const mems = await getCharacterMemories(c.id);
+      if (!memoryTimelineCutoff) return mems;
+      return getMemoryChain(memoryTimelineCutoff, mems);
     }),
   );
 }
@@ -1176,46 +1198,4 @@ async function generateLocationFromContext(
   } catch {
     return { name };
   }
-}
-
-async function resolveAccessibleMemories(
-  allMemories: CharacterMemory[],
-  storyId: string,
-  charId: string | undefined,
-  memoryTimelineCutoff: string | undefined,
-  chatId: string,
-): Promise<CharacterMemory[]> {
-  if (!charId || allMemories.length === 0) return [];
-
-  let chain: CharacterMemory[];
-
-  if (memoryTimelineCutoff) {
-    const heads = await storage.getMemoryHeads(storyId, charId);
-    const head = heads.sort((a, b) =>
-      b.createdAt.localeCompare(a.createdAt),
-    )[0];
-    if (!head) return [];
-    const fullChain = await storage.getMemoryChain(storyId, charId, head.id);
-    const cutoffMem = [...fullChain]
-      .reverse()
-      .find((m) => m.createdAt <= memoryTimelineCutoff);
-    if (!cutoffMem) return [];
-    chain = await storage.getMemoryChain(storyId, charId, cutoffMem.id);
-  } else {
-    const heads = await storage.getMemoryHeads(storyId, charId);
-    const head = heads.sort((a, b) =>
-      b.createdAt.localeCompare(a.createdAt),
-    )[0];
-    chain = head ? await storage.getMemoryChain(storyId, charId, head.id) : [];
-  }
-
-  const chainIds = new Set(chain.map((m) => m.id));
-  for (const m of allMemories) {
-    if (m.sourceChatId === chatId && !chainIds.has(m.id)) {
-      chain.push(m);
-    }
-  }
-
-  chain.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-  return chain;
 }
