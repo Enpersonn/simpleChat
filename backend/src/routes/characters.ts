@@ -6,7 +6,8 @@ import {
 } from "@simplechat/types";
 import type { FastifyInstance } from "fastify";
 import { applyMemoryChain } from "../character-state.js";
-import { GenerateAgent } from "../generate.js";
+import { LLMParseError } from "../generate.js";
+import { generateSingle } from "../generation/service.js";
 import { characters_store } from "../storage/characters/index.js";
 import { now } from "../storage/helpers.js";
 import {
@@ -167,40 +168,20 @@ export async function charactersRoutes(app: FastifyInstance): Promise<void> {
       if (!prompt?.trim())
         return reply.status(400).send({ error: "prompt is required" });
 
-      const content = `Character description: ${prompt.trim()}`;
       const story = await stories_store.get(req.params.id);
       const storyContext = story
         ? `Story: "${story.title}"${story.premise ? `\nPremise: ${story.premise}` : ""}`
-        : "";
+        : undefined;
 
-      const systemPrompt = [
-        "You are a creative writing assistant. Return ONLY valid JSON — no explanation, no markdown, no code fences.",
-        "Given a character description, generate a complete character profile.",
-      ];
-
-      const exampleRes = [
-        "{",
-        '  "name": "string",',
-        '  "role": "string (title or occupation)",',
-        '  "age": "string (e.g. \\"mid-30s\\" or \\"ancient\\")",',
-        '  "gender": "string",',
-        '  "species": "string (e.g. human, wolf, android — default human)",',
-        '  "clothing": "string (brief outfit description)",',
-        '  "appearance": "string (2-3 sentences of physical description)",',
-        '  "personality": ["trait1", "trait2"],',
-        '  "speechStyle": "string (one sentence)",',
-        '  "trueMotives": "string (hidden goal, 1-2 sentences)",',
-        '  "fears": ["fear1", "fear2"]',
-        "}",
-      ];
-
-      const generateAgent = new GenerateAgent({
-        systemPrompt: systemPrompt,
-        expectedOutput: CharacterCreateSchema,
-        exampleOutput: exampleRes,
-      });
-
-      return await generateAgent.streamResponse(content, storyContext);
+      try {
+        return await generateSingle("character", prompt.trim(), { storyContext });
+      } catch (err) {
+        if (err instanceof LLMParseError)
+          return reply
+            .status(422)
+            .send({ error: "LLM did not return valid JSON", raw: err.raw });
+        throw err;
+      }
     },
   );
 }

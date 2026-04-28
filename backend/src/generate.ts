@@ -1,59 +1,65 @@
-import type { ZodTypeAny } from "zod";
-import { streamChat } from "./ollama";
+import { streamChat } from "./ollama.js";
+import { extractJson } from "./utils.js";
 
-export class GenerateAgent<TSchema extends ZodTypeAny> {
-  private systemPrompt: string;
-  private expectedOutput: TSchema;
-  private exampleOutput?: string;
+export class LLMParseError extends Error {
+  readonly raw: string;
+  constructor(message: string, raw: string) {
+    super(message);
+    this.raw = raw;
+  }
+}
 
-  constructor({
-    systemPrompt,
-    expectedOutput,
-    exampleOutput,
-  }: {
-    systemPrompt: string[];
-    expectedOutput: TSchema;
-    exampleOutput?: string[];
+export class LLMAgent {
+  private readonly config: {
+    role: string;
+    instructions: string;
+    outputShape: string;
+    temperature: number;
+    num_ctx?: number;
+  };
+
+  constructor(config: {
+    role: string;
+    instructions: string;
+    outputShape: string;
+    temperature: number;
+    num_ctx?: number;
   }) {
-    this.systemPrompt = systemPrompt.join("\n");
-    this.expectedOutput = expectedOutput;
-    this.exampleOutput =
-      exampleOutput &&
-      ["Return exactly this JSON shape:", ...exampleOutput]?.join("\n");
+    this.config = config;
   }
 
-  private validateRes(raw: string) {
-    try {
-      const data = this.expectedOutput.safeParse(raw);
-      return data;
-    } catch {
-      throw "error: response data did not match expected output";
-    }
+  buildSystemPrompt(): string {
+    return [
+      `You are a ${this.config.role}. Your ONLY job is to output a single JSON object — nothing else.`,
+      "Do NOT write any analysis, explanation, commentary, or prose.",
+      "Do NOT use markdown or code fences.",
+      this.config.instructions,
+      "Output ONLY the raw JSON object below, with no text before or after it:",
+      this.config.outputShape,
+    ].join("\n");
   }
 
-  private getSystemPrompt() {
-    return [this.systemPrompt, this.exampleOutput].join("\n");
-  }
-
-  public async streamResponse(req: string, ctx?: string) {
-    const content = `${ctx ? `${ctx}\n\n` : ""} ${req.trim()}`;
-
+  async run(
+    userContent: string,
+    overrides?: { temperature?: number; num_ctx?: number },
+  ): Promise<Record<string, unknown>> {
     let raw = "";
-
     await streamChat({
       messages: [
-        { role: "system", content: this.getSystemPrompt() },
-        {
-          role: "user",
-          content,
-        },
+        { role: "system", content: this.buildSystemPrompt() },
+        { role: "user", content: userContent },
       ],
-      temperature: 0.85,
+      temperature: overrides?.temperature ?? this.config.temperature,
+      num_ctx: overrides?.num_ctx ?? this.config.num_ctx,
       onChunk: (text) => {
         raw += text;
       },
     });
 
-    return this.validateRes(raw);
+    try {
+      return extractJson(raw) as Record<string, unknown>;
+    } catch {
+      throw new LLMParseError("LLM did not return valid JSON", raw);
+    }
   }
 }

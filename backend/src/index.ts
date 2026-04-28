@@ -10,6 +10,7 @@ import { ollamaRoutes } from './routes/ollama.js'
 import { settingsRoutes } from './routes/settings.js'
 import { canonTimelineRoutes } from './routes/canon-timeline.js'
 import { fieldDefsRoutes } from './routes/field-defs.js'
+import { aiRoutes } from './routes/ai.js'
 
 const app = Fastify({ logger: { level: 'info' } })
 
@@ -35,6 +36,7 @@ await app.register(ollamaRoutes)
 await app.register(settingsRoutes)
 await app.register(canonTimelineRoutes)
 await app.register(fieldDefsRoutes)
+await app.register(aiRoutes)
 
 app.get('/health', async () => ({ ok: true }))
 
