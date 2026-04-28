@@ -106,6 +106,16 @@ function buildChainDiffs(
   });
 }
 
+function defaultChatState(chatId: string, storyId: string) {
+  return ChatEntityStateSchema.parse({
+    chatId,
+    storyId,
+    currentLocationId: null,
+    locationOverrides: {},
+    updatedAt: new Date().toISOString(),
+  });
+}
+
 // ── Routes ────────────────────────────────────────────────────────────────────
 
 export async function chatsRoutes(app: FastifyInstance): Promise<void> {
@@ -126,18 +136,16 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
       if (!body.success)
         return reply.status(400).send({ error: body.error.flatten() });
       const chat = await chat_store.add(body.data);
-      if (body.data.startingLocationId) {
-        await chat_state_store.update(
-          chat.id,
-          ChatEntityStateSchema.parse({
-            chatId: chat.id,
-            storyId: req.params.storyId,
-            currentLocationId: body.data.startingLocationId,
-            locationOverrides: {},
-            updatedAt: new Date().toISOString(),
-          }),
-        );
-      }
+      await chat_state_store.update(
+        chat.id,
+        ChatEntityStateSchema.parse({
+          chatId: chat.id,
+          storyId: req.params.storyId,
+          currentLocationId: body.data.startingLocationId ?? null,
+          locationOverrides: {},
+          updatedAt: new Date().toISOString(),
+        }),
+      );
       return reply.status(201).send(chat);
     },
   );
@@ -207,8 +215,7 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
 
       if (!story) return reply.status(404).send({ error: "Story not found" });
       if (!chat) return reply.status(404).send({ error: "Chat not found" });
-      if (!chatState)
-        return reply.status(404).send({ error: "Chat state not found" });
+      const resolvedChatState = chatState ?? defaultChatState(chatId, storyId);
 
       const {
         text,
@@ -315,11 +322,11 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
       const effectiveModel = speakerChar?.modelOverride || model || undefined;
       const settings = await getSettings();
 
-      const currentLocation = chatState.currentLocationId
-        ? locations.find((l) => l.id === chatState.currentLocationId)
+      const currentLocation = resolvedChatState.currentLocationId
+        ? locations.find((l) => l.id === resolvedChatState.currentLocationId)
         : undefined;
-      const locationOverrides = chatState.currentLocationId
-        ? chatState.locationOverrides[chatState.currentLocationId]
+      const locationOverrides = resolvedChatState.currentLocationId
+        ? resolvedChatState.locationOverrides[resolvedChatState.currentLocationId]
         : undefined;
 
       const otherCharMemories = new Map<string, MemoryItem[]>();
@@ -355,7 +362,7 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
         systemPromptLength: systemPromptText.length,
         injectedMemoryIds: relevantMemories.map((m) => m.id),
         activeSpeakerId: activeSpeaker,
-        currentLocationId: chatState.currentLocationId,
+        currentLocationId: resolvedChatState.currentLocationId,
         moodTagCount: (moodTags ?? []).length,
       });
 
@@ -396,9 +403,9 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
           locations: locations.map((l) => ({
             id: l.id,
             name: l.name,
-            isCurrent: l.id === chatState.currentLocationId,
+            isCurrent: l.id === resolvedChatState.currentLocationId,
           })),
-          currentLocationId: chatState.currentLocationId,
+          currentLocationId: resolvedChatState.currentLocationId,
           moodTags: moodTags ?? [],
           responseLength: responseLength ?? "medium",
           feelText: feelText ?? "",
@@ -466,7 +473,7 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
               recentTurns: completedTurns.slice(-6),
               story,
               locations,
-              currentState: chatState,
+              currentState: resolvedChatState,
             });
 
             let finalState = extracted;
@@ -494,10 +501,10 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
             await chat_state_store.update(chatId, finalState);
 
             const locationChanged =
-              finalState.currentLocationId !== chatState.currentLocationId;
+              finalState.currentLocationId !== resolvedChatState.currentLocationId;
             const overridesChanged =
               JSON.stringify(finalState.locationOverrides) !==
-              JSON.stringify(chatState.locationOverrides);
+              JSON.stringify(resolvedChatState.locationOverrides);
 
             emitPipeline(reply.raw, "extraction", "complete", t, {
               locationChanged,
@@ -551,8 +558,7 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
       );
       if (!story) return reply.status(404).send({ error: "Story not found" });
       if (!chat) return reply.status(404).send({ error: "Chat not found" });
-      if (!chatState)
-        return reply.status(404).send({ error: "Chat state not found" });
+      const resolvedChatState = chatState ?? defaultChatState(chatId, storyId);
 
       const turns = await turn_store.list({ chatId });
       const lastAssistant = [...turns]
@@ -644,11 +650,11 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
       const effectiveModel =
         speakerChar?.modelOverride || params.model || undefined;
 
-      const currentLocation = chatState.currentLocationId
-        ? locations.find((l) => l.id === chatState.currentLocationId)
+      const currentLocation = resolvedChatState.currentLocationId
+        ? locations.find((l) => l.id === resolvedChatState.currentLocationId)
         : undefined;
-      const locationOverrides = chatState.currentLocationId
-        ? chatState.locationOverrides[chatState.currentLocationId]
+      const locationOverrides = resolvedChatState.currentLocationId
+        ? resolvedChatState.locationOverrides[resolvedChatState.currentLocationId]
         : undefined;
 
       const settings = await getSettings();
@@ -686,7 +692,7 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
         systemPromptLength: systemPromptText.length,
         injectedMemoryIds: relevantMemories.map((m) => m.id),
         activeSpeakerId: activeSpeaker,
-        currentLocationId: chatState.currentLocationId,
+        currentLocationId: resolvedChatState.currentLocationId,
         moodTagCount: (params.moodTags ?? []).length,
       });
 
@@ -725,9 +731,9 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
           locations: locations.map((l) => ({
             id: l.id,
             name: l.name,
-            isCurrent: l.id === chatState.currentLocationId,
+            isCurrent: l.id === resolvedChatState.currentLocationId,
           })),
-          currentLocationId: chatState.currentLocationId,
+          currentLocationId: resolvedChatState.currentLocationId,
           moodTags: params.moodTags ?? [],
           responseLength: params.responseLength ?? "medium",
           feelText: params.feelText ?? "",
@@ -831,8 +837,7 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
       );
       if (!story) return reply.status(404).send({ error: "Story not found" });
       if (!chat) return reply.status(404).send({ error: "Chat not found" });
-      if (!chatState)
-        return reply.status(404).send({ error: "Chat state not found" });
+      const resolvedChatState = chatState ?? defaultChatState(chatId, storyId);
 
       const activeSpeaker = chat.activeSpeakers[0] ?? "narrator";
       const settings = await getSettings();
@@ -909,11 +914,11 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
 
       // ── Context assembly ──────────────────────────────────────────────────
 
-      const currentLocation = chatState.currentLocationId
-        ? locations.find((l) => l.id === chatState.currentLocationId)
+      const currentLocation = resolvedChatState.currentLocationId
+        ? locations.find((l) => l.id === resolvedChatState.currentLocationId)
         : undefined;
-      const locationOverrides = chatState.currentLocationId
-        ? chatState.locationOverrides[chatState.currentLocationId]
+      const locationOverrides = resolvedChatState.currentLocationId
+        ? resolvedChatState.locationOverrides[resolvedChatState.currentLocationId]
         : undefined;
 
       const openerLength =
@@ -952,7 +957,7 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
         systemPromptLength: systemPromptText.length,
         injectedMemoryIds: openerSpeakerMemories.map((m) => m.id),
         activeSpeakerId: activeSpeaker,
-        currentLocationId: chatState.currentLocationId,
+        currentLocationId: resolvedChatState.currentLocationId,
         moodTagCount: 0,
       });
 
@@ -1010,9 +1015,9 @@ export async function chatsRoutes(app: FastifyInstance): Promise<void> {
           locations: locations.map((l) => ({
             id: l.id,
             name: l.name,
-            isCurrent: l.id === chatState.currentLocationId,
+            isCurrent: l.id === resolvedChatState.currentLocationId,
           })),
-          currentLocationId: chatState.currentLocationId,
+          currentLocationId: resolvedChatState.currentLocationId,
           moodTags: [],
           responseLength: openerLength,
           feelText: "",
