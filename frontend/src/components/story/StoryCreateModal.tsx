@@ -156,34 +156,52 @@ export function StoryCreateModal({ onClose, onCreated }: Props) {
     setError('')
     setLivePreview(emptyPreview())
     try {
-      const core = await api.stories.generateStoryCore(premise.trim(), !title.trim())
+      const core = await api.ai.generate<{ title?: string; genres: string[]; tone: string[]; rules: string[]; writingStyle: string }>(
+        'story-core', premise.trim(), { includeTitle: !title.trim() },
+      )
       applyGeneratedFields({ ...core, characters: [] })
       setLivePreview((p) => ({
         ...p,
-        title: (core as { title?: string }).title ?? title,
+        title: core.title ?? title,
         genres: core.genres,
         tone: core.tone,
       }))
       setGenStep(2)
-      const { characters } = await api.stories.generateStoryCharacters(premise.trim(), core)
+      const styleContext = [
+        core.genres.length ? `Genres: ${core.genres.join(', ')}` : '',
+        core.tone.length ? `Tone: ${core.tone.join(', ')}` : '',
+        core.writingStyle ? `Writing style: ${core.writingStyle}` : '',
+      ].filter(Boolean).join('\n')
+      const { characters } = await api.ai.generate<{ characters: Array<{
+        name: string; role: string; isUserPersona: boolean; age: string; gender: string
+        species: string; clothing: string; appearance: string; personality: string[]
+        speechStyle: string; trueMotives: string; fears: string[]
+        relationships?: Array<{ otherCharacterName: string; emotion: string; publicAttitude: string; privateAttitude: string; trustLevel: number }>
+      }> }>('story-characters', premise.trim(), { styleContext })
       applyGeneratedFields({ genres: [], tone: [], rules: [], writingStyle: '', characters })
       setLivePreview((p) => ({
         ...p,
         characters: characters.map((c) => ({ name: c.name, role: c.role, isUserPersona: c.isUserPersona })),
       }))
       setGenStep(3)
-      const { locations } = await api.stories.generateStoryLocations(premise.trim(), core)
+      const { locations } = await api.ai.generate<{ locations: Array<{
+        name: string; description: string; layout: string; lighting: string
+        atmosphere: string; soundscape: string; smells: string; notes: string; tags: string[]
+      }> }>('story-locations', premise.trim(), { styleContext })
       applyGeneratedFields({ genres: [], tone: [], rules: [], writingStyle: '', characters: [], locations })
       setLivePreview((p) => ({
         ...p,
         locations: locations.map((l) => ({ name: l.name, description: l.description })),
       }))
       setGenStep(4)
-      const { memories } = await api.stories.generateStoryMemories(
-        premise.trim(),
-        premise.trim(),
-        characters.map((c) => ({ name: c.name })),
-      )
+      const { memories } = await api.ai.generate<{ memories: Array<{
+        characterName: string; summary: string; tags: string[]; importance: number
+        deltas?: Record<string, unknown>
+        relationshipEffects?: Array<{ otherCharacterName: string; emotion: string; publicAttitude: string; privateAttitude: string; trustLevel: number }>
+      }> }>('story-memories', premise.trim(), {
+        premise: premise.trim(),
+        characterNames: characters.map((c) => c.name),
+      })
       if (memories.length > 0) {
         const newMems: PendingMemory[] = memories.map((m, i) => ({
           _localId: `mem-${Date.now()}-${i}`,
@@ -213,29 +231,42 @@ export function StoryCreateModal({ onClose, onCreated }: Props) {
     setError('')
     setLivePreview(emptyPreview())
     try {
-      const core = await api.stories.parseStoryCore(importText.trim())
+      const core = await api.ai.parse<{ title: string; premise: string; genres: string[]; tone: string[]; rules: string[]; writingStyle: string }>(
+        'story-core', importText.trim(),
+      )
       applyGeneratedFields({ ...core, characters: [], locations: [] })
       setLivePreview((p) => ({ ...p, title: core.title, genres: core.genres, tone: core.tone }))
       setGenStep(2)
-      const { characters } = await api.stories.parseStoryCharacters(importText.trim(), core.premise)
+      const { characters } = await api.ai.parse<{ characters: Array<{
+        name: string; role: string; isUserPersona: boolean; age: string; gender: string
+        species: string; clothing: string; appearance: string; personality: string[]
+        speechStyle: string; trueMotives: string; fears: string[]
+        relationships?: Array<{ otherCharacterName: string; emotion: string; publicAttitude: string; privateAttitude: string; trustLevel: number }>
+      }> }>('story-characters', importText.trim(), { premise: core.premise })
       applyGeneratedFields({ genres: [], tone: [], rules: [], writingStyle: '', characters, locations: [] })
       setLivePreview((p) => ({
         ...p,
         characters: characters.map((c) => ({ name: c.name, role: c.role, isUserPersona: c.isUserPersona })),
       }))
       setGenStep(3)
-      const { locations } = await api.stories.parseStoryLocations(importText.trim(), core.premise)
+      const { locations } = await api.ai.parse<{ locations: Array<{
+        name: string; description: string; layout: string; lighting: string
+        atmosphere: string; soundscape: string; smells: string; notes: string; tags: string[]
+      }> }>('story-locations', importText.trim(), { premise: core.premise })
       applyGeneratedFields({ genres: [], tone: [], rules: [], writingStyle: '', characters: [], locations })
       setLivePreview((p) => ({
         ...p,
         locations: locations.map((l) => ({ name: l.name, description: l.description })),
       }))
       setGenStep(4)
-      const { memories } = await api.stories.parseStoryMemories(
-        importText.trim(),
-        core.premise,
-        characters.map((c) => ({ name: c.name })),
-      )
+      const { memories } = await api.ai.parse<{ memories: Array<{
+        characterName: string; summary: string; tags: string[]; importance: number
+        deltas?: Record<string, unknown>
+        relationshipEffects?: Array<{ otherCharacterName: string; emotion: string; publicAttitude: string; privateAttitude: string; trustLevel: number }>
+      }> }>('story-memories', importText.trim(), {
+        premise: core.premise,
+        characterNames: characters.map((c) => c.name),
+      })
       if (memories.length > 0) {
         const newMems: PendingMemory[] = memories.map((m, i) => ({
           _localId: `mem-${Date.now()}-${i}`,

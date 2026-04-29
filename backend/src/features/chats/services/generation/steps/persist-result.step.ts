@@ -1,5 +1,5 @@
+import { randomUUID } from "node:crypto";
 import type { Turn } from "@simplechat/types";
-import { randomUUID } from "crypto";
 import { appendTurn } from "../../../store";
 import type { GenerationContext } from "../../../types";
 

@@ -18,7 +18,6 @@ export const chatGenerationService = {
       const ctx = await createGenerationContext(input, stream);
 
       await prepareTurns(ctx);
-      // stream.emitDataLoaded(ctx);
 
       await applyMemoryChainStep(ctx);
       await retrieveMemoriesStep(ctx);

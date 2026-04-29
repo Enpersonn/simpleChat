@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'preact/hooks'
 import { createPortal } from 'preact/compat'
-import type { Chat, Character, Location } from '@simplechat/types'
+import type { Chat, Character, StoryLocation as Location } from '@simplechat/types'
 import { useStoriesStore } from '../../store/stories.js'
 import { useChatsStore } from '../../store/chats.js'
 import { useSettingsStore } from '../../store/settings.js'

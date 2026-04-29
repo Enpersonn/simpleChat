@@ -11,6 +11,11 @@ export async function createGenerationContext(
 ): Promise<GenerationContext> {
   const data = await loadGenerationData(input.storyId, input.chatId);
 
+  stream.pipeline("data_load", "complete", undefined, {
+    characterCount: data.characters.length,
+    locationCount: data.locations.length,
+    turnCount: data.turns,
+  });
   return {
     ...input,
 

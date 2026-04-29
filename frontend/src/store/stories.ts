@@ -5,7 +5,7 @@ import type {
   CharacterUpdate,
   CharacterMemoryRelation,
   EntityFieldDef,
-  Location,
+  StoryLocation as Location,
   LocationCreate,
   LocationUpdate,
   MemoryItem,

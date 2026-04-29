@@ -1,8 +1,5 @@
 import { LocationCreateSchema, LocationUpdateSchema } from "@simplechat/types";
 import type { FastifyInstance } from "fastify";
-import { LLMParseError } from "../../generate";
-import { generateSingle } from "../../generation/service";
-import { stories_store } from "../stories/store";
 import { locations_store } from "./store";
 
 export async function locationsRoutes(app: FastifyInstance): Promise<void> {
@@ -46,31 +43,4 @@ export async function locationsRoutes(app: FastifyInstance): Promise<void> {
     },
   );
 
-  // ─── AI Location Generation ───────────────────────────────────────────────
-
-  app.post<{ Params: { id: string } }>(
-    "/stories/:id/locations/generate-fields",
-    async (req, reply) => {
-      const { prompt } = req.body as { prompt?: string };
-      if (!prompt?.trim())
-        return reply.status(400).send({ error: "prompt is required" });
-
-      const story = await stories_store.get(req.params.id);
-      const storyContext = story
-        ? `Story: "${story.title}"${story.premise ? `\nPremise: ${story.premise}` : ""}`
-        : undefined;
-
-      try {
-        return await generateSingle("location", prompt.trim(), {
-          storyContext,
-        });
-      } catch (err) {
-        if (err instanceof LLMParseError)
-          return reply
-            .status(422)
-            .send({ error: "LLM did not return valid JSON", raw: err.raw });
-        throw err;
-      }
-    },
-  );
 }

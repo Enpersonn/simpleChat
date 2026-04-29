@@ -3,8 +3,8 @@ import { buildChainDiffs, resolveCharacterChains } from "../../../helpers";
 import type { GenerationContext } from "../../../types";
 
 export async function applyMemoryChainStep(ctx: GenerationContext) {
-  ctx.stream.pipeline("memory_chain", "start");
   const startedAt = Date.now();
+  ctx.stream.pipeline("memory_chain", "start", startedAt);
 
   ctx.characterChains = await resolveCharacterChains(
     ctx.characters,

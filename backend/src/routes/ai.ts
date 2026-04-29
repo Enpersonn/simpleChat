@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { LLMParseError } from "../generate.js";
+import { handleLLMError } from "../error-handlers.js";
 import {
   type GenerateContext,
   type GenerationType,
@@ -32,11 +32,7 @@ export async function aiRoutes(app: FastifyInstance): Promise<void> {
       }
       return await generateSingle(type, concept.trim(), context);
     } catch (err) {
-      if (err instanceof LLMParseError)
-        return reply
-          .status(422)
-          .send({ error: "LLM did not return valid JSON", raw: err.raw });
-      throw err;
+      return handleLLMError(err, reply);
     }
   });
 
@@ -54,11 +50,7 @@ export async function aiRoutes(app: FastifyInstance): Promise<void> {
     try {
       return await parseEntities(type, text.trim(), context);
     } catch (err) {
-      if (err instanceof LLMParseError)
-        return reply
-          .status(422)
-          .send({ error: "LLM did not return valid JSON", raw: err.raw });
-      throw err;
+      return handleLLMError(err, reply);
     }
   });
 }

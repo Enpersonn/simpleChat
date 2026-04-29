@@ -1,4 +1,4 @@
-import { HttpError } from "../../../../http-error";
+import { HttpError } from "../../../../error-handlers.js";
 import { characters_store } from "../../../characters/store";
 import { locations_store } from "../../../locations/store";
 import { stories_store } from "../../../stories/store";

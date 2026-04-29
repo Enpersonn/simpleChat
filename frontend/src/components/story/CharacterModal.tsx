@@ -126,7 +126,7 @@ function EffectsEditor({ effects, onChange, fieldDefs }: EffectsEditorProps) {
 // ─── CharacterModal ───────────────────────────────────────────────────────────
 
 export function CharacterModal({ initial, initialDraft, defaultIsPersona, onClose, onSaved, onSaveData }: Props) {
-  const { createCharacter, updateCharacter, selectedStoryId, locations, fieldDefs } = useStoriesStore()
+  const { createCharacter, updateCharacter, selectedStoryId, stories, locations, fieldDefs } = useStoriesStore()
   const isEdit = !!initial
 
   const [activeTab, setActiveTab] = useState<'character' | 'memories' | 'relations' | 'locations'>('character')
@@ -185,7 +185,15 @@ export function CharacterModal({ initial, initialDraft, defaultIsPersona, onClos
     setGenerating(true)
     setError('')
     try {
-      const result = await api.characters.generateFields(selectedStoryId, genPrompt.trim())
+      const selectedStory = stories.find((s) => s.id === selectedStoryId)
+      const storyContext = selectedStory
+        ? `Story: "${selectedStory.title}"${selectedStory.premise ? `\nPremise: ${selectedStory.premise}` : ''}`
+        : undefined
+      const result = await api.ai.generate<{
+        name: string; role: string; age: string; gender: string; species: string
+        clothing: string; appearance: string; personality: string[]
+        speechStyle: string; trueMotives: string; fears: string[]
+      }>('character', genPrompt.trim(), { storyContext })
       if (result.name) setName(result.name)
       if (result.role) setRole(result.role)
       if (result.age) setAge(result.age)

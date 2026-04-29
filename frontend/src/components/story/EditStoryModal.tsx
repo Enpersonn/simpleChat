@@ -49,7 +49,11 @@ export function EditStoryModal({ story, onClose, onSaved }: Props) {
     setGenerating(true)
     setError('')
     try {
-      const result = await api.stories.generateSupporting(story.id)
+      const result = await api.ai.generate<{ genres: string[]; tone: string[]; rules: string[]; writingStyle: string }>(
+        'supporting-fields',
+        story.premise,
+        { storyContext: `Story: "${story.title}"` },
+      )
       if (result.genres.length) setGenres(result.genres)
       if (result.tone.length) setTones(result.tone)
       if (result.rules.length) setRules(result.rules.join('\n'))

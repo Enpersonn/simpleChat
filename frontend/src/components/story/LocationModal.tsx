@@ -1,5 +1,5 @@
 import { useState } from 'preact/hooks'
-import type { Location, LocationCreate } from '@simplechat/types'
+import type { StoryLocation as Location, LocationCreate } from '@simplechat/types'
 import { useStoriesStore } from '../../store/stories.js'
 import { api } from '../../lib/api.js'
 import s from './StoryCreateModal.module.css'
@@ -11,7 +11,7 @@ interface Props {
 }
 
 export function LocationModal({ initial, onClose, onSaved }: Props) {
-  const { createLocation, updateLocation, selectedStoryId } = useStoriesStore()
+  const { createLocation, updateLocation, selectedStoryId, stories } = useStoriesStore()
   const isEdit = !!initial
 
   const [name, setName] = useState(initial?.name ?? '')
@@ -35,7 +35,14 @@ export function LocationModal({ initial, onClose, onSaved }: Props) {
     setGenerating(true)
     setError('')
     try {
-      const result = await api.locations.generateFields(selectedStoryId, genPrompt.trim())
+      const selectedStory = stories.find((s) => s.id === selectedStoryId)
+      const storyContext = selectedStory
+        ? `Story: "${selectedStory.title}"${selectedStory.premise ? `\nPremise: ${selectedStory.premise}` : ''}`
+        : undefined
+      const result = await api.ai.generate<{
+        name: string; description: string; layout: string; lighting: string
+        atmosphere: string; soundscape: string; smells: string; notes: string; tags: string[]
+      }>('location', genPrompt.trim(), { storyContext })
       if (result.name) setName(result.name)
       if (result.description) setDescription(result.description)
       if (result.layout) setLayout(result.layout)
