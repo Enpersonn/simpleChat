@@ -1,6 +1,6 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { allowedOrigins } from "../../../../config";
-import { emitFrame, emitPipeline, type PipelineStep } from "../../helpers";
+import { emitFrame, emitPipeline } from "../../helpers";
 
 export function createGenerationStream(
   req: FastifyRequest,
@@ -25,7 +25,7 @@ export function createGenerationStream(
     },
 
     pipeline(
-      name: PipelineStep,
+      name: string,
       status: "start" | "complete" | "error",
       startedAt?: number,
       payload?: object,

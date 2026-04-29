@@ -25,7 +25,7 @@ export function emitFrame(raw: ServerResponse, frame: object): void {
 
 export function emitPipeline(
   raw: ServerResponse,
-  step: PipelineStep,
+  step: string,
   status: "start" | "complete" | "error",
   startedAt?: number,
   data?: object,

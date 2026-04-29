@@ -4,8 +4,6 @@ import { appendTurn } from "../../../store";
 import type { GenerationContext } from "../../../types";
 
 export const persistAssistantTurn = async (ctx: GenerationContext) => {
-  const startedAt = Date.now();
-
   const assistantTurn: Turn = {
     id: randomUUID(),
     chatId: ctx.chatId,

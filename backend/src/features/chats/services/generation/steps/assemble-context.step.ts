@@ -5,8 +5,6 @@ import { activeModel } from "../../../../../ollama";
 import type { GenerationContext } from "../../../types";
 
 export const assembleContextStep = async (ctx: GenerationContext) => {
-  const startedAt = Date.now();
-
   const speakerChar = ctx.characters.find((c) => c.id === ctx.activeSpeaker);
   const effectiveModel =
     speakerChar?.modelOverride || ctx.params?.model || undefined;
@@ -28,8 +26,6 @@ export const assembleContextStep = async (ctx: GenerationContext) => {
       otherCharMemoriesRegen.set(c.id, ctx.characterChains[i]);
     }
   }
-
-  ctx.stream.pipeline("context_assembly", "start");
 
   const messages = assembleContext({
     story: ctx.story,
@@ -54,11 +50,11 @@ export const assembleContextStep = async (ctx: GenerationContext) => {
   ctx.resolvedModel = resolvedModel;
   ctx.systemPromptText = systemPromptText;
 
-  ctx.stream.pipeline("context_assembly", "complete", startedAt, {
+  return {
     systemPromptLength: systemPromptText.length,
     injectedMemoryIds: ctx.relevantMemories.map((m) => m.id),
     activeSpeakerId: ctx.activeSpeaker,
     currentLocationId: ctx.chatState.currentLocationId,
     moodTagCount: (ctx.params?.moodTags ?? []).length,
-  });
+  };
 };

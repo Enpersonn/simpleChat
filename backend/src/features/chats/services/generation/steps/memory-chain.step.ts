@@ -3,9 +3,6 @@ import { buildChainDiffs, resolveCharacterChains } from "../../../helpers";
 import type { GenerationContext } from "../../../types";
 
 export async function applyMemoryChainStep(ctx: GenerationContext) {
-  const startedAt = Date.now();
-  ctx.stream.pipeline("memory_chain", "start", startedAt);
-
   ctx.characterChains = await resolveCharacterChains(
     ctx.characters,
     ctx.chat.memoryTimelineCutoff,
@@ -16,11 +13,11 @@ export async function applyMemoryChainStep(ctx: GenerationContext) {
     return chain.length > 0 ? applyMemoryChain(character, chain) : character;
   });
 
-  ctx.stream.pipeline("memory_chain", "complete", startedAt, {
+  return {
     chains: buildChainDiffs(
       ctx.characters,
       ctx.effectiveCharacters,
       ctx.characterChains,
     ),
-  });
+  };
 }

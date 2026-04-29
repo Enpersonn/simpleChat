@@ -12,16 +12,13 @@ export async function retrieveMemoriesStep(ctx: GenerationContext) {
   ctx.accessibleMemories =
     speakerIndex >= 0 ? ctx.characterChains[speakerIndex] : [];
 
-  ctx.stream.pipeline("memory_retrieval", "start");
-  const startedAt = Date.now();
-
   if (ctx.kind === "opener") {
     ctx.relevantMemories = ctx.accessibleMemories;
     ctx.memoryReasons = Object.fromEntries(
       ctx.relevantMemories.map((m) => [m.id, "always_include"]),
     );
 
-    ctx.stream.pipeline("memory_retrieval", "complete", startedAt, {
+    return {
       accessibleCount: ctx.accessibleMemories.length,
       results: ctx.relevantMemories.map((m) => ({
         memoryId: m.id,
@@ -30,9 +27,7 @@ export async function retrieveMemoriesStep(ctx: GenerationContext) {
         tags: m.tags,
       })),
       llmFallbackFired: false,
-    });
-
-    return;
+    };
   }
 
   const result = await findRelevantMemories(ctx.accessibleMemories, ctx.turns);
@@ -40,7 +35,7 @@ export async function retrieveMemoriesStep(ctx: GenerationContext) {
   ctx.relevantMemories = result.memories;
   ctx.memoryReasons = result.reasons;
 
-  ctx.stream.pipeline("memory_retrieval", "complete", startedAt, {
+  return {
     accessibleCount: ctx.accessibleMemories.length,
     results: result.details.map((d) => ({
       memoryId: d.memory.id,
@@ -50,5 +45,5 @@ export async function retrieveMemoriesStep(ctx: GenerationContext) {
       tags: d.memory.tags,
     })),
     llmFallbackFired: result.llmFallbackFired,
-  });
+  };
 }
