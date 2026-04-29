@@ -1,15 +1,15 @@
 import type { FastifyInstance } from "fastify";
 import { LLMParseError } from "../generate.js";
 import {
-  generateList,
-  generateSingle,
   type GenerateContext,
   type GenerationType,
+  generateList,
+  generateSingle,
 } from "../generation/service.js";
 import {
-  parseEntities,
   type ParseContext,
   type ParseType,
+  parseEntities,
 } from "../parsing/service.js";
 
 export async function aiRoutes(app: FastifyInstance): Promise<void> {

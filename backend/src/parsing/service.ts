@@ -1,3 +1,7 @@
+import { storyCharactersParseAgent } from "../features/characters/parsing-agent.js";
+import { storyLocationsParseAgent } from "../features/locations/parsing-agent.js";
+import { storyMemoriesParseAgent } from "../features/memories/parsing-agent.js";
+import { storyCoreParseAgent } from "../features/stories/parsing-agent.js";
 import {
   normaliseCharacter,
   normaliseLocation,
@@ -5,13 +9,7 @@ import {
   normaliseStoryCore,
   parseArray,
 } from "../normalizers.js";
-import {
-  legacyParseAgent,
-  storyCoreParseAgent,
-  storyCharactersParseAgent,
-  storyLocationsParseAgent,
-  storyMemoriesParseAgent,
-} from "./agents.js";
+import { legacyParseAgent } from "./agents.js";
 import { sanitizeTextForParsing } from "./sanitize.js";
 
 export type ParseType =
@@ -40,7 +38,10 @@ export async function parseEntities(
       parts.push(`Story text:\n${sanitized}`);
       parts.push("Respond with ONLY the JSON object. No other text.");
       const data = await storyCoreParseAgent.run(parts.join("\n\n"));
-      return normaliseStoryCore(data, { includeTitle: true, includePremise: true });
+      return normaliseStoryCore(data, {
+        includeTitle: true,
+        includePremise: true,
+      });
     }
 
     case "story-characters": {
@@ -50,7 +51,12 @@ export async function parseEntities(
       parts.push("Respond with ONLY the JSON object. No other text.");
       const data = await storyCharactersParseAgent.run(parts.join("\n\n"));
       return {
-        characters: parseArray(data, "characters", normaliseCharacter, (c) => !!c.name),
+        characters: parseArray(
+          data,
+          "characters",
+          normaliseCharacter,
+          (c) => !!c.name,
+        ),
       };
     }
 
@@ -61,7 +67,12 @@ export async function parseEntities(
       parts.push("Respond with ONLY the JSON object. No other text.");
       const data = await storyLocationsParseAgent.run(parts.join("\n\n"));
       return {
-        locations: parseArray(data, "locations", normaliseLocation, (l) => !!l.name),
+        locations: parseArray(
+          data,
+          "locations",
+          normaliseLocation,
+          (l) => !!l.name,
+        ),
       };
     }
 
@@ -88,9 +99,22 @@ export async function parseEntities(
       ];
       const data = await legacyParseAgent.run(parts.join("\n\n"));
       return {
-        ...normaliseStoryCore(data, { includeTitle: true, includePremise: true }),
-        characters: parseArray(data, "characters", normaliseCharacter, (c) => !!c.name),
-        locations: parseArray(data, "locations", normaliseLocation, (l) => !!l.name),
+        ...normaliseStoryCore(data, {
+          includeTitle: true,
+          includePremise: true,
+        }),
+        characters: parseArray(
+          data,
+          "characters",
+          normaliseCharacter,
+          (c) => !!c.name,
+        ),
+        locations: parseArray(
+          data,
+          "locations",
+          normaliseLocation,
+          (l) => !!l.name,
+        ),
       };
     }
   }

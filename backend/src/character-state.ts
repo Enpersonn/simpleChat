@@ -1,5 +1,5 @@
 import type { Character, MemoryItem } from "@simplechat/types";
-import { applyEffect } from "./storage/memories/index.js";
+import { applyEffect } from "./features/memories/store/index.js";
 
 function blankBase(char: Character): Character {
   return {

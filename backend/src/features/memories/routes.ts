@@ -4,13 +4,12 @@ import {
   CharacterMemoryWithRelationCreateSchema,
 } from "@simplechat/types";
 import type { FastifyInstance } from "fastify";
-import { now } from "../storage/helpers.js";
+import { now } from "../../storage/helpers.js";
+import { memories_store } from "./store/index.js";
 import {
   character_memory_relations_store,
-  getMemoryChainForCharacter,
   getRelationHeads,
-  memories_store,
-} from "../storage/memories/index.js";
+} from "./store/relations.js";
 
 export async function characterMemoriesRoutes(
   app: FastifyInstance,
@@ -60,7 +59,9 @@ export async function characterMemoriesRoutes(
       if (visited.has(cur.id)) break;
       visited.add(cur.id);
       chain.push(cur);
-      cur = cur.previousRelationId ? byId.get(cur.previousRelationId) : undefined;
+      cur = cur.previousRelationId
+        ? byId.get(cur.previousRelationId)
+        : undefined;
     }
     chain.reverse(); // root first
 
@@ -141,7 +142,8 @@ export async function characterMemoriesRoutes(
       if (!memory) return reply.status(404).send({ error: "Memory not found" });
 
       if (Object.keys(memFields).length > 0) {
-        memory = await memories_store.update(req.params.mid, memFields) ?? memory;
+        memory =
+          (await memories_store.update(req.params.mid, memFields)) ?? memory;
       }
 
       if (branchLabel !== undefined || previousRelationId !== undefined) {

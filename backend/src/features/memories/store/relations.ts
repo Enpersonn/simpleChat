@@ -2,7 +2,7 @@ import {
   type CharacterMemoryRelation,
   CharacterMemoryRelationSchema,
 } from "@simplechat/types";
-import { BaseStorageObject } from "../base.js";
+import { BaseStorageObject } from "../../../storage/base.js";
 
 export const character_memory_relations_store = new BaseStorageObject(
   "character_memory_relations",
@@ -23,9 +23,7 @@ export async function getRelationHeads(
 ): Promise<CharacterMemoryRelation[]> {
   const all = await getCharacterRelations(charId);
   const refIds = new Set(
-    all
-      .filter((r) => r.previousRelationId)
-      .map((r) => r.previousRelationId!),
+    all.filter((r) => r.previousRelationId).map((r) => r.previousRelationId!),
   );
   return all.filter((r) => !refIds.has(r.id));
 }

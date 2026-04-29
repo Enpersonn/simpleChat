@@ -3,7 +3,7 @@ import {
   type MemoryItem,
   MemoryItemSchema,
 } from "@simplechat/types";
-import { BaseStorageObject } from "../base.js";
+import { BaseStorageObject } from "../../../storage/base.js";
 import {
   character_memory_relations_store,
   getCharacterRelations,
@@ -11,9 +11,12 @@ import {
   getRelationHeads,
 } from "./relations.js";
 
-export { character_memory_relations_store, getRelationHeads, getRelationChain };
+export { character_memory_relations_store, getRelationChain, getRelationHeads };
 
-export const memories_store = new BaseStorageObject("memories", MemoryItemSchema);
+export const memories_store = new BaseStorageObject(
+  "memories",
+  MemoryItemSchema,
+);
 
 export async function getMemoryChainForCharacter(
   charId: string,
@@ -22,7 +25,7 @@ export async function getMemoryChainForCharacter(
   const allRelations = await getCharacterRelations(charId);
   if (allRelations.length === 0) return [];
 
-  let headRelation: typeof allRelations[0] | undefined;
+  let headRelation: (typeof allRelations)[0] | undefined;
   if (fromRelationId) {
     headRelation = allRelations.find((r) => r.id === fromRelationId);
   }

@@ -1,9 +1,9 @@
 import { LocationCreateSchema, LocationUpdateSchema } from "@simplechat/types";
 import type { FastifyInstance } from "fastify";
-import { LLMParseError } from "../generate.js";
-import { generateSingle } from "../generation/service.js";
-import { locations_store } from "../storage/locations/index.js";
-import { stories_store } from "../storage/stories/index.js";
+import { LLMParseError } from "../../generate";
+import { generateSingle } from "../../generation/service";
+import { stories_store } from "../stories/store";
+import { locations_store } from "./store";
 
 export async function locationsRoutes(app: FastifyInstance): Promise<void> {
   app.get<{ Params: { id: string } }>("/stories/:id/locations", async (req) => {
@@ -61,7 +61,9 @@ export async function locationsRoutes(app: FastifyInstance): Promise<void> {
         : undefined;
 
       try {
-        return await generateSingle("location", prompt.trim(), { storyContext });
+        return await generateSingle("location", prompt.trim(), {
+          storyContext,
+        });
       } catch (err) {
         if (err instanceof LLMParseError)
           return reply

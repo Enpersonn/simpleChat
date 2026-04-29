@@ -1,16 +1,21 @@
 import { StoryCreateSchema, StoryUpdateSchema } from "@simplechat/types";
 import type { FastifyInstance } from "fastify";
-import { LLMParseError } from "../generate.js";
-import { generateRawText, generateSingle } from "../generation/service.js";
-import { parseEntities } from "../parsing/service.js";
-import { characters_store } from "../storage/characters/index.js";
-import { seedDefaultFieldDefs } from "../storage/field-defs/index.js";
-import { locations_store } from "../storage/locations/index.js";
-import { stories_store } from "../storage/stories/index.js";
+import { LLMParseError } from "../../generate";
+import { generateRawText, generateSingle } from "../../generation/service";
+import { parseEntities } from "../../parsing/service";
+import { seedDefaultFieldDefs } from "../../storage/field-defs";
+import { characters_store } from "../characters/store";
+import { locations_store } from "../locations/store";
+import { stories_store } from "./store";
 
-function handleLLMError(err: unknown, reply: { status: (code: number) => { send: (body: unknown) => unknown } }) {
+function handleLLMError(
+  err: unknown,
+  reply: { status: (code: number) => { send: (body: unknown) => unknown } },
+) {
   if (err instanceof LLMParseError)
-    return reply.status(422).send({ error: "LLM did not return valid JSON", raw: err.raw });
+    return reply
+      .status(422)
+      .send({ error: "LLM did not return valid JSON", raw: err.raw });
   throw err;
 }
 
@@ -45,7 +50,9 @@ export async function storiesRoutes(app: FastifyInstance): Promise<void> {
     if (!concept?.trim())
       return reply.status(400).send({ error: "concept is required" });
     try {
-      return await generateSingle("story-core", concept.trim(), { includeTitle });
+      return await generateSingle("story-core", concept.trim(), {
+        includeTitle,
+      });
     } catch (err) {
       return handleLLMError(err, reply);
     }

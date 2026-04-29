@@ -4,7 +4,7 @@ import {
   type Turn,
   TurnSchema,
 } from "@simplechat/types";
-import { BaseStorageObject } from "../base";
+import { BaseStorageObject } from "../../storage/base";
 
 export const chat_store = new BaseStorageObject("chats", ChatSchema);
 export const turn_store = new BaseStorageObject("turns", TurnSchema);

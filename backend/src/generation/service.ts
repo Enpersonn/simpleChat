@@ -1,4 +1,16 @@
-import { streamChat } from "../ollama.js";
+import {
+  characterAgent,
+  storyCharactersAgent,
+} from "../features/characters/generation-agents.js";
+import {
+  locationAgent,
+  storyLocationsAgent,
+} from "../features/locations/generation-agents.js";
+import { storyMemoriesAgent } from "../features/memories/generation-agent.js";
+import {
+  storyCoreAgent,
+  supportingFieldsAgent,
+} from "../features/stories/generation-agents.js";
 import {
   normaliseCharacter,
   normaliseLocation,
@@ -6,15 +18,7 @@ import {
   normaliseStoryCore,
   parseArray,
 } from "../normalizers.js";
-import {
-  characterAgent,
-  locationAgent,
-  storyCoreAgent,
-  storyCharactersAgent,
-  storyLocationsAgent,
-  storyMemoriesAgent,
-  supportingFieldsAgent,
-} from "./agents.js";
+import { streamChat } from "../ollama.js";
 
 export type GenerationType =
   | "story-core"
@@ -59,7 +63,12 @@ export async function generateSingle(
       parts.push("Respond with ONLY the JSON object. No other text.");
       const data = await storyCharactersAgent.run(parts.join("\n\n"));
       return {
-        characters: parseArray(data, "characters", normaliseCharacter, (c) => !!c.name),
+        characters: parseArray(
+          data,
+          "characters",
+          normaliseCharacter,
+          (c) => !!c.name,
+        ),
       };
     }
 
@@ -73,7 +82,12 @@ export async function generateSingle(
       parts.push("Respond with ONLY the JSON object. No other text.");
       const data = await storyLocationsAgent.run(parts.join("\n\n"));
       return {
-        locations: parseArray(data, "locations", normaliseLocation, (l) => !!l.name),
+        locations: parseArray(
+          data,
+          "locations",
+          normaliseLocation,
+          (l) => !!l.name,
+        ),
       };
     }
 
@@ -82,7 +96,9 @@ export async function generateSingle(
       if (ctx?.premise) parts.push(`Story premise: ${ctx.premise}`);
       parts.push(`Story concept:\n${concept}`);
       if (ctx?.characterNames?.length)
-        parts.push(`Characters in this story: ${ctx.characterNames.join(", ")}`);
+        parts.push(
+          `Characters in this story: ${ctx.characterNames.join(", ")}`,
+        );
       if (ctx?.existingItems?.length)
         parts.push(`Do not repeat events for: ${ctx.existingItems.join(", ")}`);
       parts.push("Respond with ONLY the JSON object. No other text.");

@@ -1,6 +1,5 @@
 
-1.
-DM chat. Another tab in the new /edit story section where you can chat with a DM LLM chat to plan out and add characters, memmories, locations and everything to your story by just sparing with the LLM. You and it will be able to build the story togheter. The LLM needs to be set up so it can build the story with you not just have the User think of everything but be an actuall partner in creating and planing and being the secroterry in the chat and adding everything that they both aggree on. The things it add comes up as preview cards in the chat where the user can review accept or decline it. 
+1. DM chat. Another tab in the new /edit story section where you can chat with a DM LLM chat to plan out and add characters, memmories, locations and everything to your story by just sparing with the LLM. You and it will be able to build the story togheter. The LLM needs to be set up so it can build the story with you not just have the User think of everything but be an actuall partner in creating and planing and being the secroterry in the chat and adding everything that they both aggree on. The things it add comes up as preview cards in the chat where the user can review accept or decline it. 
 
 
 3. Make dashboard more custimizable. 
