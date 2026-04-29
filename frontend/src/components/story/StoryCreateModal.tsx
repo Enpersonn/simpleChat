@@ -101,7 +101,7 @@ export function StoryCreateModal({ onClose, onCreated }: Props) {
   }
 
   const applyGeneratedFields = (result: {
-    title?: string; premise?: string; genres: string[]; tone: string[]; rules: string[]; writingStyle: string
+    title?: string; premise?: string; genres: string[]; tone: string[]; rules: string[]; writingStyle: string | { prose?: string }
     characters: Array<{ name: string; role: string; isUserPersona: boolean; age: string; gender: string; species: string; clothing: string; appearance: string; personality: string[]; speechStyle: string; trueMotives: string; fears: string[]; relationships?: RawRelation[] }>
     locations?: Array<{ name: string; description: string; layout: string; lighting: string; atmosphere: string; soundscape: string; smells: string; notes: string; tags: string[] }>
   }) => {
@@ -110,7 +110,9 @@ export function StoryCreateModal({ onClose, onCreated }: Props) {
     if (result.genres.length) setGenres(result.genres)
     if (result.tone.length) setTones(result.tone)
     if (result.rules.length) setRules(result.rules.join('\n'))
-    if (result.writingStyle) setWritingStyle(result.writingStyle)
+    if (result.writingStyle) setWritingStyle(
+      typeof result.writingStyle === 'string' ? result.writingStyle : result.writingStyle.prose ?? ''
+    )
     if (result.characters?.length) {
       const newChars: PendingChar[] = result.characters.map((c, i) => ({
         _localId: `draft-${Date.now()}-${i}`,
@@ -156,7 +158,7 @@ export function StoryCreateModal({ onClose, onCreated }: Props) {
     setError('')
     setLivePreview(emptyPreview())
     try {
-      const core = await api.ai.generate<{ title?: string; genres: string[]; tone: string[]; rules: string[]; writingStyle: string }>(
+      const core = await api.ai.generate<{ title?: string; genres: string[]; tone: string[]; rules: string[]; writingStyle: { prose?: string } }>(
         'story-core', premise.trim(), { includeTitle: !title.trim() },
       )
       applyGeneratedFields({ ...core, characters: [] })
@@ -170,7 +172,7 @@ export function StoryCreateModal({ onClose, onCreated }: Props) {
       const styleContext = [
         core.genres.length ? `Genres: ${core.genres.join(', ')}` : '',
         core.tone.length ? `Tone: ${core.tone.join(', ')}` : '',
-        core.writingStyle ? `Writing style: ${core.writingStyle}` : '',
+        core.writingStyle?.prose ? `Writing style: ${core.writingStyle.prose}` : '',
       ].filter(Boolean).join('\n')
       const { characters } = await api.ai.generate<{ characters: Array<{
         name: string; role: string; isUserPersona: boolean; age: string; gender: string
@@ -231,7 +233,7 @@ export function StoryCreateModal({ onClose, onCreated }: Props) {
     setError('')
     setLivePreview(emptyPreview())
     try {
-      const core = await api.ai.parse<{ title: string; premise: string; genres: string[]; tone: string[]; rules: string[]; writingStyle: string }>(
+      const core = await api.ai.parse<{ title: string; premise: string; genres: string[]; tone: string[]; rules: string[]; writingStyle: { prose?: string } }>(
         'story-core', importText.trim(),
       )
       applyGeneratedFields({ ...core, characters: [], locations: [] })
