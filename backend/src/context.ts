@@ -153,15 +153,30 @@ function buildStoryBlock(story: Story, characters: Character[]): string {
   const parts: string[] = [];
   if (story.premise)
     parts.push(`\nSTORY: ${resolveTokens(story.premise, characters)}`);
+  if (story.themes && story.themes.length > 0)
+    parts.push(`Themes: ${story.themes.join(", ")}.`);
   if (story.tone.length > 0) parts.push(`Tone: ${story.tone.join(", ")}.`);
-  if (story.rules.length > 0)
+  if (story.rules.worldRules.length > 0)
     parts.push(
-      `World rules: ${story.rules.map((r) => resolveTokens(r, characters)).join(" | ")}.`,
+      `World rules: ${story.rules.worldRules.map((r) => resolveTokens(r, characters)).join(" | ")}.`,
     );
-  if (story.writingStyle)
+  if (story.rules.storyRules.length > 0)
     parts.push(
-      `Writing style: ${resolveTokens(story.writingStyle, characters)}.`,
+      `Narrative rules: ${story.rules.storyRules.map((r) => resolveTokens(r, characters)).join(" | ")}.`,
     );
+  if (story.rules.characterRules.length > 0)
+    parts.push(
+      `Character rules: ${story.rules.characterRules.map((r) => resolveTokens(r, characters)).join(" | ")}.`,
+    );
+  const ws = story.writingStyle;
+  const styleLines: string[] = [];
+  if (ws.prose) styleLines.push(`prose: ${ws.prose}`);
+  if (ws.interiority) styleLines.push(`interiority: ${ws.interiority}`);
+  if (ws.dialogue) styleLines.push(`dialogue: ${ws.dialogue}`);
+  if (ws.pacing) styleLines.push(`pacing: ${ws.pacing}`);
+  if (ws.sensory) styleLines.push(`sensory: ${ws.sensory}`);
+  if (styleLines.length > 0)
+    parts.push(`Writing style: ${styleLines.join("; ")}.`);
   return parts.join("\n");
 }
 

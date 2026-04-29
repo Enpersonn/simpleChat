@@ -45,12 +45,57 @@ function repairJsonBrackets(text: string): string {
     }
   }
 
+  while (stack.length > 0) {
+    const top = stack.pop()!
+    result += top === '{' ? '}' : ']'
+  }
+
+  return result
+}
+
+function stripLineComments(text: string): string {
+  let result = ""
+  let inString = false
+  let escaped = false
+  let i = 0
+  while (i < text.length) {
+    const ch = text[i]
+    if (escaped) {
+      result += ch
+      escaped = false
+      i++
+      continue
+    }
+    if (inString) {
+      if (ch === "\\") {
+        result += ch
+        escaped = true
+      } else if (ch === '"') {
+        result += ch
+        inString = false
+      } else {
+        result += ch
+      }
+      i++
+      continue
+    }
+    if (ch === '"') {
+      inString = true
+      result += ch
+    } else if (ch === "/" && text[i + 1] === "/") {
+      while (i < text.length && text[i] !== "\n") i++
+      continue
+    } else {
+      result += ch
+    }
+    i++
+  }
   return result
 }
 
 export function extractJson(raw: string): unknown {
   const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/)
-  const text = (fenced ? fenced[1] : raw).trim()
+  const text = stripLineComments((fenced ? fenced[1] : raw).trim())
   try {
     return JSON.parse(text)
   } catch {

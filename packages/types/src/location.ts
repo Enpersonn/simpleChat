@@ -12,6 +12,8 @@ export const LocationSchema = z.object({
   smells: z.string().default(""),
   notes: z.string().default(""),
   tags: z.array(z.string()).default([]),
+  parentLocationId: z.string().nullable().default(null),
+  connectedLocationIds: z.array(z.string()).default([]),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -31,6 +33,8 @@ export const LocationCreateSchema = LocationSchema.omit({
   smells: true,
   notes: true,
   tags: true,
+  parentLocationId: true,
+  connectedLocationIds: true,
 });
 export type LocationCreate = z.infer<typeof LocationCreateSchema>;
 

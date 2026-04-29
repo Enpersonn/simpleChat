@@ -1,0 +1,36 @@
+import { LLMAgent } from "../generate.js";
+
+export const identityAgent = new LLMAgent({
+  role: "character identity resolver",
+  instructions: [
+    "Given a character list and story timeline, identify characters who are the same entity under a different name or at a different point in time.",
+    "Only create a link when the text explicitly confirms it (not speculation).",
+    "identities lists distinct forms or personas for a character (e.g. human disguise vs true form).",
+    "selfAware is true if the character knows they have this identity.",
+    "conditions describes when/how this identity manifests.",
+    "linkedCharacterNames are other character names who ARE the same entity.",
+    "Only include entries where there is at least one identity or one link to report.",
+  ].join(" "),
+  outputShape: [
+    "{",
+    '  "links": [',
+    "    {",
+    '      "characterName": "string — the primary character name",',
+    '      "linkedCharacterNames": ["string — other names that are the same entity"],',
+    '      "identities": [',
+    "        {",
+    '          "name": "string — name of this form or persona",',
+    '          "selfAware": true,',
+    '          "conditions": "string — when/how this manifests",',
+    '          "appearance": "string",',
+    '          "abilities": ["string"],',
+    '          "notes": "string"',
+    "        }",
+    "      ]",
+    "    }",
+    "  ]",
+    "}",
+  ].join("\n"),
+  temperature: 0.1,
+  num_ctx: 8192,
+});

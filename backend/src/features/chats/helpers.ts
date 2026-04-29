@@ -107,9 +107,14 @@ export function buildDmSystemPrompt(
   if (story.premise) parts.push(`PREMISE: ${story.premise}`);
   if (story.genres?.length) parts.push(`GENRE: ${story.genres.join(", ")}`);
   if (story.tone?.length) parts.push(`TONE: ${story.tone.join(", ")}`);
-  if (story.rules?.length) {
+  const allRules = [
+    ...(story.rules?.worldRules ?? []),
+    ...(story.rules?.storyRules ?? []),
+    ...(story.rules?.characterRules ?? []),
+  ];
+  if (allRules.length) {
     parts.push("WORLD RULES:");
-    for (const rule of story.rules) parts.push(`- ${rule}`);
+    for (const rule of allRules) parts.push(`- ${rule}`);
   }
 
   if (characters.length > 0) {

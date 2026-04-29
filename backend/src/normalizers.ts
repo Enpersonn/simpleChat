@@ -14,6 +14,23 @@ export function normaliseRelationship(r: Record<string, unknown>) {
   };
 }
 
+function normaliseIdentity(raw: Record<string, unknown>) {
+  return {
+    id: typeof raw.id === "string" ? raw.id : crypto.randomUUID(),
+    name: typeof raw.name === "string" ? raw.name : "",
+    appearance: typeof raw.appearance === "string" ? raw.appearance : "",
+    abilities: Array.isArray(raw.abilities)
+      ? raw.abilities.filter((x): x is string => typeof x === "string")
+      : [],
+    selfAware: raw.selfAware !== false,
+    knownBy: Array.isArray(raw.knownBy)
+      ? raw.knownBy.filter((x): x is string => typeof x === "string")
+      : [],
+    conditions: typeof raw.conditions === "string" ? raw.conditions : "",
+    notes: typeof raw.notes === "string" ? raw.notes : "",
+  };
+}
+
 export function normaliseCharacter(c: Record<string, unknown>) {
   const rawRels = Array.isArray(c.relationships) ? c.relationships : [];
   const relationships = (rawRels as unknown[])
@@ -22,6 +39,13 @@ export function normaliseCharacter(c: Record<string, unknown>) {
     )
     .map(normaliseRelationship)
     .filter((r) => r.otherCharacterName);
+  const rawIdentities = Array.isArray(c.identities) ? c.identities : [];
+  const identities = (rawIdentities as unknown[])
+    .filter(
+      (i): i is Record<string, unknown> => typeof i === "object" && i !== null,
+    )
+    .map(normaliseIdentity)
+    .filter((i) => i.name);
   return {
     name: typeof c.name === "string" ? c.name : "",
     role: typeof c.role === "string" ? c.role : "",
@@ -40,6 +64,10 @@ export function normaliseCharacter(c: Record<string, unknown>) {
       ? c.fears.filter((x): x is string => typeof x === "string")
       : [],
     relationships,
+    identities,
+    linkedCharacterNames: Array.isArray(c.linkedCharacterNames)
+      ? c.linkedCharacterNames.filter((x): x is string => typeof x === "string")
+      : [],
   };
 }
 
@@ -56,29 +84,34 @@ export function normaliseLocation(l: Record<string, unknown>) {
     tags: Array.isArray(l.tags)
       ? l.tags.filter((x): x is string => typeof x === "string")
       : [],
+    parentLocationName:
+      typeof l.parentLocationName === "string" ? l.parentLocationName : null,
+    connectedLocationNames: Array.isArray(l.connectedLocationNames)
+      ? l.connectedLocationNames.filter((x): x is string => typeof x === "string")
+      : [],
   };
 }
 
 export function normaliseMemoryItem(m: Record<string, unknown>) {
-  const rawDeltas =
-    typeof m.deltas === "object" && m.deltas !== null
-      ? (m.deltas as Record<string, unknown>)
-      : null;
-  const rawRelEffects =
-    rawDeltas && Array.isArray(rawDeltas.relationships)
-      ? (rawDeltas.relationships as unknown[])
-      : [];
-  const relationshipEffects = rawRelEffects
+  const rawEffects = Array.isArray(m.effects) ? m.effects : [];
+  const effects = (rawEffects as unknown[])
     .filter(
-      (r): r is Record<string, unknown> => typeof r === "object" && r !== null,
+      (e): e is Record<string, unknown> => typeof e === "object" && e !== null,
     )
-    .map(normaliseRelationship)
-    .filter((r) => r.otherCharacterName);
-  const deltasWithoutRelationships = rawDeltas
-    ? Object.fromEntries(
-        Object.entries(rawDeltas).filter(([k]) => k !== "relationships"),
-      )
-    : undefined;
+    .filter(
+      (e) =>
+        typeof e.path === "string" &&
+        e.path.length > 0 &&
+        typeof e.op === "string",
+    )
+    .map((e) => ({
+      path: e.path as string,
+      op: e.op as string,
+      value: e.value,
+      weight: typeof e.weight === "number" ? e.weight : 1,
+      entityType: typeof e.entityType === "string" ? e.entityType : "character",
+      ...(typeof e.targetId === "string" ? { targetId: e.targetId } : {}),
+    }));
   return {
     characterName: typeof m.characterName === "string" ? m.characterName : "",
     summary: typeof m.summary === "string" ? m.summary : "",
@@ -89,14 +122,39 @@ export function normaliseMemoryItem(m: Record<string, unknown>) {
       typeof m.importance === "number"
         ? Math.min(1, Math.max(0, m.importance))
         : 0.5,
-    deltas:
-      deltasWithoutRelationships &&
-      Object.keys(deltasWithoutRelationships).length > 0
-        ? deltasWithoutRelationships
-        : undefined,
-    relationshipEffects:
-      relationshipEffects.length > 0 ? relationshipEffects : undefined,
+    sceneId: typeof m.sceneId === "string" ? m.sceneId : null,
+    storyOrder: typeof m.storyOrder === "number" ? Math.trunc(m.storyOrder) : 0,
+    isGenesis: m.isGenesis === true,
+    deltas: effects.length > 0 ? { effects } : { effects: [] },
   };
+}
+
+function normaliseWritingStyle(raw: unknown) {
+  if (typeof raw === "string") return { prose: raw, interiority: "", dialogue: "", pacing: "", sensory: "" };
+  if (typeof raw === "object" && raw !== null) {
+    const r = raw as Record<string, unknown>;
+    return {
+      prose: typeof r.prose === "string" ? r.prose : "",
+      interiority: typeof r.interiority === "string" ? r.interiority : "",
+      dialogue: typeof r.dialogue === "string" ? r.dialogue : "",
+      pacing: typeof r.pacing === "string" ? r.pacing : "",
+      sensory: typeof r.sensory === "string" ? r.sensory : "",
+    };
+  }
+  return { prose: "", interiority: "", dialogue: "", pacing: "", sensory: "" };
+}
+
+function normaliseStoryRules(raw: unknown) {
+  if (Array.isArray(raw)) return { worldRules: raw.filter((x): x is string => typeof x === "string"), storyRules: [], characterRules: [] };
+  if (typeof raw === "object" && raw !== null) {
+    const r = raw as Record<string, unknown>;
+    return {
+      worldRules: Array.isArray(r.worldRules) ? r.worldRules.filter((x): x is string => typeof x === "string") : [],
+      storyRules: Array.isArray(r.storyRules) ? r.storyRules.filter((x): x is string => typeof x === "string") : [],
+      characterRules: Array.isArray(r.characterRules) ? r.characterRules.filter((x): x is string => typeof x === "string") : [],
+    };
+  }
+  return { worldRules: [], storyRules: [], characterRules: [] };
 }
 
 export function normaliseStoryCore(
@@ -116,11 +174,11 @@ export function normaliseStoryCore(
     tone: Array.isArray(data.tone)
       ? data.tone.filter((x): x is string => typeof x === "string")
       : [],
-    rules: Array.isArray(data.rules)
-      ? data.rules.filter((x): x is string => typeof x === "string")
+    themes: Array.isArray(data.themes)
+      ? data.themes.filter((x): x is string => typeof x === "string")
       : [],
-    writingStyle:
-      typeof data.writingStyle === "string" ? data.writingStyle : "",
+    rules: normaliseStoryRules(data.rules),
+    writingStyle: normaliseWritingStyle(data.writingStyle),
   };
 }
 

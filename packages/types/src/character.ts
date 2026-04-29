@@ -50,6 +50,18 @@ export const RelationshipEdgeSchema = z.object({
 });
 export type RelationshipEdge = z.infer<typeof RelationshipEdgeSchema>;
 
+export const CharacterIdentitySchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  appearance: z.string().default(""),
+  abilities: z.array(z.string()).default([]),
+  selfAware: z.boolean().default(true),
+  knownBy: z.array(z.string()).default([]),
+  conditions: z.string().default(""),
+  notes: z.string().default(""),
+});
+export type CharacterIdentity = z.infer<typeof CharacterIdentitySchema>;
+
 export const CharacterSchema = z.object({
   id: z.string(),
   storyId: z.string(),
@@ -63,6 +75,8 @@ export const CharacterSchema = z.object({
   private: CharacterPrivateSchema.default({}),
   relationships: z.array(RelationshipEdgeSchema).default([]),
   locationRelationships: z.array(LocationRelationshipSchema).default([]),
+  identities: z.array(CharacterIdentitySchema).default([]),
+  linkedCharacterIds: z.array(z.string()).default([]),
   genesisMemoryId: z.string().optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
@@ -84,6 +98,8 @@ export const CharacterCreateSchema = CharacterSchema.omit({
   private: true,
   relationships: true,
   locationRelationships: true,
+  identities: true,
+  linkedCharacterIds: true,
 });
 export type CharacterCreate = z.infer<typeof CharacterCreateSchema>;
 

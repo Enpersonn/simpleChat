@@ -46,6 +46,10 @@ export const MemoryItemSchema = z.object({
   sourceChatId: z.string().optional(),
   sourceTurnId: z.string().optional(),
 
+  sceneId: z.string().nullable().default(null),
+  storyOrder: z.number().int().default(0),
+  isGenesis: z.boolean().default(false),
+
   deltas: MemoryDeltaSchema.default({ effects: [] }),
 
   createdAt: z.string(),
@@ -57,6 +61,10 @@ export const MemoryItemCreateSchema = MemoryItemSchema.omit({
   storyId: true,
   createdAt: true,
   updatedAt: true,
+}).partial({
+  sceneId: true,
+  storyOrder: true,
+  isGenesis: true,
 });
 
 // ─── CharacterMemoryRelation (join table) ────────────────────────────────────

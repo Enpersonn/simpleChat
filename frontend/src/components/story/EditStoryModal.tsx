@@ -22,8 +22,8 @@ export function EditStoryModal({ story, onClose, onSaved }: Props) {
   const [premise, setPremise] = useState(story.premise)
   const [genres, setGenres] = useState<string[]>(story.genres)
   const [tones, setTones] = useState<string[]>(story.tone)
-  const [rules, setRules] = useState(story.rules.join('\n'))
-  const [writingStyle, setWritingStyle] = useState(story.writingStyle)
+  const [rules, setRules] = useState(story.rules.worldRules.join('\n'))
+  const [writingStyle, setWritingStyle] = useState(story.writingStyle.prose)
   const [systemPromptOverride, setSystemPromptOverride] = useState(story.systemPromptOverride ?? '')
   const [openingMessage, setOpeningMessage] = useState(story.openingMessage ?? '')
   const [customGenre, setCustomGenre] = useState('')
@@ -49,15 +49,15 @@ export function EditStoryModal({ story, onClose, onSaved }: Props) {
     setGenerating(true)
     setError('')
     try {
-      const result = await api.ai.generate<{ genres: string[]; tone: string[]; rules: string[]; writingStyle: string }>(
+      const result = await api.ai.generate<{ genres: string[]; tone: string[]; rules: { worldRules: string[]; storyRules: string[]; characterRules: string[] }; writingStyle: { prose: string } }>(
         'supporting-fields',
         story.premise,
         { storyContext: `Story: "${story.title}"` },
       )
       if (result.genres.length) setGenres(result.genres)
       if (result.tone.length) setTones(result.tone)
-      if (result.rules.length) setRules(result.rules.join('\n'))
-      if (result.writingStyle) setWritingStyle(result.writingStyle)
+      if (result.rules.worldRules.length) setRules(result.rules.worldRules.join('\n'))
+      if (result.writingStyle.prose) setWritingStyle(result.writingStyle.prose)
     } catch (err) {
       setError((err as Error).message)
     } finally {
@@ -75,8 +75,8 @@ export function EditStoryModal({ story, onClose, onSaved }: Props) {
         premise: premise.trim(),
         genres,
         tone: tones,
-        rules: rules.split('\n').map((r) => r.trim()).filter(Boolean),
-        writingStyle: writingStyle.trim(),
+        rules: { worldRules: rules.split('\n').map((r) => r.trim()).filter(Boolean), storyRules: story.rules.storyRules, characterRules: story.rules.characterRules },
+        writingStyle: { ...story.writingStyle, prose: writingStyle.trim() },
         systemPromptOverride: systemPromptOverride.trim(),
         openingMessage: openingMessage.trim(),
       })

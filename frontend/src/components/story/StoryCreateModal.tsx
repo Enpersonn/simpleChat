@@ -301,8 +301,8 @@ export function StoryCreateModal({ onClose, onCreated }: Props) {
         premise: premise.trim(),
         genres,
         tone: tones,
-        rules: rules.split('\n').map((r) => r.trim()).filter(Boolean),
-        writingStyle: writingStyle.trim(),
+        rules: { worldRules: rules.split('\n').map((r) => r.trim()).filter(Boolean), storyRules: [], characterRules: [] },
+        writingStyle: { prose: writingStyle.trim(), interiority: '', dialogue: '', pacing: '', sensory: '' },
         openingMessage: openingMessage.trim(),
       })
 
