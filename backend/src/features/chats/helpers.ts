@@ -97,7 +97,7 @@ export async function resolveCharacterChains(
 export function buildDmSystemPrompt(
   story: Story,
   characters: import("@simplechat/types").Character[],
-  locations: import("@simplechat/types").Location[],
+  locations: import("@simplechat/types").StoryLocation[],
 ): string {
   const parts: string[] = [
     "You are a creative collaborator helping plan and develop a story. You are the author's thoughtful story architect and Dungeon Master.",

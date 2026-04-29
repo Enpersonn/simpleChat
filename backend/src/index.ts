@@ -2,7 +2,7 @@ import cors from "@fastify/cors";
 import Fastify from "fastify";
 import { HOST, PORT } from "./config.js";
 import { charactersRoutes } from "./features/characters/routes.js";
-import { chatsRoutes } from "./features/chats/routes.js";
+import { chatsRoutes } from "./features/chats/routes/index.js";
 import { locationsRoutes } from "./features/locations/routes.js";
 import { characterMemoriesRoutes } from "./features/memories/routes.js";
 import { storiesRoutes } from "./features/stories/routes.js";

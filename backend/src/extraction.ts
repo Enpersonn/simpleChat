@@ -1,8 +1,8 @@
 import type {
   ChatEntityState,
-  Location,
   LocationOverride,
   Story,
+  StoryLocation,
   Turn,
 } from "@simplechat/types";
 import { z } from "zod";
@@ -18,7 +18,7 @@ const LocationExtractionSchema = z.object({
 export interface ExtractionContext {
   recentTurns: Turn[];
   story: Story;
-  locations: Location[];
+  locations: StoryLocation[];
   currentState: ChatEntityState;
 }
 

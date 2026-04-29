@@ -1,7 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { ServerResponse } from "node:http";
 import {
-  type Character,
   ChatCreateSchema,
   ChatEntityStateSchema,
   type DmProposal,
