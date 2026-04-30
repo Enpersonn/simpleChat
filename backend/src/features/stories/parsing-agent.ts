@@ -1,7 +1,7 @@
-import { LLMAgent } from "../../LLM/generate";
+import { createPromptRunner } from "../../LLM/prompt-runners/create-prompt-runner";
 import { STORY_GENRES, STORY_TONES } from ".";
 
-export const storyCoreParseAgent = new LLMAgent({
+export const storyCoreParseAgent = createPromptRunner({
   role: "story metadata extractor",
   instructions: [
     "Read the story text. Synthesise a concise 2-4 sentence premise (do not copy verbatim). Extract metadata only. Do NOT extract characters or locations.",

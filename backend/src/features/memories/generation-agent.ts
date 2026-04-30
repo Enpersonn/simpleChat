@@ -1,6 +1,6 @@
-import { LLMAgent } from "../../LLM/generate";
+import { createPromptRunner } from "../../LLM/prompt-runners/create-prompt-runner";
 
-export const storyMemoriesAgent = new LLMAgent({
+export const storyMemoriesAgent = createPromptRunner({
   role: "backstory writer for collaborative fiction",
   instructions:
     "Given a story concept, invent 2–4 backstory/origin events per character — things that happened BEFORE the story begins that shaped who they are. Focus on events with emotional weight: first meetings, formative traumas, key decisions, lost relationships. Order events chronologically, interleave characters naturally.",

@@ -1,6 +1,6 @@
-import { LLMAgent } from "../generate.js";
+import { createPromptRunner } from "../prompt-runners/create-prompt-runner.js";
 
-export const relationshipAgent = new LLMAgent({
+export const relationshipAgent = createPromptRunner({
   role: "character relationship extractor",
   instructions: [
     "For each character pair that shares a scene, extract their relationship as it stands AT THE START of the story.",

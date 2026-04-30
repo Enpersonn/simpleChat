@@ -48,3 +48,5 @@ export const createPromptRunner = (config: {
     run,
   };
 };
+
+export type PromptRunner = ReturnType<typeof createPromptRunner>;

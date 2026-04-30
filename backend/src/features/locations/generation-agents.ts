@@ -1,6 +1,6 @@
-import { LLMAgent } from "../../LLM/generate";
+import { createPromptRunner } from "../../LLM/prompt-runners/create-prompt-runner";
 
-export const locationAgent = new LLMAgent({
+export const locationAgent = createPromptRunner({
   role: "location designer for collaborative fiction",
   instructions:
     "Given a location description and optional story context, generate a complete location profile.",
@@ -20,7 +20,7 @@ export const locationAgent = new LLMAgent({
   temperature: 0.85,
 });
 
-export const storyLocationsAgent = new LLMAgent({
+export const storyLocationsAgent = createPromptRunner({
   role: "world-builder for collaborative fiction",
   instructions:
     "Given a story concept and its established style, invent 2–4 compelling, distinct locations that fit this story world.",

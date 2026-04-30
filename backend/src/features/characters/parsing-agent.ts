@@ -1,6 +1,6 @@
-import { LLMAgent } from "../../LLM/generate";
+import { createPromptRunner } from "../../LLM/prompt-runners/create-prompt-runner";
 
-export const storyCharactersParseAgent = new LLMAgent({
+export const storyCharactersParseAgent = createPromptRunner({
   role: "character extractor",
   instructions:
     "Extract all named characters from the story text. Use the story premise as context. Also extract the initial relationships between characters as they appear at the start of the story. trustLevel is an integer 0–10 (0=no trust, 5=neutral, 10=complete trust). Omit the relationships array entirely if the character has no notable relationships.",
@@ -37,7 +37,7 @@ export const storyCharactersParseAgent = new LLMAgent({
   num_ctx: 8192,
 });
 
-export const characterDeepDiveAgent = new LLMAgent({
+export const characterDeepDiveAgent = createPromptRunner({
   role: "character analyst",
   instructions: [
     "You are given a complete story text and a single character name. Extract EVERYTHING the text reveals about that character.",

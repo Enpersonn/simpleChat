@@ -1,6 +1,6 @@
-import { LLMAgent } from "../../LLM/generate";
+import { createPromptRunner } from "../../LLM/prompt-runners/create-prompt-runner";
 
-export const storyLocationsParseAgent = new LLMAgent({
+export const storyLocationsParseAgent = createPromptRunner({
   role: "location extractor",
   instructions: [
     "Extract all distinct locations and settings from the story text. Use the story premise as context.",

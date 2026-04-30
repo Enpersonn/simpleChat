@@ -1,6 +1,6 @@
-import { LLMAgent } from "../../LLM/generate";
+import { createPromptRunner } from "../../LLM/prompt-runners/create-prompt-runner";
 
-export const storyMemoriesParseAgent = new LLMAgent({
+export const storyMemoriesParseAgent = createPromptRunner({
   role: "story event extractor",
   instructions: [
     "Read the story text and extract key story events/turning points for each named character, in chronological order (earliest event first, storyOrder starting at 1). Include 3-8 events per character; only include events with importance >= 0.4. Interleave characters naturally in timeline order.",

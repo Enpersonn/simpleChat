@@ -1,6 +1,6 @@
-import { LLMAgent } from "../generate.js";
+import { createPromptRunner } from "../prompt-runners/create-prompt-runner.js";
 
-export const identityAgent = new LLMAgent({
+export const identityAgent = createPromptRunner({
   role: "character identity resolver",
   instructions: [
     "Given a character list and story timeline, identify characters who are the same entity under a different name or at a different point in time.",

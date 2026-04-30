@@ -1,6 +1,6 @@
-import { LLMAgent } from "../generate.js";
+import { createPromptRunner } from "../prompt-runners/create-prompt-runner.js";
 
-export const censusAgent = new LLMAgent({
+export const censusAgent = createPromptRunner({
   role: "story entity census",
   instructions: [
     "List every named entity in the story text. Do not describe them — enumerate names only.",

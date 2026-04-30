@@ -1,7 +1,7 @@
-import { LLMAgent } from "../../LLM/generate";
+import { createPromptRunner } from "../../LLM/prompt-runners/create-prompt-runner";
 import { STORY_GENRES, STORY_TONES } from ".";
 
-export const storyCoreAgent = new LLMAgent({
+export const storyCoreAgent = createPromptRunner({
   role: "creative writing assistant",
   instructions:
     "Given a story concept, generate the story metadata only. Do NOT write characters. Include a title.",
@@ -21,7 +21,7 @@ export const storyCoreAgent = new LLMAgent({
   temperature: 0.85,
 });
 
-export const dmProposalExtractorAgent = new LLMAgent({
+export const dmProposalExtractorAgent = createPromptRunner({
   role: "story entity extractor",
   instructions: [
     "Analyze the DM's story planning response and extract any concrete proposals to add a character, location, or character backstory memory.",
@@ -47,7 +47,7 @@ export const dmProposalExtractorAgent = new LLMAgent({
   temperature: 0.1,
 });
 
-export const supportingFieldsAgent = new LLMAgent({
+export const supportingFieldsAgent = createPromptRunner({
   role: "creative writing assistant",
   instructions:
     "Given a story title and premise, regenerate the supporting metadata fields (genres, tone, rules, writing style). Do NOT write characters or locations.",

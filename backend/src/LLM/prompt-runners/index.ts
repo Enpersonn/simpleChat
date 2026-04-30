@@ -1,3 +1,3 @@
-import { characterPromptRunner } from "../../features/characters/generation-agents";
+import { characterAgent } from "../../features/characters/generation-agents";
 
-export const getAllPromptRunners = () => [characterPromptRunner];
+export const getAllPromptRunners = () => [characterAgent];

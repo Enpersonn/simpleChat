@@ -2,7 +2,7 @@ import { storyCharactersParseAgent } from "../../features/characters/parsing-age
 import { storyLocationsParseAgent } from "../../features/locations/parsing-agent.js";
 import { storyMemoriesParseAgent } from "../../features/memories/parsing-agent.js";
 import { storyCoreParseAgent } from "../../features/stories/parsing-agent.js";
-import type { LLMAgent } from "../generate.js";
+import type { PromptRunner } from "../prompt-runners/create-prompt-runner.js";
 import {
   normaliseCharacter,
   normaliseLocation,
@@ -26,7 +26,7 @@ export interface ParseContext {
 }
 
 export async function runChunked<T>(
-  agent: LLMAgent,
+  agent: PromptRunner,
   chunks: string[],
   contextPrefix: string,
   arrayKey: string,

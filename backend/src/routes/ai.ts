@@ -5,7 +5,7 @@ import {
   type GenerationType,
   generateList,
   generateSingle,
-} from "../generation/service.js";
+} from "../LLM/generation/service.js";
 import {
   type ParseContext,
   type ParseType,
