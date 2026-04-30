@@ -12,8 +12,8 @@
 
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { parseStoryMultiPass } from "../agents/parsing/pipeline.js";
 import { getSettings } from "../config.js";
-import { parseStoryMultiPass } from "../parsing/pipeline.js";
 
 const RESET = "\x1b[0m";
 const BOLD = "\x1b[1m";
@@ -53,7 +53,9 @@ function pct(filled: number, total: number): string {
 async function main() {
   const filePath = process.argv[2];
   if (!filePath) {
-    console.error("Usage: npx tsx backend/scripts/inspect-parse.ts <story-file>");
+    console.error(
+      "Usage: npx tsx backend/scripts/inspect-parse.ts <story-file>",
+    );
     process.exit(1);
   }
 
@@ -85,10 +87,18 @@ async function main() {
   header(`Story Core`);
   const sc = result.storyCore;
   console.log(`  Title    : ${sc.title || dim("(empty)")}`);
-  console.log(`  Premise  : ${sc.premise ? sc.premise.slice(0, 120) + (sc.premise.length > 120 ? "…" : "") : dim("(empty)")}`);
-  console.log(`  Genres   : ${sc.genres.length ? sc.genres.join(", ") : dim("(none)")}`);
-  console.log(`  Tone     : ${sc.tone.length ? sc.tone.join(", ") : dim("(none)")}`);
-  console.log(`  Themes   : ${sc.themes.length ? sc.themes.join(", ") : dim("(none)")}`);
+  console.log(
+    `  Premise  : ${sc.premise ? sc.premise.slice(0, 120) + (sc.premise.length > 120 ? "…" : "") : dim("(empty)")}`,
+  );
+  console.log(
+    `  Genres   : ${sc.genres.length ? sc.genres.join(", ") : dim("(none)")}`,
+  );
+  console.log(
+    `  Tone     : ${sc.tone.length ? sc.tone.join(", ") : dim("(none)")}`,
+  );
+  console.log(
+    `  Themes   : ${sc.themes.length ? sc.themes.join(", ") : dim("(none)")}`,
+  );
 
   const ws = sc.writingStyle;
   const wsFields: [string, string][] = [
@@ -105,14 +115,19 @@ async function main() {
   }
 
   const rules = sc.rules;
-  const totalRules = rules.worldRules.length + rules.storyRules.length + rules.characterRules.length;
-  console.log(`  Rules    : ${totalRules} total (world: ${rules.worldRules.length}, story: ${rules.storyRules.length}, character: ${rules.characterRules.length})`);
+  const totalRules =
+    rules.worldRules.length +
+    rules.storyRules.length +
+    rules.characterRules.length;
+  console.log(
+    `  Rules    : ${totalRules} total (world: ${rules.worldRules.length}, story: ${rules.storyRules.length}, character: ${rules.characterRules.length})`,
+  );
 
   // ── Characters ──────────────────────────────────────────────────────────────
   header(`Characters (${result.characters.length} found)`);
 
   const charFields = ["appearance", "speechStyle", "trueMotives"] as const;
-  type CharFieldKey = typeof charFields[number];
+  type CharFieldKey = (typeof charFields)[number];
   let totalCharFieldsFilled = 0;
   let totalCharFields = 0;
 
@@ -129,7 +144,8 @@ async function main() {
       const val = c[f as CharFieldKey] as string;
       return val && !val.toLowerCase().includes("unknown");
     }).length;
-    totalCharFieldsFilled += filled + (fearCount > 0 ? 1 : 0) + (personalityCount > 0 ? 1 : 0);
+    totalCharFieldsFilled +=
+      filled + (fearCount > 0 ? 1 : 0) + (personalityCount > 0 ? 1 : 0);
     totalCharFields += charFields.length + 2; // appearance, speechStyle, trueMotives, fears, personality
 
     const quality = emptyCount >= 2 ? RED : emptyCount === 1 ? YELLOW : GREEN;
@@ -165,15 +181,15 @@ async function main() {
       const b = locationNames[j].toLowerCase();
       // Warn if one name contains the other, or they share 3+ consecutive words
       if (a.includes(b) || b.includes(a)) {
-        duplicateWarnings.push(`"${locationNames[i]}" vs "${locationNames[j]}"`);
+        duplicateWarnings.push(
+          `"${locationNames[i]}" vs "${locationNames[j]}"`,
+        );
       }
     }
   }
 
   for (const l of result.locations) {
-    const isDupe = duplicateWarnings.some(
-      (w) => w.includes(`"${l.name}"`),
-    );
+    const isDupe = duplicateWarnings.some((w) => w.includes(`"${l.name}"`));
     const marker = isDupe ? `${YELLOW}⚠${RESET}` : `${GREEN}✓${RESET}`;
     console.log(`  ${marker} ${l.name}`);
   }
@@ -188,7 +204,10 @@ async function main() {
   // ── Memories ────────────────────────────────────────────────────────────────
   header(`Memories (${result.memories.length} found)`);
 
-  let genesis = 0, characterDefining = 0, plotEvent = 0, incidental = 0;
+  let genesis = 0,
+    characterDefining = 0,
+    plotEvent = 0,
+    incidental = 0;
   let withDeltas = 0;
 
   for (const m of result.memories) {
@@ -210,7 +229,10 @@ async function main() {
     console.log(`\n  Sample (first 5):`);
     for (const m of result.memories.slice(0, 5)) {
       const imp = m.importance.toFixed(2);
-      const deltaTag = m.deltas.effects.length > 0 ? ` ${dim(`[${m.deltas.effects.length} deltas]`)}` : "";
+      const deltaTag =
+        m.deltas.effects.length > 0
+          ? ` ${dim(`[${m.deltas.effects.length} deltas]`)}`
+          : "";
       console.log(
         `    [${imp}] ${m.characterName}: ${m.summary.slice(0, 80)}${m.summary.length > 80 ? "…" : ""}${deltaTag}`,
       );
@@ -219,14 +241,22 @@ async function main() {
 
   // ── Quality Summary ─────────────────────────────────────────────────────────
   header(`Quality Summary`);
-  console.log(`  Character field fill rate : ${pct(totalCharFieldsFilled, totalCharFields)}`);
+  console.log(
+    `  Character field fill rate : ${pct(totalCharFieldsFilled, totalCharFields)}`,
+  );
   console.log(`  Writing style fill rate   : ${pct(wsFilled, 5)}`);
-  console.log(`  Locations / likely scenes : ${result.locations.length} locations (aim for 8–12)`);
+  console.log(
+    `  Locations / likely scenes : ${result.locations.length} locations (aim for 8–12)`,
+  );
   console.log(`  Duplicate location warnings: ${duplicateWarnings.length}`);
-  console.log(`  Memories with deltas      : ${pct(withDeltas, result.memories.length)}`);
+  console.log(
+    `  Memories with deltas      : ${pct(withDeltas, result.memories.length)}`,
+  );
 
   if (result.locations.length > 20) {
-    bad(`${result.locations.length} locations is likely too many — check for duplicates`);
+    bad(
+      `${result.locations.length} locations is likely too many — check for duplicates`,
+    );
   } else if (result.locations.length > 12) {
     warn(`${result.locations.length} locations is on the high side`);
   } else {
@@ -234,7 +264,9 @@ async function main() {
   }
 
   if (wsFilled < 3) {
-    bad(`Writing style is mostly empty — prompt may not be producing sub-fields`);
+    bad(
+      `Writing style is mostly empty — prompt may not be producing sub-fields`,
+    );
   } else if (wsFilled < 5) {
     warn(`Writing style is partially filled (${wsFilled}/5 fields)`);
   } else {

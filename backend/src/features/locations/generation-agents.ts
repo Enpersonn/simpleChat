@@ -1,4 +1,4 @@
-import { LLMAgent } from "../../generate";
+import { LLMAgent } from "../../agents/generate";
 
 export const locationAgent = new LLMAgent({
   role: "location designer for collaborative fiction",

@@ -3,8 +3,8 @@ import {
   CharacterUpdateSchema,
 } from "@simplechat/types";
 import type { FastifyInstance } from "fastify";
-import { applyMemoryChain } from "../../character-state.js";
 import { getMemoryChainForCharacter } from "../memories/store/index.js";
+import { applyMemoryChain } from "./character-state.js";
 import { createGenesisMemory } from "./index.js";
 import { characters_store } from "./store.js";
 
@@ -83,5 +83,4 @@ export async function charactersRoutes(app: FastifyInstance): Promise<void> {
       return updated;
     },
   );
-
 }

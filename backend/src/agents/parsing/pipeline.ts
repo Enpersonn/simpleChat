@@ -1,7 +1,7 @@
-import { characterDeepDiveAgent } from "../features/characters/parsing-agent.js";
-import { storyLocationsParseAgent } from "../features/locations/parsing-agent.js";
-import { storyMemoriesParseAgent } from "../features/memories/parsing-agent.js";
-import { storyCoreParseAgent } from "../features/stories/parsing-agent.js";
+import { characterDeepDiveAgent } from "../../features/characters/parsing-agent.js";
+import { storyLocationsParseAgent } from "../../features/locations/parsing-agent.js";
+import { storyMemoriesParseAgent } from "../../features/memories/parsing-agent.js";
+import { storyCoreParseAgent } from "../../features/stories/parsing-agent.js";
 import {
   normaliseCharacter,
   normaliseLocation,
@@ -75,7 +75,9 @@ async function runLocations(
   const prefixParts: string[] = [];
   if (ctx?.premise) prefixParts.push(`Story premise: ${ctx.premise}`);
   if (manifest.locationNames.length)
-    prefixParts.push(`Expected locations: ${manifest.locationNames.join(", ")}`);
+    prefixParts.push(
+      `Expected locations: ${manifest.locationNames.join(", ")}`,
+    );
   return runChunked(
     storyLocationsParseAgent,
     chunks,
@@ -113,7 +115,9 @@ async function runCharacterDeepDive(
     // Fallback: agent may return root-level object rather than array
     const parts: string[] = [];
     if (ctx?.premise) parts.push(`Story premise: ${ctx.premise}`);
-    parts.push(`Extract EVERYTHING about the character named "${characterName}" from this story text.`);
+    parts.push(
+      `Extract EVERYTHING about the character named "${characterName}" from this story text.`,
+    );
     parts.push(`Story text (section 1 of ${chunks.length}):\n${chunks[0]}`);
     parts.push("Respond with ONLY the JSON object. No other text.");
     const raw = await characterDeepDiveAgent.run(parts.join("\n\n"));
@@ -137,8 +141,7 @@ async function mergeRelationships(
     for (const rel of rawRels as Record<string, unknown>[]) {
       const fromName =
         typeof rel.fromCharacter === "string" ? rel.fromCharacter : "";
-      const toName =
-        typeof rel.toCharacter === "string" ? rel.toCharacter : "";
+      const toName = typeof rel.toCharacter === "string" ? rel.toCharacter : "";
       if (!fromName || !toName) continue;
       const char = characters.find(
         (c) => c.name.toLowerCase() === fromName.toLowerCase(),

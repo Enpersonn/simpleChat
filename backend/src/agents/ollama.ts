@@ -1,5 +1,5 @@
 import type { OllamaMessage, OllamaModel } from "@simplechat/types";
-import { getSettings } from "./config.js";
+import { getSettings } from "../config.js";
 
 export async function ollamaEndpoint(): Promise<string> {
   const s = await getSettings();

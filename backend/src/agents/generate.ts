@@ -1,5 +1,5 @@
+import { extractJson } from "../utils.js";
 import { streamChat } from "./ollama.js";
-import { extractJson } from "./utils.js";
 
 export class LLMParseError extends Error {
   readonly raw: string;

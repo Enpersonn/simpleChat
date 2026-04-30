@@ -1,4 +1,4 @@
-import { LLMAgent } from "../../generate";
+import { LLMAgent } from "../../agents/generate";
 
 export const storyLocationsParseAgent = new LLMAgent({
   role: "location extractor",

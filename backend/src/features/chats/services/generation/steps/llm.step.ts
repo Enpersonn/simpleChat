@@ -1,4 +1,4 @@
-import { streamChat } from "../../../../../ollama";
+import { streamChat } from "../../../../../agents/ollama";
 import type { GenerationContext } from "../../../types";
 
 export const runLlmStep = async (ctx: GenerationContext) => {

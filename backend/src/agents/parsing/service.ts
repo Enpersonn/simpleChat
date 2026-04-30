@@ -1,8 +1,8 @@
+import { storyCharactersParseAgent } from "../../features/characters/parsing-agent.js";
+import { storyLocationsParseAgent } from "../../features/locations/parsing-agent.js";
+import { storyMemoriesParseAgent } from "../../features/memories/parsing-agent.js";
+import { storyCoreParseAgent } from "../../features/stories/parsing-agent.js";
 import type { LLMAgent } from "../generate.js";
-import { storyCharactersParseAgent } from "../features/characters/parsing-agent.js";
-import { storyLocationsParseAgent } from "../features/locations/parsing-agent.js";
-import { storyMemoriesParseAgent } from "../features/memories/parsing-agent.js";
-import { storyCoreParseAgent } from "../features/stories/parsing-agent.js";
 import {
   normaliseCharacter,
   normaliseLocation,
@@ -10,7 +10,6 @@ import {
   normaliseStoryCore,
   parseArray,
 } from "../normalizers.js";
-import { legacyParseAgent } from "./agents.js";
 import { parseStoryMultiPass } from "./pipeline.js";
 import { chunkText, sanitizeTextForParsing } from "./sanitize.js";
 
@@ -19,7 +18,6 @@ export type ParseType =
   | "story-characters"
   | "story-locations"
   | "story-memories"
-  | "legacy"
   | "multi-pass";
 
 export interface ParseContext {
@@ -52,7 +50,10 @@ export async function runChunked<T>(
       const data = await agent.run(prompt);
       all.push(...parseArray(data, arrayKey, normalise, filter));
     } catch (err) {
-      console.warn(`[runChunked] chunk ${i + 1}/${total} failed:`, (err as Error).message);
+      console.warn(
+        `[runChunked] chunk ${i + 1}/${total} failed:`,
+        (err as Error).message,
+      );
     }
   }
 
@@ -141,35 +142,10 @@ export async function parseEntities(
       return { memories };
     }
 
-    case "legacy": {
-      const sanitized = sanitizeTextForParsing(text);
-      const parts = [
-        `Story text:\n${sanitized}`,
-        "Respond with ONLY the JSON object. No other text.",
-      ];
-      const data = await legacyParseAgent.run(parts.join("\n\n"));
-      return {
-        ...normaliseStoryCore(data, {
-          includeTitle: true,
-          includePremise: true,
-        }),
-        characters: parseArray(
-          data,
-          "characters",
-          normaliseCharacter,
-          (c) => !!c.name,
-        ),
-        locations: parseArray(
-          data,
-          "locations",
-          normaliseLocation,
-          (l) => !!l.name,
-        ),
-      };
-    }
-
     case "multi-pass": {
-      return parseStoryMultiPass(text, ctx) as unknown as Promise<Record<string, unknown>>;
+      return parseStoryMultiPass(text, ctx) as unknown as Promise<
+        Record<string, unknown>
+      >;
     }
   }
 }

@@ -6,8 +6,8 @@ import type {
   Turn,
 } from "@simplechat/types";
 import { z } from "zod";
+import { extractJson } from "../utils.js";
 import { streamChat } from "./ollama.js";
-import { extractJson } from "./utils.js";
 
 const LocationExtractionSchema = z.object({
   currentLocationId: z.union([z.string(), z.null()]).optional(),

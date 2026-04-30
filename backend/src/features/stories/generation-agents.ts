@@ -1,4 +1,4 @@
-import { LLMAgent } from "../../generate";
+import { LLMAgent } from "../../agents/generate";
 import { STORY_GENRES, STORY_TONES } from ".";
 
 export const storyCoreAgent = new LLMAgent({

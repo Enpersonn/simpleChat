@@ -1,4 +1,4 @@
-import { applyMemoryChain } from "../../../../../character-state";
+import { applyMemoryChain } from "../../../../characters/character-state";
 import { buildChainDiffs, resolveCharacterChains } from "../../../helpers";
 import type { GenerationContext } from "../../../types";
 

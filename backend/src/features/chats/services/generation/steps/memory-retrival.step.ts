@@ -1,4 +1,4 @@
-import { findRelevantMemories } from "../../../../../memory-retrieval";
+import { findRelevantMemories } from "../../../../../agents/memory-retrieval";
 import type { GenerationContext } from "../../../types";
 
 export async function retrieveMemoriesStep(ctx: GenerationContext) {

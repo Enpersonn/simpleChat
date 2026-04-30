@@ -1,7 +1,7 @@
 import type { MemoryItem } from "@simplechat/types";
+import { assembleContext } from "../../../../../agents/context";
+import { activeModel } from "../../../../../agents/ollama";
 import { getSettings } from "../../../../../config";
-import { assembleContext } from "../../../../../context";
-import { activeModel } from "../../../../../ollama";
 import type { GenerationContext } from "../../../types";
 
 export const assembleContextStep = async (ctx: GenerationContext) => {

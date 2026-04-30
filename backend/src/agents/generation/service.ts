@@ -1,24 +1,24 @@
 import {
   characterAgent,
   storyCharactersAgent,
-} from "../features/characters/generation-agents.js";
+} from "../../features/characters/generation-agents";
 import {
   locationAgent,
   storyLocationsAgent,
-} from "../features/locations/generation-agents.js";
-import { storyMemoriesAgent } from "../features/memories/generation-agent.js";
+} from "../../features/locations/generation-agents";
+import { storyMemoriesAgent } from "../../features/memories/generation-agent";
 import {
   storyCoreAgent,
   supportingFieldsAgent,
-} from "../features/stories/generation-agents.js";
+} from "../../features/stories/generation-agents";
 import {
   normaliseCharacter,
   normaliseLocation,
   normaliseMemoryItem,
   normaliseStoryCore,
   parseArray,
-} from "../normalizers.js";
-import { streamChat } from "../ollama.js";
+} from "../normalizers";
+import { streamChat } from "../ollama";
 
 export type GenerationType =
   | "story-core"

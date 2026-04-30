@@ -1,4 +1,4 @@
-import { LLMAgent } from "../../generate";
+import { LLMAgent } from "../../agents/generate";
 
 export const characterAgent = new LLMAgent({
   role: "character creator for collaborative fiction",

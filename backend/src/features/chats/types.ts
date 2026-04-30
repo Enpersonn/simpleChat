@@ -10,7 +10,7 @@ import type {
   Turn,
 } from "@simplechat/types";
 import type { FastifyReply, FastifyRequest } from "fastify";
-import type { MemoryReason } from "../../memory-retrieval";
+import type { MemoryReason } from "../../agents/memory-retrieval";
 import type { createGenerationStream } from "./services/generation/generation-stream";
 
 export type GenerationKind = "message" | "regenerate" | "opener";
