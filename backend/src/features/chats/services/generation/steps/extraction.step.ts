@@ -1,4 +1,4 @@
-import { runExtraction } from "../../../../../agents/extraction";
+import { runExtraction } from "../../../../../LLM/extraction";
 import { locations_store } from "../../../../locations/store";
 import { generateLocationFromContext } from "../../../helpers";
 import { chat_state_store } from "../../../store";

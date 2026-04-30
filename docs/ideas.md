@@ -14,6 +14,7 @@ Character driven storys where two or more characters speak without user input an
 5. Improvments to extraction and generation
 - Index the text 
 - Embeding: ollama pull nomic-embed-text
+- PostgreSQL + pgvector
 - Make agents able to ask questions in tool calls. (RAG calls)
 - Add Grep and Glop
 - Look into this:  

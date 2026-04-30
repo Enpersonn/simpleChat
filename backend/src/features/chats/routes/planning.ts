@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { DmProposal, Turn } from "@simplechat/types";
 import type { FastifyInstance } from "fastify";
-import { streamChat } from "../../../agents/ollama";
+import { streamChat } from "../../../LLM/ollama";
 import { characters_store } from "../../characters/store";
 import { locations_store } from "../../locations/store";
 import { dmProposalExtractorAgent } from "../../stories/generation-agents";

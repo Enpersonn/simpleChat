@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { healthCheck, listModels } from "../agents/ollama.js";
+import { healthCheck, listModels } from "../LLM/ollama.js";
 
 export async function ollamaRoutes(app: FastifyInstance): Promise<void> {
   app.get("/ollama/health", async () => {

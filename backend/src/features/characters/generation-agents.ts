@@ -1,6 +1,28 @@
-import { LLMAgent } from "../../agents/generate";
+import { LLMAgent } from "../../LLM/generate";
+import { createPromptRunner } from "../../LLM/prompt-runners/create-prompt-runner";
 
 export const characterAgent = new LLMAgent({
+  role: "character creator for collaborative fiction",
+  instructions:
+    "Given a character description and optional story context, generate a complete character profile.",
+  outputShape: [
+    "{",
+    '  "name": "string",',
+    '  "role": "string (title or occupation)",',
+    '  "age": "string (e.g. \\"mid-30s\\" or \\"ancient\\")",',
+    '  "gender": "string",',
+    '  "species": "string (e.g. human, wolf, android — default human)",',
+    '  "clothing": "string (brief outfit description)",',
+    '  "appearance": "string (2-3 sentences of physical description)",',
+    '  "personality": ["trait1", "trait2"],',
+    '  "speechStyle": "string (one sentence)",',
+    '  "trueMotives": "string (hidden goal, 1-2 sentences)",',
+    '  "fears": ["fear1", "fear2"]',
+    "}",
+  ].join("\n"),
+  temperature: 0.85,
+});
+export const characterPromptRunner = createPromptRunner({
   role: "character creator for collaborative fiction",
   instructions:
     "Given a character description and optional story context, generate a complete character profile.",

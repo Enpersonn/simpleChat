@@ -12,8 +12,8 @@
 
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { parseStoryMultiPass } from "../agents/parsing/pipeline.js";
 import { getSettings } from "../config.js";
+import { parseStoryMultiPass } from "../LLM/parsing/pipeline.js";
 
 const RESET = "\x1b[0m";
 const BOLD = "\x1b[1m";

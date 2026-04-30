@@ -1,9 +1,4 @@
 import type { FastifyInstance } from "fastify";
-import {
-  type ParseContext,
-  type ParseType,
-  parseEntities,
-} from "../agents/parsing/service.js";
 import { handleLLMError } from "../error-handlers.js";
 import {
   type GenerateContext,
@@ -11,6 +6,11 @@ import {
   generateList,
   generateSingle,
 } from "../generation/service.js";
+import {
+  type ParseContext,
+  type ParseType,
+  parseEntities,
+} from "../LLM/parsing/service.js";
 
 export async function aiRoutes(app: FastifyInstance): Promise<void> {
   app.post("/ai/generate", async (req, reply) => {

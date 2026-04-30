@@ -1,4 +1,4 @@
-import { LLMParseError } from "./agents/generate";
+import { LLMParseError } from "./LLM/generate";
 
 export class HttpError extends Error {
   constructor(

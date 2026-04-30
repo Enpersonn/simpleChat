@@ -1,4 +1,4 @@
-import { LLMAgent } from "../../agents/generate";
+import { LLMAgent } from "../../LLM/generate";
 
 export const storyCharactersParseAgent = new LLMAgent({
   role: "character extractor",

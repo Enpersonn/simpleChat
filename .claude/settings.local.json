@@ -25,7 +25,8 @@
       "Bash(npx @biomejs/biome check frontend/src/components/story/DmChatTab.tsx frontend/src/components/story/DmProposalCard.tsx frontend/src/lib/stream.ts backend/src/routes/chats.ts)",
       "Bash(npx kill-port *)",
       "Bash(grep -v \"^$\")",
-      "Bash(git stash *)"
+      "Bash(git stash *)",
+      "Bash(xargs -I{} sh -c 'echo \"=== {} ===\"; cat \"{}\"')"
     ],
     "additionalDirectories": [
       "C:\\Users\\nicbaaki\\.claude\\projects\\c--Users-nicbaaki-Documents-PersonalProjects-a-chat-simpleChat"

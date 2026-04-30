@@ -7,7 +7,7 @@ import {
   type Story,
   type Turn,
 } from "@simplechat/types";
-import { streamChat } from "../../agents/ollama";
+import { streamChat } from "../../LLM/ollama";
 import { extractJson } from "../../utils";
 import { getMemoryChainForCharacter } from "../memories/store";
 
