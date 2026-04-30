@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
-import type { ZodTypeAny, z } from "zod";
+import { type ZodTypeAny, z } from "zod";
 import { dataDir } from "../config";
+import type { Tool } from "../LLM/tools/register-tool";
 import { now, readJson, writeJson } from "./helpers";
 
 type Filter<T> = Partial<{
@@ -106,5 +107,43 @@ export class BaseStorageObject<TSchema extends ZodTypeAny> {
 
     await writeJson(await this.dataPath(), updatedTable);
     return true;
+  }
+
+  public asTools(): Tool<any, any>[] {
+    const t = this.dataType;
+    return [
+      {
+        name: `${t}.get`,
+        description: `Get a single ${t} record by id`,
+        schema: z.object({ id: z.string() }),
+        execute: ({ id }: { id: string }) => this.get(id),
+      },
+      {
+        name: `${t}.list`,
+        description: `List all ${t} records, optionally filtered by field values`,
+        schema: z.object({ filters: z.record(z.unknown()).optional() }),
+        execute: ({ filters }: { filters?: Record<string, unknown> }) =>
+          this.list(filters as Filter<z.infer<TSchema>>),
+      },
+      {
+        name: `${t}.add`,
+        description: `Create a new ${t} record`,
+        schema: z.object({ body: z.record(z.unknown()) }),
+        execute: ({ body }: { body: Record<string, unknown> }) => this.add(body),
+      },
+      {
+        name: `${t}.update`,
+        description: `Update an existing ${t} record by id`,
+        schema: z.object({ id: z.string(), body: z.record(z.unknown()) }),
+        execute: ({ id, body }: { id: string; body: Record<string, unknown> }) =>
+          this.update(id, body),
+      },
+      {
+        name: `${t}.delete`,
+        description: `Delete a ${t} record by id`,
+        schema: z.object({ id: z.string() }),
+        execute: ({ id }: { id: string }) => this.delete(id),
+      },
+    ];
   }
 }

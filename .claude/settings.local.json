@@ -26,7 +26,8 @@
       "Bash(npx kill-port *)",
       "Bash(grep -v \"^$\")",
       "Bash(git stash *)",
-      "Bash(xargs -I{} sh -c 'echo \"=== {} ===\"; cat \"{}\"')"
+      "Bash(xargs -I{} sh -c 'echo \"=== {} ===\"; cat \"{}\"')",
+      "Bash(echo \"Exit: $?\")"
     ],
     "additionalDirectories": [
       "C:\\Users\\nicbaaki\\.claude\\projects\\c--Users-nicbaaki-Documents-PersonalProjects-a-chat-simpleChat"
