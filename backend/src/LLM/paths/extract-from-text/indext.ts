@@ -1,8 +1,6 @@
 import { z } from "zod";
 import { createPromptRunner } from "../../prompt-runners/create-prompt-runner";
 
-// ─── Chunking ─────────────────────────────────────────────────────────────────
-
 export function chunkText(
   text: string,
   charsPerChunk = 3000,
@@ -14,10 +12,14 @@ export function chunkText(
   let current = "";
 
   for (const sentence of sentences) {
-    if (current.length + sentence.length > charsPerChunk && current.length > 0) {
+    if (
+      current.length + sentence.length > charsPerChunk &&
+      current.length > 0
+    ) {
       chunks.push(current.trimEnd());
       // Carry the tail of the previous chunk into the next one for context continuity
-      const tail = current.length > overlapChars ? current.slice(-overlapChars) : current;
+      const tail =
+        current.length > overlapChars ? current.slice(-overlapChars) : current;
       current = tail.trimStart() + " " + sentence;
     } else {
       current += (current ? " " : "") + sentence;
@@ -27,8 +29,6 @@ export function chunkText(
   if (current.trim()) chunks.push(current.trim());
   return chunks.length > 0 ? chunks : [text];
 }
-
-// ─── Internal helpers ─────────────────────────────────────────────────────────
 
 function normalizeValue(value: string): string {
   return value
@@ -51,11 +51,16 @@ async function withConcurrencyLimit<T>(
     }
   }
 
-  await Promise.all(Array.from({ length: Math.min(limit, fns.length) }, worker));
+  await Promise.all(
+    Array.from({ length: Math.min(limit, fns.length) }, worker),
+  );
   return results;
 }
 
-async function withRetry<T>(fn: () => Promise<T>, attempts = 2): Promise<T | null> {
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  attempts = 2,
+): Promise<T | null> {
   for (let i = 0; i < attempts; i++) {
     try {
       return await fn();
@@ -65,8 +70,6 @@ async function withRetry<T>(fn: () => Promise<T>, attempts = 2): Promise<T | nul
   }
   return null;
 }
-
-// ─── Prompt runners ───────────────────────────────────────────────────────────
 
 export const extractionPromptRunner = (tag: string, def: string) =>
   createPromptRunner({
@@ -105,20 +108,17 @@ Rules:
     temperature: 0,
   });
 
-// ─── Main export ──────────────────────────────────────────────────────────────
-
 export type ExtractionTag = [tag: string, def: string];
 
 export type ExtractFromTextOptions = {
   chunks: string[];
   extractionTags: ExtractionTag[];
-  /** Max parallel LLM calls. Defaults to 3 — safe for local Ollama. */
   maxConcurrency?: number;
-  /** Run a second LLM pass to merge aliases and remove noise. Defaults to true. */
   consolidate?: boolean;
-  /** Called after each chunk×tag unit completes. */
   onProgress?: (done: number, total: number) => void;
 };
+
+//TODO: Extraction should include the chunk where things where found so it can be used later when extracting info around the chunks
 
 export const extractFromText = async ({
   chunks,
@@ -163,7 +163,6 @@ export const extractFromText = async ({
 
   if (!consolidate) return raw;
 
-  // Consolidation pass — one LLM call per tag over all collected raw values
   const consolidators = Object.fromEntries(
     extractionTags.map(([tag, def]) => [tag, consolidationRunner(tag, def)]),
   );
