@@ -1,23 +1,17 @@
+import { z } from "zod";
 import { createPromptRunner } from "../../LLM/prompt-runners/create-prompt-runner";
 import { STORY_GENRES, STORY_TONES } from ".";
 
 export const storyCoreAgent = createPromptRunner({
   role: "creative writing assistant",
-  instructions:
-    "Given a story concept, generate the story metadata only. Do NOT write characters. Include a title.",
-  outputShape: [
-    "{",
-    '  "title": "string",',
-    '  "genres": ["string", ...],',
-    `  // allowed genres: ${STORY_GENRES.join(", ")}`,
-    '  "tone": ["string", ...],',
-    `  // allowed tones: ${STORY_TONES.join(", ")}`,
-    '  "rules": ["string", ...],',
-    "  // 2-4 world rules as short sentences",
-    '  "writingStyle": "string"',
-    "  // one sentence describing narrative style",
-    "}",
-  ].join("\n"),
+  instructions: `Given a story concept, generate the story metadata only. Do NOT write characters. Include a title. Allowed genres: ${STORY_GENRES.join(", ")}. Allowed tones: ${STORY_TONES.join(", ")}. Include 2-4 world rules as short sentences. writingStyle is one sentence describing narrative style.`,
+  outputSchema: z.object({
+    title: z.string(),
+    genres: z.array(z.string()),
+    tone: z.array(z.string()),
+    rules: z.array(z.string()),
+    writingStyle: z.string(),
+  }),
   temperature: 0.85,
 });
 
@@ -32,34 +26,27 @@ export const dmProposalExtractorAgent = createPromptRunner({
     "For location entityData include: name, description, layout, lighting, atmosphere, soundscape, smells, notes, tags (array).",
     "For memory entityData include: characterName (must match an existing character name), summary (one sentence), tags (array), importance (0.0-1.0).",
   ].join(" "),
-  outputShape: [
-    "{",
-    '  "proposals": [',
-    "    {",
-    '      "id": "generated-uuid",',
-    '      "type": "character|location|memory",',
-    '      "rationale": "one sentence: why this entity fits the story",',
-    '      "entityData": { /* fields for the entity type as described above */ }',
-    "    }",
-    "  ]",
-    "}",
-  ].join("\n"),
+  outputSchema: z.object({
+    proposals: z.array(
+      z.object({
+        id: z.string(),
+        type: z.enum(["character", "location", "memory"]),
+        rationale: z.string(),
+        entityData: z.record(z.unknown()),
+      }),
+    ),
+  }),
   temperature: 0.1,
 });
 
 export const supportingFieldsAgent = createPromptRunner({
   role: "creative writing assistant",
-  instructions:
-    "Given a story title and premise, regenerate the supporting metadata fields (genres, tone, rules, writing style). Do NOT write characters or locations.",
-  outputShape: [
-    "{",
-    '  "genres": ["string", ...],',
-    `  // allowed genres: ${STORY_GENRES.join(", ")}`,
-    '  "tone": ["string", ...],',
-    `  // allowed tones: ${STORY_TONES.join(", ")}`,
-    '  "rules": ["string", ...],',
-    '  "writingStyle": "string"',
-    "}",
-  ].join("\n"),
+  instructions: `Given a story title and premise, regenerate the supporting metadata fields (genres, tone, rules, writing style). Do NOT write characters or locations. Allowed genres: ${STORY_GENRES.join(", ")}. Allowed tones: ${STORY_TONES.join(", ")}.`,
+  outputSchema: z.object({
+    genres: z.array(z.string()),
+    tone: z.array(z.string()),
+    rules: z.array(z.string()),
+    writingStyle: z.string(),
+  }),
   temperature: 0.85,
 });

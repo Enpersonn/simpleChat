@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { createPromptRunner } from "../../LLM/prompt-runners/create-prompt-runner";
 
 export const storyLocationsParseAgent = createPromptRunner({
@@ -10,25 +11,23 @@ export const storyLocationsParseAgent = createPromptRunner({
     "Only create a child location if it is clearly distinct from its parent.",
     "connectedLocationNames lists locations reachable via a path, door, or portal (non-hierarchical connections).",
   ].join(" "),
-  outputShape: [
-    "{",
-    '  "locations": [',
-    "    {",
-    '      "name": "string",',
-    '      "description": "string",',
-    '      "layout": "string",',
-    '      "lighting": "string",',
-    '      "atmosphere": "string",',
-    '      "soundscape": "string",',
-    '      "smells": "string",',
-    '      "notes": "string",',
-    '      "tags": ["string"],',
-    '      "parentLocationName": "string or null",',
-    '      "connectedLocationNames": ["string"]',
-    "    }",
-    "  ]",
-    "}",
-  ].join("\n"),
+  outputSchema: z.object({
+    locations: z.array(
+      z.object({
+        name: z.string(),
+        description: z.string().optional().default(""),
+        layout: z.string().optional().default(""),
+        lighting: z.string().optional().default(""),
+        atmosphere: z.string().optional().default(""),
+        soundscape: z.string().optional().default(""),
+        smells: z.string().optional().default(""),
+        notes: z.string().optional().default(""),
+        tags: z.array(z.string()).optional().default([]),
+        parentLocationName: z.string().nullable().optional().default(null),
+        connectedLocationNames: z.array(z.string()).optional().default([]),
+      }),
+    ),
+  }),
   temperature: 0.1,
   num_ctx: 8192,
 });

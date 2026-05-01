@@ -2,8 +2,8 @@ import type {
   CanonTimeline,
   Character,
   CharacterCreate,
-  CharacterUpdate,
   CharacterMemoryRelation,
+  CharacterUpdate,
   EntityFieldDef,
   StoryLocation as Location,
   LocationCreate,
@@ -22,7 +22,10 @@ interface StoriesState {
   characters: Character[];
   locations: Location[];
   canonTimeline: CanonTimeline | null;
-  characterMemories: Record<string, Array<{ relation: CharacterMemoryRelation; memory: MemoryItem }>>;
+  characterMemories: Record<
+    string,
+    Array<{ relation: CharacterMemoryRelation; memory: MemoryItem }>
+  >;
   fieldDefs: EntityFieldDef[];
   loading: boolean;
   error: string | null;

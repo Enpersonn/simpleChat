@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { createPromptRunner } from "../prompt-runners/create-prompt-runner.js";
 
 export const censusAgent = createPromptRunner({
@@ -9,13 +10,11 @@ export const censusAgent = createPromptRunner({
     "sceneNames: every scene or act title found in the text (look for delimiter lines like —Scene Name—).",
     "If no scene delimiters exist, infer scene names from major location or event transitions.",
   ].join(" "),
-  outputShape: [
-    "{",
-    '  "characterNames": ["string"],',
-    '  "locationNames": ["string"],',
-    '  "sceneNames": ["string"]',
-    "}",
-  ].join("\n"),
+  outputSchema: z.object({
+    characterNames: z.array(z.string()),
+    locationNames: z.array(z.string()),
+    sceneNames: z.array(z.string()),
+  }),
   temperature: 0.1,
   num_ctx: 8192,
 });

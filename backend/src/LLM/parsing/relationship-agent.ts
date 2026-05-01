@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { createPromptRunner } from "../prompt-runners/create-prompt-runner.js";
 
 export const relationshipAgent = createPromptRunner({
@@ -8,20 +9,18 @@ export const relationshipAgent = createPromptRunner({
     "trustLevel is an integer 0–10 (0=no trust, 5=neutral, 10=complete trust).",
     "fromCharacter and toCharacter must match character names exactly.",
   ].join(" "),
-  outputShape: [
-    "{",
-    '  "relationships": [',
-    "    {",
-    '      "fromCharacter": "string",',
-    '      "toCharacter": "string",',
-    '      "emotion": "string — e.g. love, fear, rivalry, ally, hate, distrust, respect, neutral",',
-    '      "publicAttitude": "string — how fromCharacter visibly acts toward toCharacter",',
-    '      "privateAttitude": "string — fromCharacter hidden feelings",',
-    '      "trustLevel": 5',
-    "    }",
-    "  ]",
-    "}",
-  ].join("\n"),
+  outputSchema: z.object({
+    relationships: z.array(
+      z.object({
+        fromCharacter: z.string(),
+        toCharacter: z.string(),
+        emotion: z.string(),
+        publicAttitude: z.string(),
+        privateAttitude: z.string(),
+        trustLevel: z.number(),
+      }),
+    ),
+  }),
   temperature: 0.1,
   num_ctx: 8192,
 });

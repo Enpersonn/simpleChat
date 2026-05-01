@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { createPromptRunner } from "../prompt-runners/create-prompt-runner.js";
 
 export const identityAgent = createPromptRunner({
@@ -11,26 +12,27 @@ export const identityAgent = createPromptRunner({
     "linkedCharacterNames are other character names who ARE the same entity.",
     "Only include entries where there is at least one identity or one link to report.",
   ].join(" "),
-  outputShape: [
-    "{",
-    '  "links": [',
-    "    {",
-    '      "characterName": "string — the primary character name",',
-    '      "linkedCharacterNames": ["string — other names that are the same entity"],',
-    '      "identities": [',
-    "        {",
-    '          "name": "string — name of this form or persona",',
-    '          "selfAware": true,',
-    '          "conditions": "string — when/how this manifests",',
-    '          "appearance": "string",',
-    '          "abilities": ["string"],',
-    '          "notes": "string"',
-    "        }",
-    "      ]",
-    "    }",
-    "  ]",
-    "}",
-  ].join("\n"),
+  outputSchema: z.object({
+    links: z.array(
+      z.object({
+        characterName: z.string(),
+        linkedCharacterNames: z.array(z.string()),
+        identities: z
+          .array(
+            z.object({
+              name: z.string(),
+              selfAware: z.boolean(),
+              conditions: z.string().optional(),
+              appearance: z.string().optional(),
+              abilities: z.array(z.string()),
+              notes: z.string().optional(),
+            }),
+          )
+          .optional()
+          .default([]),
+      }),
+    ),
+  }),
   temperature: 0.1,
   num_ctx: 8192,
 });

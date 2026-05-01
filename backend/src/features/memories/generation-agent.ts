@@ -1,40 +1,46 @@
+import { z } from "zod";
 import { createPromptRunner } from "../../LLM/prompt-runners/create-prompt-runner";
+
+const relationshipSchema = z.object({
+  otherCharacterName: z.string(),
+  emotion: z.string().optional().default(""),
+  publicAttitude: z.string().optional().default(""),
+  privateAttitude: z.string().optional().default(""),
+  trustLevel: z.number().optional().default(5),
+});
 
 export const storyMemoriesAgent = createPromptRunner({
   role: "backstory writer for collaborative fiction",
   instructions:
-    "Given a story concept, invent 2–4 backstory/origin events per character — things that happened BEFORE the story begins that shaped who they are. Focus on events with emotional weight: first meetings, formative traumas, key decisions, lost relationships. Order events chronologically, interleave characters naturally.",
-  outputShape: [
-    "{",
-    '  "memories": [',
-    "    {",
-    '      "characterName": "string — must match one of the provided character names",',
-    '      "summary": "string — one sentence describing the backstory event",',
-    '      "tags": ["string"],',
-    '      "importance": 0.0,',
-    "      // importance 0.0–1.0: 0.9+ for defining moments, 0.6 for significant backstory, 0.4 for minor history",
-    '      "deltas": {',
-    "        // omit entire deltas object if no trait changes resulted from this event",
-    '        "personality": { "add": ["new trait"], "remove": ["lost trait"] },',
-    '        "fears": { "add": ["new fear"], "remove": ["resolved fear"] },',
-    '        "speechStyle": "new speech style if this event changed it, otherwise omit",',
-    '        "appearance": "new appearance if this event changed it, otherwise omit",',
-    '        "relationships": [',
-    "          {",
-    '            "otherCharacterName": "string",',
-    '            "emotion": "string",',
-    '            "publicAttitude": "string",',
-    '            "privateAttitude": "string",',
-    '            "trustLevel": 5',
-    "          }",
-    "        ]",
-    "        // include relationships only if this event changed how they feel about another character",
-    "      }",
-    "    }",
-    "  ]",
-    "  // ordered chronologically: earliest event first",
-    "  // interleave characters naturally in timeline order",
-    "}",
-  ].join("\n"),
+    "Given a story concept, invent 2–4 backstory/origin events per character — things that happened BEFORE the story begins that shaped who they are. Focus on events with emotional weight: first meetings, formative traumas, key decisions, lost relationships. Order events chronologically, interleave characters naturally. importance 0.0–1.0: 0.9+ for defining moments, 0.6 for significant backstory, 0.4 for minor history. Omit the deltas object entirely if no trait changes resulted from the event. Include relationships in deltas only if the event changed how a character feels about another.",
+  outputSchema: z.object({
+    memories: z.array(
+      z.object({
+        characterName: z.string(),
+        summary: z.string(),
+        tags: z.array(z.string()).optional().default([]),
+        importance: z.number(),
+        deltas: z
+          .object({
+            personality: z
+              .object({
+                add: z.array(z.string()).optional().default([]),
+                remove: z.array(z.string()).optional().default([]),
+              })
+              .optional(),
+            fears: z
+              .object({
+                add: z.array(z.string()).optional().default([]),
+                remove: z.array(z.string()).optional().default([]),
+              })
+              .optional(),
+            speechStyle: z.string().optional(),
+            appearance: z.string().optional(),
+            relationships: z.array(relationshipSchema).optional().default([]),
+          })
+          .optional(),
+      }),
+    ),
+  }),
   temperature: 0.85,
 });

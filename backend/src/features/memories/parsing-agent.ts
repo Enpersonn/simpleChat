@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { createPromptRunner } from "../../LLM/prompt-runners/create-prompt-runner";
 
 export const storyMemoriesParseAgent = createPromptRunner({
@@ -9,34 +10,31 @@ export const storyMemoriesParseAgent = createPromptRunner({
     "For effects: list only fields that CHANGED as a result of this event, using the exact dot-path (e.g. public.personality, private.hiddenEmotionalState, private.fears, relationships). Use op 'add' or 'remove' for arrays, 'set' for strings. Omit effects entirely if nothing changed.",
     "entityType is always 'character'. targetId is only needed for relationship path effects.",
   ].join(" "),
-  outputShape: [
-    "{",
-    '  "memories": [',
-    "    {",
-    '      "characterName": "string — must match one of the provided character names",',
-    '      "summary": "string — one sentence describing what happened to this character",',
-    '      "tags": ["string"],',
-    '      "importance": 0.0,',
-    '      "sceneId": "string — scene name, or null",',
-    '      "storyOrder": 1,',
-    '      "effects": [',
-    "        {",
-    '          "path": "public.personality",',
-    '          "op": "add",',
-    '          "value": "new trait",',
-    '          "weight": 1,',
-    '          "entityType": "character"',
-    "        },",
-    "        {",
-    '          "path": "private.hiddenEmotionalState",',
-    '          "op": "set",',
-    '          "value": "description of new emotional state"',
-    "        }",
-    "      ]",
-    "    }",
-    "  ]",
-    "}",
-  ].join("\n"),
+  outputSchema: z.object({
+    memories: z.array(
+      z.object({
+        characterName: z.string(),
+        summary: z.string(),
+        tags: z.array(z.string()).optional().default([]),
+        importance: z.number(),
+        sceneId: z.string().nullable().optional().default(null),
+        storyOrder: z.number(),
+        effects: z
+          .array(
+            z.object({
+              path: z.string(),
+              op: z.string(),
+              value: z.unknown().optional(),
+              weight: z.number().optional().default(1),
+              entityType: z.string().optional().default("character"),
+              targetId: z.string().optional(),
+            }),
+          )
+          .optional()
+          .default([]),
+      }),
+    ),
+  }),
   temperature: 0.1,
   num_ctx: 8192,
 });

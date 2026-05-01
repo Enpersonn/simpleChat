@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { createPromptRunner } from "../../LLM/prompt-runners/create-prompt-runner";
 import { STORY_GENRES, STORY_TONES } from ".";
 
@@ -11,27 +12,29 @@ export const storyCoreParseAgent = createPromptRunner({
     "For rules, separate world physics (worldRules), narrative demands (storyRules), and per-character constraints (characterRules).",
     "themes are the core thematic concerns of the story (e.g. redemption, identity, sacrifice).",
   ].join(" "),
-  outputShape: [
-    "{",
-    '  "title": "string",',
-    '  "premise": "string — synthesised 2-4 sentence premise",',
-    '  "genres": ["string", ...],',
-    '  "tone": ["string", ...],',
-    '  "themes": ["string", ...],',
-    '  "writingStyle": {',
-    '    "prose": "sentence rhythm and density",',
-    '    "interiority": "depth of internal monologue",',
-    '    "dialogue": "style of speech",',
-    '    "pacing": "scene rhythm",',
-    '    "sensory": "dominant senses and details"',
-    "  },",
-    '  "rules": {',
-    '    "worldRules": ["physics of the universe that always apply"],',
-    '    "storyRules": ["what this narrative demands of its characters"],',
-    '    "characterRules": ["per-story constraints on specific characters"]',
-    "  }",
-    "}",
-  ].join("\n"),
+  outputSchema: z.object({
+    title: z.string(),
+    premise: z.string(),
+    genres: z.array(z.string()),
+    tone: z.array(z.string()),
+    themes: z.array(z.string()).optional().default([]),
+    writingStyle: z
+      .object({
+        prose: z.string().optional().default(""),
+        interiority: z.string().optional().default(""),
+        dialogue: z.string().optional().default(""),
+        pacing: z.string().optional().default(""),
+        sensory: z.string().optional().default(""),
+      })
+      .optional(),
+    rules: z
+      .object({
+        worldRules: z.array(z.string()).optional().default([]),
+        storyRules: z.array(z.string()).optional().default([]),
+        characterRules: z.array(z.string()).optional().default([]),
+      })
+      .optional(),
+  }),
   temperature: 0.1,
   num_ctx: 8192,
 });
