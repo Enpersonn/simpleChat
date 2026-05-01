@@ -2,7 +2,6 @@ import { storyCharactersParseAgent } from "../../features/characters/parsing-age
 import { storyLocationsParseAgent } from "../../features/locations/parsing-agent.js";
 import { storyMemoriesParseAgent } from "../../features/memories/parsing-agent.js";
 import { storyCoreParseAgent } from "../../features/stories/parsing-agent.js";
-import type { PromptRunner } from "../prompt-runners/create-prompt-runner.js";
 import {
   normaliseCharacter,
   normaliseLocation,
@@ -10,6 +9,7 @@ import {
   normaliseStoryCore,
   parseArray,
 } from "../normalizers.js";
+import type { PromptRunner } from "../prompt-runners/create-prompt-runner.js";
 import { parseStoryMultiPass } from "./pipeline.js";
 import { chunkText, sanitizeTextForParsing } from "./sanitize.js";
 

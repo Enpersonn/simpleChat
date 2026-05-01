@@ -1,20 +1,22 @@
-//nomic-embed-text
-
 import { ollamaEndpoint } from "../ollama";
 
-export const embedText = async (text: string) => {
+type OllamaEmbedResponse = {
+  model: string;
+  embeddings: number[][];
+};
+
+const EMBED_MODEL = "nomic-embed-text";
+
+export const embedText = async (text: string): Promise<number[]> => {
   const endpoint = await ollamaEndpoint();
 
-  const body = {
-    model: "nomic-embed-text",
-    stream: false,
-  };
-
-  const res = await fetch(`${endpoint}/api/chat`, {
+  const res = await fetch(`${endpoint}/api/embed`, {
     method: "POST",
-    messages: [],
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    body: JSON.stringify({
+      model: EMBED_MODEL,
+      input: text,
+    }),
   });
 
   if (!res.ok) {
@@ -22,5 +24,38 @@ export const embedText = async (text: string) => {
     throw new Error(`Ollama error ${res.status}: ${err}`);
   }
 
-  if (!res.body) throw new Error("No response body from Ollama");
+  const data = (await res.json()) as OllamaEmbedResponse;
+
+  const embedding = data.embeddings?.[0];
+  if (!embedding) {
+    throw new Error("No embedding returned from Ollama");
+  }
+
+  return embedding;
+};
+
+export const embedTexts = async (texts: string[]): Promise<number[][]> => {
+  const endpoint = await ollamaEndpoint();
+
+  const res = await fetch(`${endpoint}/api/embed`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: EMBED_MODEL,
+      input: texts,
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Ollama error ${res.status}: ${err}`);
+  }
+
+  const data = (await res.json()) as OllamaEmbedResponse;
+
+  if (!Array.isArray(data.embeddings)) {
+    throw new Error("No embeddings returned from Ollama");
+  }
+
+  return data.embeddings;
 };
