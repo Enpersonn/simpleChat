@@ -21,3 +21,5 @@ Character driven storys where two or more characters speak without user input an
 "GitHub Copilot extends this: it embeds your open files, recent files, imported modules, and uses cosine similarity to decide what to put in context for the current completion."
 - Make LLMAgent take in zod schema as expected output. 
 - Add multi-pass call support
+
+6. Storis and drafts can be importat and LLM can Find plot holes in timeline story inconsistancies etc.

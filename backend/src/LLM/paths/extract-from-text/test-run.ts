@@ -1,8 +1,10 @@
-import { readFile } from "fs/promises";
-import { chunkText, type ExtractionTag, extractFromText } from "./indext.js";
-
-// ─── Story presets ─────────────────────────────────────────────────────────
-// All from Project Gutenberg. Ground truth is a known subset to measure recall.
+import { readFile } from "node:fs/promises";
+import {
+  chunkText,
+  type ExtractedValue,
+  type ExtractionTag,
+  extractFromText,
+} from "./indext.js";
 
 const STORIES = {
   holmes: {
@@ -52,8 +54,6 @@ const STORIES = {
 
 type StoryKey = keyof typeof STORIES;
 
-// ─── Default extraction tags ───────────────────────────────────────────────
-
 const DEFAULT_TAGS: ExtractionTag[] = [
   [
     "characters",
@@ -63,13 +63,11 @@ const DEFAULT_TAGS: ExtractionTag[] = [
     "locations",
     "a named place, building, region, realm, or setting — not vague descriptions like 'a corner' or 'the street'",
   ],
-  [
-    "items",
-    "a distinct physical object a character can hold, carry, or use — not body parts, not locations, not abstract concepts",
-  ],
+  // [
+  //   "items",
+  //   "a distinct physical object a character can hold, carry, or use — not body parts, not locations, not abstract concepts",
+  // ],
 ];
-
-// ─── Gutenberg helpers ─────────────────────────────────────────────────────
 
 function stripGutenbergBoilerplate(text: string): string {
   const startMarker = "*** START OF THE PROJECT GUTENBERG EBOOK";
@@ -112,15 +110,20 @@ function printProgress(done: number, total: number, startMs: number) {
 }
 
 function printResults(
-  result: Record<string, string[]>,
+  result: Record<string, ExtractedValue[]>,
   groundTruth?: Partial<Record<string, string[]>>,
 ) {
-  for (const [tag, values] of Object.entries(result)) {
-    console.log(`── ${tag} (${values.length})`);
-    console.log("  " + (values.join(", ") || "(none)"));
+  for (const [tag, entries] of Object.entries(result)) {
+    console.log(`── ${tag} (${entries.length})`);
+    console.log(
+      `  ${entries.map((e) => `${e.value}(num of chunks: ${e.chunkIndices.length})`).join(",\n ") || "(none)"}`,
+    );
     const gt = groundTruth?.[tag];
     if (gt) {
-      const { recall, hits, missing } = scoreRecall(values, gt);
+      const { recall, hits, missing } = scoreRecall(
+        entries.map((e) => e.value),
+        gt,
+      );
       console.log(
         `  recall: ${(recall * 100).toFixed(0)}%  [${hits.length}/${gt.length} known entities]`,
       );
@@ -129,8 +132,6 @@ function printResults(
     console.log();
   }
 }
-
-// ─── Main ─────────────────────────────────────────────────────────────────
 
 async function main() {
   const arg = process.argv[2];
