@@ -1,43 +1,43 @@
 {
-  "permissions": {
-    "allow": [
-      "Bash(npm install *)",
-      "Bash(npx tsc *)",
-      "Bash(npm run *)",
-      "Read(//tmp/**)",
-      "Bash(curl -s http://127.0.0.1:3001/health)",
-      "Bash(curl -s http://127.0.0.1:3001/stories)",
-      "Bash(curl -s -X POST http://127.0.0.1:3001/stories -H 'Content-Type: application/json' -d '{\"title\":\"Test Story\",\"premise\":\"A hero wakes in a dying world.\",\"tone\":[\"grim\"],\"genres\":[\"Fantasy\"]}')",
-      "Bash(curl -s -X POST http://127.0.0.1:3001/stories/fb9ae90b-8837-48e4-8f8b-dee01da2dbc3/characters -H 'Content-Type: application/json' -d '{\"name\":\"Kael\",\"role\":\"wanderer\",\"public\":{\"personality\":[\"stoic\",\"observant\"],\"speechStyle\":\"blunt, few words\"},\"private\":{\"trueMotives\":\"Searching for his missing sister\"}}')",
-      "Bash(curl -s -X POST http://127.0.0.1:3001/stories/fb9ae90b-8837-48e4-8f8b-dee01da2dbc3/chats -H 'Content-Type: application/json' -d '{\"mode\":\"interactive\",\"title\":\"First Session\"}')",
-      "Bash(curl -s http://127.0.0.1:3001/ollama/health)",
-      "Bash(curl -s http://127.0.0.1:3001/settings)",
-      "Bash(node -e \"const { marked } = require\\('./node_modules/marked/src/marked.cjs'\\); console.log\\(typeof marked.parse\\('hello'\\)\\); console.log\\(marked.parse\\('hello'\\)\\)\")",
-      "Bash(node --input-type=module -e \"import { marked } from 'D:/workprojects/simpleChat/node_modules/marked/src/marked.js'; const r = marked.parse\\('hello'\\); console.log\\(typeof r, r instanceof Promise, r\\)\")",
-      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('version:', d.get\\('version'\\)\\); print\\('main:', d.get\\('main'\\)\\); print\\('module:', d.get\\('module'\\)\\)\")",
-      "Bash(node *)",
-      "Bash(npx biome *)",
-      "Bash(node_modules/.bin/tsc --project backend/tsconfig.json --noEmit)",
-      "Bash(node_modules/.bin/tsc --project frontend/tsconfig.json --noEmit)",
-      "Bash(grep -v \".ts$\")",
-      "Read(//c/Users/nicbaaki/.claude/projects/c--Users-nicbaaki-Documents-PersonalProjects-a-chat-simpleChat/**)",
-      "Bash(python *)",
-      "Bash(npx @biomejs/biome check frontend/src/components/story/DmChatTab.tsx frontend/src/components/story/DmProposalCard.tsx frontend/src/lib/stream.ts backend/src/routes/chats.ts)",
-      "Bash(npx kill-port *)",
-      "Bash(grep -v \"^$\")",
-      "Bash(git stash *)",
-      "Bash(xargs -I{} sh -c 'echo \"=== {} ===\"; cat \"{}\"')",
-      "Bash(echo \"Exit: $?\")",
-      "Bash(curl -s \"https://www.gutenberg.org/cache/epub/1661/pg1661.txt\")",
-      "Bash(curl -s \"https://www.gutenberg.org/cache/epub/1184/pg1184.txt\")",
-      "Bash(curl -s \"https://www.gutenberg.org/cache/epub/1952/pg1952.txt\")",
-      "Bash(echo \"FRONTEND_EXIT:$?\")",
-      "Bash(echo \"BACKEND_EXIT:$?\")",
-      "Bash(grep -rn \"#[0-9a-fA-F]\\\\{3,6\\\\}\\\\|rgba\\(\" /home/nicklas/Documents/personal-projects/simpleChat/frontend/src/components --include=\"*.module.css\")",
-      "Bash(npx vite *)"
-    ],
-    "additionalDirectories": [
-      "C:\\Users\\nicbaaki\\.claude\\projects\\c--Users-nicbaaki-Documents-PersonalProjects-a-chat-simpleChat"
-    ]
-  }
+	"permissions": {
+		"allow": [
+			"Bash(npm install *)",
+			"Bash(npx tsc *)",
+			"Bash(npm run *)",
+			"Read(//tmp/**)",
+			"Bash(curl -s http://127.0.0.1:3001/health)",
+			"Bash(curl -s http://127.0.0.1:3001/stories)",
+			"Bash(curl -s -X POST http://127.0.0.1:3001/stories -H 'Content-Type: application/json' -d '{\"title\":\"Test Story\",\"premise\":\"A hero wakes in a dying world.\",\"tone\":[\"grim\"],\"genres\":[\"Fantasy\"]}')",
+			"Bash(curl -s -X POST http://127.0.0.1:3001/stories/fb9ae90b-8837-48e4-8f8b-dee01da2dbc3/characters -H 'Content-Type: application/json' -d '{\"name\":\"Kael\",\"role\":\"wanderer\",\"public\":{\"personality\":[\"stoic\",\"observant\"],\"speechStyle\":\"blunt, few words\"},\"private\":{\"trueMotives\":\"Searching for his missing sister\"}}')",
+			"Bash(curl -s -X POST http://127.0.0.1:3001/stories/fb9ae90b-8837-48e4-8f8b-dee01da2dbc3/chats -H 'Content-Type: application/json' -d '{\"mode\":\"interactive\",\"title\":\"First Session\"}')",
+			"Bash(curl -s http://127.0.0.1:3001/ollama/health)",
+			"Bash(curl -s http://127.0.0.1:3001/settings)",
+			"Bash(node -e \"const { marked } = require\\('./node_modules/marked/src/marked.cjs'\\); console.log\\(typeof marked.parse\\('hello'\\)\\); console.log\\(marked.parse\\('hello'\\)\\)\")",
+			"Bash(node --input-type=module -e \"import { marked } from 'D:/workprojects/simpleChat/node_modules/marked/src/marked.js'; const r = marked.parse\\('hello'\\); console.log\\(typeof r, r instanceof Promise, r\\)\")",
+			"Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('version:', d.get\\('version'\\)\\); print\\('main:', d.get\\('main'\\)\\); print\\('module:', d.get\\('module'\\)\\)\")",
+			"Bash(node *)",
+			"Bash(npx biome *)",
+			"Bash(node_modules/.bin/tsc --project backend/tsconfig.json --noEmit)",
+			"Bash(node_modules/.bin/tsc --project frontend/tsconfig.json --noEmit)",
+			"Bash(grep -v \".ts$\")",
+			"Read(//c/Users/nicbaaki/.claude/projects/c--Users-nicbaaki-Documents-PersonalProjects-a-chat-simpleChat/**)",
+			"Bash(python *)",
+			"Bash(npx @biomejs/biome check frontend/src/components/story/DmChatTab.tsx frontend/src/components/story/DmProposalCard.tsx frontend/src/lib/stream.ts backend/src/routes/chats.ts)",
+			"Bash(npx kill-port *)",
+			"Bash(grep -v \"^$\")",
+			"Bash(git stash *)",
+			"Bash(xargs -I{} sh -c 'echo \"=== {} ===\"; cat \"{}\"')",
+			"Bash(echo \"Exit: $?\")",
+			"Bash(curl -s \"https://www.gutenberg.org/cache/epub/1661/pg1661.txt\")",
+			"Bash(curl -s \"https://www.gutenberg.org/cache/epub/1184/pg1184.txt\")",
+			"Bash(curl -s \"https://www.gutenberg.org/cache/epub/1952/pg1952.txt\")",
+			"Bash(echo \"FRONTEND_EXIT:$?\")",
+			"Bash(echo \"BACKEND_EXIT:$?\")",
+			"Bash(grep -rn \"#[0-9a-fA-F]\\\\{3,6\\\\}\\\\|rgba\\(\" /home/nicklas/Documents/personal-projects/simpleChat/frontend/src/components --include=\"*.module.css\")",
+			"Bash(npx vite *)"
+		],
+		"additionalDirectories": [
+			"C:\\Users\\nicbaaki\\.claude\\projects\\c--Users-nicbaaki-Documents-PersonalProjects-a-chat-simpleChat"
+		]
+	}
 }

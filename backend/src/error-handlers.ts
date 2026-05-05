@@ -1,22 +1,22 @@
-import { LLMParseError } from "./LLM/generate";
+import { LLMParseError } from './LLM/generate';
 
 export class HttpError extends Error {
-  constructor(
-    public readonly statusCode: number,
-    message: string,
-  ) {
-    super(message);
-    this.name = "HttpError";
-  }
+	constructor(
+		public readonly statusCode: number,
+		message: string,
+	) {
+		super(message);
+		this.name = 'HttpError';
+	}
 }
 
 export function handleLLMError(
-  err: unknown,
-  reply: { status: (code: number) => { send: (body: unknown) => unknown } },
+	err: unknown,
+	reply: { status: (code: number) => { send: (body: unknown) => unknown } },
 ) {
-  if (err instanceof LLMParseError)
-    return reply
-      .status(422)
-      .send({ error: "LLM did not return valid JSON", raw: err.raw });
-  throw err;
+	if (err instanceof LLMParseError)
+		return reply
+			.status(422)
+			.send({ error: 'LLM did not return valid JSON', raw: err.raw });
+	throw err;
 }
