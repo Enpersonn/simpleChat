@@ -1,17 +1,32 @@
 {
-	"extends": "../tsconfig.base.json",
 	"compilerOptions": {
-		"target": "ES2022",
-		"lib": ["ES2022", "DOM", "DOM.Iterable"],
 		"jsx": "react-jsx",
 		"jsxImportSource": "preact",
+		"lib": [
+			"ES2022",
+			"DOM",
+			"DOM.Iterable"
+		],
 		"moduleResolution": "bundler",
 		"noEmit": true,
 		"paths": {
-			"react": ["./node_modules/preact/compat/"],
-			"react-dom": ["./node_modules/preact/compat/"],
-			"react/jsx-runtime": ["./node_modules/preact/jsx-runtime"]
-		}
+			"@/*": [
+				"./*"
+			],
+			"react": [
+				"./node_modules/preact/compat/"
+			],
+			"react-dom": [
+				"./node_modules/preact/compat/"
+			],
+			"react/jsx-runtime": [
+				"./node_modules/preact/jsx-runtime"
+			]
+		},
+		"target": "ES2022"
 	},
-	"include": ["src"]
+	"extends": "../tsconfig.base.json",
+	"include": [
+		"src"
+	]
 }

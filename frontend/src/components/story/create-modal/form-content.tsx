@@ -1,162 +1,51 @@
-import type {
-	CharacterCreate,
-	LocationCreate,
-	MemoryDeltaEffect,
-	Story,
-} from '@simplechat/types';
-import { useState } from 'preact/hooks';
-import { api } from '../../lib/api.js';
-import { useStoriesStore } from '../../store/stories.js';
+import type { MemoryDeltaEffect } from '@simplechat/types';
+import { type Dispatch, type StateUpdater, useState } from 'preact/hooks';
+import { api } from '@/src/lib/api';
+import { useStoriesStore } from '@/src/store/stories';
+import { DialogClose } from '../../shared/Dialog';
+import { f } from '../../shared/formCls';
+import { emptyPreview } from '.';
 import {
-	Dialog,
-	DialogClose,
-	DialogContent,
-	DialogHeader,
-	DialogTrigger,
-} from '../shared/Dialog.js';
-import { f } from '../shared/formCls.js';
-import { CharacterModal } from './CharacterModal.js';
-
-const GENRE_OPTIONS = [
-	'Fantasy',
-	'Sci-Fi',
-	'Horror',
-	'Romance',
-	'Mystery',
-	'Thriller',
-	'Historical',
-	'Contemporary',
-];
-const TONE_OPTIONS = [
-	'Dark',
-	'Light',
-	'Grim',
-	'Hopeful',
-	'Intimate',
-	'Epic',
-	'Tense',
-	'Whimsical',
-	'Melancholic',
-	'Romantic',
-];
-
-const DRAFT_STEPS = [
-	'Building story core…',
-	'Generating characters…',
-	'Generating locations…',
-	'Generating backstory…',
-];
-const PARSE_STEPS = [
-	'Analysing story…',
-	'Extracting characters…',
-	'Extracting locations…',
-	'Extracting memories…',
-];
-
-type RawRelation = {
-	otherCharacterName: string;
-	emotion: string;
-	publicAttitude: string;
-	privateAttitude: string;
-	trustLevel: number;
-};
-interface PendingChar extends CharacterCreate {
-	_localId: string;
-	_rawRelationships?: RawRelation[];
-}
-interface PendingLocation extends LocationCreate {
-	_localId: string;
-}
-interface PendingMemory {
-	_localId: string;
-	characterName: string;
-	summary: string;
-	tags: string[];
-	importance: number;
-	deltas?: Record<string, unknown>;
-	relationshipEffects?: RawRelation[];
-}
-
-function convertDeltasToEffects(
-	deltas: Record<string, unknown>,
-): MemoryDeltaEffect[] {
-	const effects: MemoryDeltaEffect[] = [];
-	for (const [field, path] of [
-		['personality', 'public.personality'],
-		['fears', 'private.fears'],
-		['privateKnowledge', 'private.privateKnowledge'],
-	] as const) {
-		const group = deltas[field] as
-			| { add?: string[]; remove?: string[] }
-			| undefined;
-		for (const v of group?.add ?? [])
-			effects.push({
-				entityType: 'character',
-				op: 'add',
-				path,
-				value: v,
-				weight: 1,
-			});
-		for (const v of group?.remove ?? [])
-			effects.push({
-				entityType: 'character',
-				op: 'remove',
-				path,
-				value: v,
-				weight: 1,
-			});
-	}
-	for (const [field, path] of [
-		['speechStyle', 'public.speechStyle'],
-		['appearance', 'public.appearance'],
-		['clothing', 'public.clothing'],
-		['reputation', 'public.reputation'],
-		['trueMotives', 'private.trueMotives'],
-		['hiddenEmotionalState', 'private.hiddenEmotionalState'],
-		['moralLimits', 'private.moralLimits'],
-	] as const) {
-		if (typeof deltas[field] === 'string')
-			effects.push({
-				entityType: 'character',
-				op: 'set',
-				path,
-				value: deltas[field] as string,
-				weight: 1,
-			});
-	}
-	return effects;
-}
-
-interface LivePreview {
-	title: string;
-	genres: string[];
-	tone: string[];
-	characters: Array<{ name: string; role: string; isUserPersona: boolean }>;
-	locations: Array<{ name: string; description: string }>;
-	memories: Array<{
-		characterName: string;
-		summary: string;
-		importance: number;
-	}>;
-}
-
-const emptyPreview = (): LivePreview => ({
-	characters: [],
-	genres: [],
-	locations: [],
-	memories: [],
-	title: '',
-	tone: [],
-});
+	DRAFT_STEPS,
+	GENRE_OPTIONS,
+	PARSE_STEPS,
+	TONE_OPTIONS,
+} from './constants';
+import { convertDeltasToEffects } from './conver-deltas-to-effect';
+import type { LivePreview } from './live-preview-panel';
+import type {
+	PendingChar,
+	PendingLocation,
+	PendingMemory,
+	RawRelation,
+} from './types';
 
 interface Props {
 	selectStory: (id: string | null) => Promise<void>;
+	tab: 'write' | 'import';
+	setTab: Dispatch<StateUpdater<'write' | 'import'>>;
+	genStep: 0 | 1 | 2 | 3 | 4;
+	setGenStep: Dispatch<StateUpdater<0 | 1 | 2 | 3 | 4>>;
+	setLivePreview: Dispatch<StateUpdater<LivePreview>>;
+	pendingChars: PendingChar[];
+	setEditingChar: Dispatch<
+		StateUpdater<PendingChar | 'new' | 'new-persona' | null>
+	>;
+	setPendingChars: Dispatch<StateUpdater<PendingChar[]>>;
 }
 
-export function StoryCreateModal({ selectStory }: Props) {
+export const FormContent = ({
+	selectStory,
+	setGenStep,
+	setPendingChars,
+	pendingChars,
+	tab,
+	setTab,
+	setLivePreview,
+	setEditingChar,
+	genStep,
+}: Props) => {
 	const createStory = useStoriesStore((s) => s.createStory);
-	const [tab, setTab] = useState<'write' | 'import'>('write');
-	const [showCreateStory, setShowCreateStory] = useState(false);
 	const [importText, setImportText] = useState('');
 	const [title, setTitle] = useState('');
 	const [premise, setPremise] = useState('');
@@ -167,19 +56,12 @@ export function StoryCreateModal({ selectStory }: Props) {
 	const [writingStyle, setWritingStyle] = useState('');
 	const [customGenre, setCustomGenre] = useState('');
 	const [customTone, setCustomTone] = useState('');
-	const [pendingChars, setPendingChars] = useState<PendingChar[]>([]);
 	const [pendingLocations, setPendingLocations] = useState<PendingLocation[]>(
 		[],
 	);
-	const [pendingMemories, setPendingMemories] = useState<PendingMemory[]>([]);
-	const [editingChar, setEditingChar] = useState<
-		PendingChar | 'new' | 'new-persona' | null
-	>(null);
-	const [submitting, setSubmitting] = useState(false);
-	const [genStep, setGenStep] = useState<0 | 1 | 2 | 3 | 4>(0);
 	const [error, setError] = useState('');
-	const [livePreview, setLivePreview] = useState<LivePreview>(emptyPreview());
-
+	const [pendingMemories, setPendingMemories] = useState<PendingMemory[]>([]);
+	const [submitting, setSubmitting] = useState(false);
 	const toggle = (
 		arr: string[],
 		val: string,
@@ -190,9 +72,7 @@ export function StoryCreateModal({ selectStory }: Props) {
 		);
 	};
 
-	const onClose = () => setShowCreateStory(false);
 	const onCreated = (story: string) => {
-		setShowCreateStory(false);
 		selectStory(story);
 	};
 
@@ -298,8 +178,6 @@ export function StoryCreateModal({ selectStory }: Props) {
 			setPendingLocations((prev) => [...prev, ...newLocs]);
 		}
 	};
-
-	const generating = genStep > 0;
 
 	const handleDraft = async () => {
 		if (!premise.trim() || generating) return;
@@ -726,22 +604,6 @@ export function StoryCreateModal({ selectStory }: Props) {
 		}
 	};
 
-	const saveChar = (data: CharacterCreate) => {
-		if (editingChar === 'new' || editingChar === 'new-persona') {
-			setPendingChars((prev) => [
-				...prev,
-				{ ...data, _localId: `char-${Date.now()}` },
-			]);
-		} else if (editingChar) {
-			const id = editingChar._localId;
-			setPendingChars((prev) =>
-				prev.map((c) =>
-					c._localId === id ? { ...data, _localId: id } : c,
-				),
-			);
-		}
-	};
-
 	const removeChar = (localId: string) =>
 		setPendingChars((prev) => prev.filter((c) => c._localId !== localId));
 	const removeLoc = (localId: string) =>
@@ -753,9 +615,10 @@ export function StoryCreateModal({ selectStory }: Props) {
 	const customTones = tones.filter((t) => !TONE_OPTIONS.includes(t));
 
 	const steps = tab === 'import' ? PARSE_STEPS : DRAFT_STEPS;
-	const showPreview = generating || livePreview.title !== '';
 
-	const formContent = (
+	const generating = genStep > 0;
+
+	return (
 		<>
 			{error && <div class={f.errorMsg}>{error}</div>}
 
@@ -787,6 +650,7 @@ export function StoryCreateModal({ selectStory }: Props) {
 					/>
 					<div class={f.aiBar}>
 						<button
+							type="button"
 							class={f.aiBtn}
 							onClick={handleParse}
 							disabled={generating || !importText.trim()}
@@ -833,6 +697,7 @@ export function StoryCreateModal({ selectStory }: Props) {
 						/>
 						<div class={f.aiBar}>
 							<button
+								type="button"
 								class={f.aiBtn}
 								onClick={handleDraft}
 								disabled={generating || !premise.trim()}
@@ -850,6 +715,7 @@ export function StoryCreateModal({ selectStory }: Props) {
 						<div class={f.tagGroup}>
 							{GENRE_OPTIONS.map((g) => (
 								<button
+									type="button"
 									key={g}
 									class={f.tag}
 									data-active={
@@ -863,6 +729,7 @@ export function StoryCreateModal({ selectStory }: Props) {
 							{customGenres.map((g) => (
 								<button
 									key={g}
+									type="button"
 									class={f.tag}
 									data-active="true"
 									onClick={() => toggle(genres, g, setGenres)}
@@ -895,6 +762,7 @@ export function StoryCreateModal({ selectStory }: Props) {
 								}}
 							/>
 							<button
+								type="button"
 								class={f.tagAddBtn}
 								onClick={() =>
 									addCustomTag(
@@ -915,6 +783,7 @@ export function StoryCreateModal({ selectStory }: Props) {
 						<div class={f.tagGroup}>
 							{TONE_OPTIONS.map((t) => (
 								<button
+									type="button"
 									key={t}
 									class={f.tag}
 									data-active={
@@ -927,6 +796,7 @@ export function StoryCreateModal({ selectStory }: Props) {
 							))}
 							{customTones.map((t) => (
 								<button
+									type="button"
 									key={t}
 									class={f.tag}
 									data-active="true"
@@ -960,6 +830,7 @@ export function StoryCreateModal({ selectStory }: Props) {
 								}}
 							/>
 							<button
+								type="button"
 								class={f.tagAddBtn}
 								onClick={() =>
 									addCustomTag(
@@ -1035,6 +906,7 @@ export function StoryCreateModal({ selectStory }: Props) {
 							</label>
 							<div class={f.charAddBtns}>
 								<button
+									type="button"
 									class={f.aiBtn}
 									onClick={() =>
 										setEditingChar('new-persona')
@@ -1043,6 +915,7 @@ export function StoryCreateModal({ selectStory }: Props) {
 									+ Persona
 								</button>
 								<button
+									type="button"
 									class={f.aiBtn}
 									onClick={() => setEditingChar('new')}
 								>
@@ -1067,12 +940,14 @@ export function StoryCreateModal({ selectStory }: Props) {
 								)}
 								<span class={f.charActions}>
 									<button
+										type="button"
 										class={f.iconActionBtn}
 										onClick={() => setEditingChar(c)}
 									>
 										✎
 									</button>
 									<button
+										type="button"
 										class={f.iconActionBtn}
 										onClick={() => removeChar(c._localId)}
 									>
@@ -1097,6 +972,7 @@ export function StoryCreateModal({ selectStory }: Props) {
 									)}
 									<span class={f.charActions}>
 										<button
+											type="button"
 											class={f.iconActionBtn}
 											onClick={() =>
 												removeLoc(l._localId)
@@ -1134,6 +1010,7 @@ export function StoryCreateModal({ selectStory }: Props) {
 									</span>
 									<span class={f.charActions}>
 										<button
+											type="button"
 											class={f.iconActionBtn}
 											onClick={() =>
 												setPendingMemories((prev) =>
@@ -1160,11 +1037,10 @@ export function StoryCreateModal({ selectStory }: Props) {
 			)}
 
 			<div class={f.footer}>
-				<button class={f.cancelBtn} onClick={onClose}>
-					Cancel
-				</button>
+				<DialogClose>Cancel</DialogClose>
 				{tab === 'import' ? (
 					<button
+						type="button"
 						class={f.submitBtn}
 						onClick={() => setTab('write')}
 						disabled={generating}
@@ -1174,6 +1050,7 @@ export function StoryCreateModal({ selectStory }: Props) {
 				) : (
 					<button
 						class={f.submitBtn}
+						type="button"
 						onClick={handleSubmit}
 						disabled={submitting || !title.trim()}
 					>
@@ -1183,306 +1060,4 @@ export function StoryCreateModal({ selectStory }: Props) {
 			</div>
 		</>
 	);
-
-	return (
-		<Dialog>
-			<DialogTrigger>
-				<button
-					type="button"
-					class={
-						'rounded-sm px-0.5 text-[18px] text-text-muted leading-none transition-colors duration-150 hover:text-accent'
-					}
-					onClick={() => setShowCreateStory(true)}
-					title="New story"
-				>
-					+
-				</button>
-			</DialogTrigger>
-			<DialogContent>
-				<DialogHeader>
-					<DialogHeader class={f.title}>New Story</DialogHeader>
-					<DialogClose />
-				</DialogHeader>
-
-				{showPreview ? (
-					<div class="-mx-6 flex min-h-0 flex-1 flex-row">
-						<div class="flex w-130 shrink-0 flex-col gap-4.5 overflow-y-auto px-6 pt-1 pb-6">
-							<div class={f.tabs}>
-								<button
-									type="button"
-									class={f.tabBtn}
-									data-active={
-										tab === 'write' ? 'true' : undefined
-									}
-									onClick={() => setTab('write')}
-								>
-									Write
-								</button>
-								<button
-									type="button"
-									class={f.tabBtn}
-									data-active={
-										tab === 'import' ? 'true' : undefined
-									}
-									onClick={() => setTab('import')}
-								>
-									Import from text
-								</button>
-							</div>
-							{formContent}
-						</div>
-						<div class="min-w-65 flex-1 overflow-y-auto border-border border-l bg-bg-primary px-6 pt-1 pb-6">
-							<StoryPreviewPanel
-								preview={livePreview}
-								genStep={genStep}
-								tab={tab}
-							/>
-						</div>
-					</div>
-				) : (
-					<>
-						<div class={f.tabs}>
-							<button
-								type="button"
-								class={f.tabBtn}
-								data-active={
-									tab === 'write' ? 'true' : undefined
-								}
-								onClick={() => setTab('write')}
-							>
-								Write
-							</button>
-							<button
-								type="button"
-								class={f.tabBtn}
-								data-active={
-									tab === 'import' ? 'true' : undefined
-								}
-								onClick={() => setTab('import')}
-							>
-								Import from text
-							</button>
-						</div>
-						{formContent}
-					</>
-				)}
-
-				{editingChar !== null && (
-					<CharacterModal
-						initialDraft={
-							editingChar === 'new' ||
-							editingChar === 'new-persona'
-								? undefined
-								: editingChar
-						}
-						defaultIsPersona={
-							editingChar === 'new-persona' ||
-							(typeof editingChar === 'object' &&
-								!!editingChar?.isUserPersona)
-						}
-						onClose={() => setEditingChar(null)}
-						onSaved={() => setEditingChar(null)}
-						onSaveData={saveChar}
-					/>
-				)}
-			</DialogContent>
-		</Dialog>
-	);
-}
-
-// ─── Live Preview Panel ───────────────────────────────────────────────────────
-
-const STEP_SECTIONS = ['core', 'characters', 'locations', 'memories'] as const;
-type StepSection = (typeof STEP_SECTIONS)[number];
-
-function sectionForStep(step: number): StepSection | null {
-	if (step === 1) return 'core';
-	if (step === 2) return 'characters';
-	if (step === 3) return 'locations';
-	if (step === 4) return 'memories';
-	return null;
-}
-
-interface PreviewPanelProps {
-	preview: LivePreview;
-	genStep: number;
-	tab: 'write' | 'import';
-}
-
-function StoryPreviewPanel({ preview, genStep, tab }: PreviewPanelProps) {
-	const activeSection = sectionForStep(genStep);
-	const isDone = genStep === 0;
-
-	return (
-		<div class={f.previewPanel}>
-			<div class="mb-4 text-sm text-text-muted uppercase tracking-widest">
-				{isDone
-					? 'Story Preview'
-					: tab === 'import'
-						? 'Extracting…'
-						: 'Generating…'}
-			</div>
-
-			{/* Title + pills */}
-			{preview.title ? (
-				<div class={f.previewFadeIn}>
-					<div class="mb-2.5 font-bold text-[20px] text-text-primary leading-[1.3]">
-						{preview.title}
-					</div>
-					{(preview.genres.length > 0 || preview.tone.length > 0) && (
-						<div class="flex flex-wrap gap-1.25">
-							{preview.genres.map((g) => (
-								<span
-									key={g}
-									class="rounded-full border border-accent bg-accent-dim px-2 py-[2px] font-medium text-accent text-sm"
-								>
-									{g}
-								</span>
-							))}
-							{preview.tone.map((t) => (
-								<span
-									key={t}
-									class="rounded-full border border-border bg-bg-tertiary px-2 py-[2px] text-sm text-text-muted"
-								>
-									{t}
-								</span>
-							))}
-						</div>
-					)}
-				</div>
-			) : (
-				activeSection === 'core' && <SkeletonBlock lines={2} />
-			)}
-
-			{/* Characters */}
-			{(preview.characters.length > 0 ||
-				activeSection === 'characters') && (
-				<div class="mt-5">
-					<div class="mb-2 font-semibold text-sm text-text-muted uppercase tracking-[0.06em]">
-						Characters
-					</div>
-					{preview.characters.map((c) => (
-						<PreviewCard
-							key={c.name}
-							icon={c.isUserPersona ? '🧑' : '🎭'}
-							name={c.name}
-							sub={c.role}
-						/>
-					))}
-					{activeSection === 'characters' && <SkeletonCard />}
-				</div>
-			)}
-
-			{/* Locations */}
-			{(preview.locations.length > 0 ||
-				activeSection === 'locations') && (
-				<div class="mt-5">
-					<div class="mb-2 font-semibold text-sm text-text-muted uppercase tracking-[0.06em]">
-						Locations
-					</div>
-					{preview.locations.map((l) => (
-						<PreviewCard
-							key={l.name}
-							icon="📍"
-							name={l.name}
-							sub={
-								l.description.slice(0, 55) +
-								(l.description.length > 55 ? '…' : '')
-							}
-						/>
-					))}
-					{activeSection === 'locations' && <SkeletonCard />}
-				</div>
-			)}
-
-			{/* Memories / Backstory */}
-			{(preview.memories.length > 0 || activeSection === 'memories') && (
-				<div class="mt-5">
-					<div class="mb-2 font-semibold text-sm text-text-muted uppercase tracking-[0.06em]">
-						{tab === 'import' ? 'Canon Events' : 'Backstory'}
-					</div>
-					{preview.memories.map((m, i) => (
-						<PreviewCard
-							key={i}
-							icon="🧠"
-							name={m.characterName}
-							sub={
-								m.summary.slice(0, 70) +
-								(m.summary.length > 70 ? '…' : '')
-							}
-							importance={m.importance}
-						/>
-					))}
-					{activeSection === 'memories' && <SkeletonCard />}
-				</div>
-			)}
-		</div>
-	);
-}
-
-function PreviewCard({
-	icon,
-	name,
-	sub,
-	importance,
-}: {
-	icon: string;
-	name: string;
-	sub?: string;
-	importance?: number;
-}) {
-	return (
-		<div class={f.previewCard}>
-			<span class="shrink-0 text-[14px]">{icon}</span>
-			<div class="min-w-0 flex-1">
-				<div class="overflow-hidden text-ellipsis whitespace-nowrap font-medium text-text-primary text-xs">
-					{name}
-				</div>
-				{sub && (
-					<div class="mt-[1px] text-[11px] text-text-muted leading-[1.4]">
-						{sub}
-					</div>
-				)}
-			</div>
-			{importance !== undefined && (
-				<div class="h-[3px] w-7 shrink-0 self-center rounded-full bg-bg-hover">
-					<div
-						class={
-							importance >= 0.8
-								? 'h-full rounded-full bg-accent'
-								: 'h-full rounded-full bg-text-muted'
-						}
-						style={{ width: `${importance * 100}%` }}
-					/>
-				</div>
-			)}
-		</div>
-	);
-}
-
-function SkeletonBlock({ lines }: { lines: number }) {
-	return (
-		<div class="flex flex-col gap-1.5">
-			{Array.from({ length: lines }).map((_, i) => (
-				<div
-					key={i}
-					class={f.previewSkeleton}
-					style={{
-						borderRadius: '4px',
-						height: i === 0 ? '20px' : '12px',
-						width: i === 0 ? '70%' : '45%',
-					}}
-				/>
-			))}
-		</div>
-	);
-}
-
-function SkeletonCard() {
-	return (
-		<div
-			class={f.previewSkeleton}
-			style={{ borderRadius: '4px', height: '38px', marginTop: '6px' }}
-		/>
-	);
-}
+};

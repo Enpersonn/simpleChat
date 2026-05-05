@@ -107,7 +107,6 @@ export function AppLayout() {
 
 	return (
 		<div class="flex h-screen select-none overflow-hidden bg-bg-primary">
-			{/* Left sidebar */}
 			<div
 				class="flex min-w-0 shrink-0 flex-col overflow-hidden bg-bg-secondary transition-[width] duration-200"
 				style={{ width: leftCollapsed ? 0 : leftWidth }}
@@ -116,7 +115,6 @@ export function AppLayout() {
 				<LeftPanel />
 			</div>
 
-			{/* Left drag + collapse handle */}
 			<div class="relative z-10 flex w-3 shrink-0 flex-col items-center">
 				{!leftCollapsed && (
 					<div
@@ -138,7 +136,6 @@ export function AppLayout() {
 				</button>
 			</div>
 
-			{/* Main content */}
 			<div class="flex min-w-0 flex-1 select-text flex-col overflow-hidden">
 				{activeChatId ? (
 					<ChatWindow />

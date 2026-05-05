@@ -2,8 +2,8 @@ import type { ChatMode } from '@simplechat/types';
 
 const LABELS: Record<ChatMode, string> = {
 	interactive: 'RP',
-	storyteller: 'Story',
 	planning: 'Plan',
+	storyteller: 'Story',
 };
 
 interface Props {

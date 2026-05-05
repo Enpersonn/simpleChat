@@ -14,10 +14,10 @@ import { ModeTag } from '../shared/ModeTag.js';
 import { OllamaStatus } from '../shared/OllamaStatus.js';
 import { CanonTimelineModal } from '../story/CanonTimelineModal.js';
 import { CharacterModal } from '../story/CharacterModal.js';
+import { StoryCreateModal } from '../story/create-modal';
 import { EditStoryModal } from '../story/EditStoryModal.js';
 import { LocationModal } from '../story/LocationModal.js';
 import { SettingsModal } from '../story/SettingsModal.js';
-import { StoryCreateModal } from '../story/StoryCreateModal.js';
 
 export function LeftPanel() {
 	const {
@@ -41,14 +41,12 @@ export function LeftPanel() {
 		activeChatId,
 		loadChats,
 		openChat,
-		createChat,
 		generateOpener,
 		deleteChat,
 	} = useChatsStore();
 	const ollamaHealthy = useSettingsStore((s) => s.ollamaHealthy);
 	const setGeneration = useSettingsStore((s) => s.setGeneration);
 
-	const [showCreateStory, setShowCreateStory] = useState(false);
 	const [editingStory, setEditingStory] = useState<string | null>(null);
 	const [showNewChat, setShowNewChat] = useState(false);
 	const [branchAnchors, setBranchAnchors] = useState<Record<
@@ -630,14 +628,7 @@ export function LeftPanel() {
 						<div class={sectionCls}>
 							<div class={sectionHeaderCls}>
 								<span class={sectionLabelCls}>Stories</span>
-								<button
-									type="button"
-									class={addBtnCls}
-									onClick={() => setShowCreateStory(true)}
-									title="New story"
-								>
-									+
-								</button>
+								<StoryCreateModal selectStory={selectStory} />
 							</div>
 							{storiesLoading && (
 								<div
@@ -720,20 +711,6 @@ export function LeftPanel() {
 					</div>
 				</>
 			)}
-
-			{/* Modals */}
-			{showCreateStory &&
-				createPortal(
-					<StoryCreateModal
-						onClose={() => setShowCreateStory(false)}
-						onCreated={(story) => {
-							setShowCreateStory(false);
-							selectStory(story.id);
-						}}
-					/>,
-					document.body,
-				)}
-
 			{editingStory &&
 				selectedStory &&
 				editingStory === selectedStory.id &&

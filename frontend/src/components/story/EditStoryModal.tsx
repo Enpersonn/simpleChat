@@ -1,10 +1,10 @@
+import type { Character, Story } from '@simplechat/types';
 import { useState } from 'preact/hooks';
-import type { Story, Character } from '@simplechat/types';
-import { useStoriesStore } from '../../store/stories.js';
 import { api } from '../../lib/api.js';
+import { useStoriesStore } from '../../store/stories.js';
+import { f } from '../shared/formCls.js';
 import { CharacterModal } from './CharacterModal.js';
 import { DmChatTab } from './DmChatTab.js';
-import { f } from '../shared/formCls.js';
 
 const GENRE_OPTIONS = [
 	'Fantasy',
@@ -119,24 +119,24 @@ export function EditStoryModal({ story, onClose, onSaved }: Props) {
 		setError('');
 		try {
 			const updated = await updateStory(story.id, {
-				title: title.trim(),
-				premise: premise.trim(),
 				genres,
-				tone: tones,
+				openingMessage: openingMessage.trim(),
+				premise: premise.trim(),
 				rules: {
+					characterRules: story.rules.characterRules,
+					storyRules: story.rules.storyRules,
 					worldRules: rules
 						.split('\n')
 						.map((r) => r.trim())
 						.filter(Boolean),
-					storyRules: story.rules.storyRules,
-					characterRules: story.rules.characterRules,
 				},
+				systemPromptOverride: systemPromptOverride.trim(),
+				title: title.trim(),
+				tone: tones,
 				writingStyle: {
 					...story.writingStyle,
 					prose: writingStyle.trim(),
 				},
-				systemPromptOverride: systemPromptOverride.trim(),
-				openingMessage: openingMessage.trim(),
 			});
 			onSaved(updated);
 		} catch (err) {
@@ -174,9 +174,9 @@ export function EditStoryModal({ story, onClose, onSaved }: Props) {
 					</div>
 
 					{/* Tab bar */}
-					<div class="flex gap-0.5 border-b border-border-light pb-0 mb-1 shrink-0">
+					<div class="mb-1 flex shrink-0 gap-0.5 border-border-light border-b pb-0">
 						<button
-							class="py-[7px] px-4 text-[13px] font-medium text-text-muted rounded-t-sm cursor-pointer bg-transparent border-none border-b-2 border-transparent -mb-px transition-colors duration-150 hover:text-text-primary data-[active=true]:text-accent data-[active=true]:border-b-accent data-[active=true]:font-semibold"
+							class="-mb-px cursor-pointer rounded-t-sm border-transparent border-b-2 border-none bg-transparent px-4 py-[7px] font-medium text-[13px] text-text-muted transition-colors duration-150 hover:text-text-primary data-[active=true]:border-b-accent data-[active=true]:font-semibold data-[active=true]:text-accent"
 							data-active={
 								activeTab === 'settings' ? 'true' : undefined
 							}
@@ -185,7 +185,7 @@ export function EditStoryModal({ story, onClose, onSaved }: Props) {
 							Settings
 						</button>
 						<button
-							class="py-[7px] px-4 text-[13px] font-medium text-text-muted rounded-t-sm cursor-pointer bg-transparent border-none border-b-2 border-transparent -mb-px transition-colors duration-150 hover:text-text-primary data-[active=true]:text-accent data-[active=true]:border-b-accent data-[active=true]:font-semibold"
+							class="-mb-px cursor-pointer rounded-t-sm border-transparent border-b-2 border-none bg-transparent px-4 py-[7px] font-medium text-[13px] text-text-muted transition-colors duration-150 hover:text-text-primary data-[active=true]:border-b-accent data-[active=true]:font-semibold data-[active=true]:text-accent"
 							data-active={
 								activeTab === 'dm' ? 'true' : undefined
 							}

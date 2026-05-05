@@ -15,19 +15,23 @@ export function ConfirmDialog({
 }: Props) {
 	return createPortal(
 		<div
-			class="fixed inset-0 bg-black/65 flex items-center justify-center z-[100] backdrop-blur-sm"
+			role="none"
+			class="fixed inset-0 z-[100] flex items-center justify-center bg-black/65 backdrop-blur-sm"
 			onClick={(e) => {
 				if (e.target === e.currentTarget) onCancel();
 			}}
+			onKeyDown={(e) => {
+				if (e.key === 'Escape') onCancel();
+			}}
 		>
-			<div class="bg-bg-secondary border border-border-light rounded-lg p-6 w-full max-w-[400px] max-h-[calc(100vh-64px)] overflow-y-auto shadow-lg flex flex-col gap-[18px]">
+			<div class="flex max-h-[calc(100vh-64px)] w-full max-w-[400px] flex-col gap-[18px] overflow-y-auto rounded-lg border border-border-light bg-bg-secondary p-6 shadow-lg">
 				<div class="flex items-center justify-between">
-					<span class="font-display text-[15px] font-semibold text-text-primary tracking-[0.05em]">
+					<span class="font-display font-semibold text-[15px] text-text-primary tracking-[0.05em]">
 						Confirm
 					</span>
 					<button
 						type="button"
-						class="text-text-muted text-[18px] px-[6px] py-[2px] rounded transition-colors duration-150 hover:text-text-primary hover:bg-bg-hover"
+						class="rounded px-[6px] py-[2px] text-[18px] text-text-muted transition-colors duration-150 hover:bg-bg-hover hover:text-text-primary"
 						onClick={onCancel}
 					>
 						✕
@@ -39,14 +43,14 @@ export function ConfirmDialog({
 				<div class="flex justify-end gap-2 pt-1">
 					<button
 						type="button"
-						class="px-4 py-2 text-[13px] text-text-secondary border border-border rounded bg-bg-tertiary transition-all duration-150 hover:border-accent hover:text-text-primary"
+						class="rounded border border-border bg-bg-tertiary px-4 py-2 text-[13px] text-text-secondary transition-all duration-150 hover:border-accent hover:text-text-primary"
 						onClick={onCancel}
 					>
 						Cancel
 					</button>
 					<button
 						type="button"
-						class="px-5 py-2 text-[13px] font-medium text-text-on-accent bg-error rounded transition-colors duration-150 hover:opacity-85"
+						class="rounded bg-error px-5 py-2 font-medium text-[13px] text-text-on-accent transition-colors duration-150 hover:opacity-85"
 						onClick={onConfirm}
 					>
 						{confirmLabel}

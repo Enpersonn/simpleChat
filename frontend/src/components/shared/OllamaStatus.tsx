@@ -19,7 +19,7 @@ export function OllamaStatus({ healthy }: Props) {
 
 	return (
 		<span
-			class={`w-1.75 h-1.75 rounded-full shrink-0 inline-block ${dotColor}`}
+			class={`inline-block h-1.75 w-1.75 shrink-0 rounded-full ${dotColor}`}
 			data-healthy={healthy === null ? 'null' : String(healthy)}
 			title={title}
 		/>
