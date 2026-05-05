@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { Character, Story } from '@simplechat/types';
 import { useState } from 'preact/hooks';
-import { FormProvider, useController, useForm } from 'react-hook-form';
+import { FormProvider, useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { api } from '../../lib/api.js';
 import { useStoriesStore } from '../../store/stories.js';
@@ -55,14 +55,6 @@ export const EditStoryForm = ({ story, onSaved }: Props) => {
 		resolver: zodResolver(schema),
 	});
 
-	const { field: genresField } = useController({
-		control: form.control,
-		name: 'genres',
-	});
-	const { field: tonesField } = useController({
-		control: form.control,
-		name: 'tones',
-	});
 	const premise = form.watch('premise');
 
 	const handleRegenerate = async () => {
@@ -177,17 +169,9 @@ export const EditStoryForm = ({ story, onSaved }: Props) => {
 				<RHFTagBox
 					name="genres"
 					label="Genre"
-					setSelected={() => {}}
 					options={GENRE_OPTIONS}
-					selected={genresField.value}
 				/>
-				<RHFTagBox
-					name="tones"
-					label="Tones"
-					setSelected={() => {}}
-					options={TONE_OPTIONS}
-					selected={tonesField.value}
-				/>
+				<RHFTagBox name="tones" label="Tones" options={TONE_OPTIONS} />
 
 				<RHFTextArea
 					name="worldRules"

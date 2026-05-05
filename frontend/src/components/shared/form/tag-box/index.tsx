@@ -6,13 +6,13 @@ import { f } from '../../formCls';
 import Input from '../input';
 
 export type TagBoxProps = {
-	options: string[];
+	options?: string[];
 	selected: string[];
 	setSelected: Dispatch<StateUpdater<string[]>>;
 };
 
 export const TagBox = ({ options, selected, setSelected }: TagBoxProps) => {
-	const customeOptions = selected.filter((x) => !options.includes(x));
+	const customeOptions = selected.filter((x) => !options?.includes(x));
 	const [customOption, setCustomOption] = useState('');
 
 	const toggle = (e: TargetedMouseEvent<HTMLButtonElement>) => {
@@ -38,7 +38,7 @@ export const TagBox = ({ options, selected, setSelected }: TagBoxProps) => {
 	return (
 		<div class={f.field}>
 			<div class={f.tagGroup}>
-				{options.map((x) => (
+				{options?.map((x) => (
 					<Badge
 						key={x}
 						active={selected.includes(x)}

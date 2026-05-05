@@ -80,14 +80,14 @@ export const createPromptRunner = <T extends z.ZodTypeAny>(config: {
 		let raw = '';
 		await streamChat({
 			messages: [
-				{ role: 'system', content: buildSystemPrompt() },
-				{ role: 'user', content: userContent },
+				{ content: buildSystemPrompt(), role: 'system' },
+				{ content: userContent, role: 'user' },
 			],
-			temperature: overrides?.temperature ?? config.temperature,
 			num_ctx: overrides?.num_ctx ?? config.num_ctx,
 			onChunk: (text) => {
 				raw += text;
 			},
+			temperature: overrides?.temperature ?? config.temperature,
 		});
 
 		try {

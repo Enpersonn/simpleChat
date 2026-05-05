@@ -1,10 +1,11 @@
-import { useFormContext } from 'react-hook-form';
+import { useController, useFormContext } from 'react-hook-form';
 import FormField from '../form-field';
 import FormItem from '../form-item';
-import { TagBox, type TagBoxProps } from '.';
+import { TagBox } from '.';
 
-type RHFTagBoxProps = TagBoxProps & {
+type RHFTagBoxProps = {
 	name: string;
+	options?: string[];
 	label?: string;
 	description?: string;
 	required?: boolean;
@@ -29,7 +30,11 @@ export const RHFTagBox = ({
 					description={description}
 					required={required}
 				>
-					<TagBox {...field} {...props} />
+					<TagBox
+						{...props}
+						selected={field.value || []}
+						setSelected={field.onChange}
+					/>
 				</FormItem>
 			)}
 		/>

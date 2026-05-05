@@ -528,14 +528,7 @@ export function LeftPanel() {
 						<div class={sectionCls}>
 							<div class={sectionHeaderCls}>
 								<span class={sectionLabelCls}>Locations</span>
-								<button
-									type="button"
-									class={addBtnCls}
-									onClick={() => setEditingLocation('new')}
-									title="New location"
-								>
-									+
-								</button>
+								<LocationModal />
 							</div>
 							{locations.length === 0 && (
 								<div class={emptyCls}>No locations yet</div>
@@ -552,17 +545,7 @@ export function LeftPanel() {
 										{loc.name}
 									</span>
 									<div class={itemActionsCls}>
-										<button
-											type="button"
-											class={iconBtnCls}
-											onClick={(e) => {
-												e.stopPropagation();
-												setEditingLocation(loc);
-											}}
-											title="Edit location"
-										>
-											✎
-										</button>
+										<LocationModal initial={loc} />
 										<button
 											type="button"
 											class={iconBtnCls}
@@ -733,26 +716,6 @@ export function LeftPanel() {
 							});
 							loadChats(selectedStoryId);
 						}}
-					/>,
-					document.body,
-				)}
-
-			{editingLocation === 'new' &&
-				createPortal(
-					<LocationModal
-						onClose={() => setEditingLocation(null)}
-						onSaved={() => setEditingLocation(null)}
-					/>,
-					document.body,
-				)}
-
-			{editingLocation &&
-				editingLocation !== 'new' &&
-				createPortal(
-					<LocationModal
-						initial={editingLocation}
-						onClose={() => setEditingLocation(null)}
-						onSaved={() => setEditingLocation(null)}
 					/>,
 					document.body,
 				)}

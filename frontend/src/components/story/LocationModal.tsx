@@ -1,131 +1,149 @@
+import type { StoryLocation as Location } from '@simplechat/types';
 import { useState } from 'preact/hooks';
-import type {
-	StoryLocation as Location,
-	LocationCreate,
-} from '@simplechat/types';
-import { useStoriesStore } from '../../store/stories.js';
+import { FormProvider, useForm } from 'react-hook-form';
+import { z } from 'zod';
 import { api } from '../../lib/api.js';
+import { useStoriesStore } from '../../store/stories.js';
+import { Button } from '../shared/Button.js';
+import {
+	Dialog,
+	DialogClose,
+	DialogContent,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+	DialogTrigger,
+} from '../shared/Dialog.js';
+import { Input, RHFInput, RHFTextArea } from '../shared/form/index.js';
+import RHFTagBox from '../shared/form/tag-box/rhf.js';
 import { f } from '../shared/formCls.js';
 
 interface Props {
 	initial?: Location;
-	onClose: () => void;
-	onSaved: (location: Location) => void;
 }
 
-export function LocationModal({ initial, onClose, onSaved }: Props) {
+const schema = z.object({
+	atmosphere: z.string().optional().default(''),
+	description: z.string().optional().default(''),
+	layout: z.string().optional().default(''),
+	lighting: z.string().optional().default(''),
+	name: z.string().min(1, 'Name is required'),
+	notes: z.string().optional().default(''),
+	smells: z.string().optional().default(''),
+	soundscape: z.string().optional().default(''),
+	tags: z.array(z.string()).default([]),
+});
+type FormValues = z.infer<typeof schema>;
+
+export function LocationModal({ initial }: Props) {
 	const { createLocation, updateLocation, selectedStoryId, stories } =
 		useStoriesStore();
 	const isEdit = !!initial;
 
-	const [name, setName] = useState(initial?.name ?? '');
-	const [description, setDescription] = useState(initial?.description ?? '');
-	const [layout, setLayout] = useState(initial?.layout ?? '');
-	const [lighting, setLighting] = useState(initial?.lighting ?? '');
-	const [atmosphere, setAtmosphere] = useState(initial?.atmosphere ?? '');
-	const [soundscape, setSoundscape] = useState(initial?.soundscape ?? '');
-	const [smells, setSmells] = useState(initial?.smells ?? '');
-	const [notes, setNotes] = useState(initial?.notes ?? '');
-	const [tags, setTags] = useState((initial?.tags ?? []).join(', '));
+	const form = useForm<FormValues>({
+		defaultValues: {
+			atmosphere: '',
+			description: '',
+			layout: '',
+			lighting: '',
+			name: '',
+			notes: '',
+			smells: '',
+			soundscape: '',
+			tags: [],
+			...initial,
+		},
+	});
+
 	const [genPrompt, setGenPrompt] = useState('');
 	const [generating, setGenerating] = useState(false);
 	const [submitting, setSubmitting] = useState(false);
-	const [error, setError] = useState('');
-
-	const toArray = (str: string) =>
-		str
-			.split(',')
-			.map((x) => x.trim())
-			.filter(Boolean);
+	const [error, setError] = useState<string | null>(null);
 
 	const handleGenerate = async () => {
-		if (!genPrompt.trim() || !selectedStoryId || generating) return;
+		const prompt = genPrompt.trim();
+
+		if (!prompt || !selectedStoryId || generating) return;
+
 		setGenerating(true);
-		setError('');
+		setError(null);
+
 		try {
 			const selectedStory = stories.find((s) => s.id === selectedStoryId);
+
 			const storyContext = selectedStory
-				? `Story: "${selectedStory.title}"${selectedStory.premise ? `\nPremise: ${selectedStory.premise}` : ''}`
+				? [
+						`Story: "${selectedStory.title}"`,
+						selectedStory.premise
+							? `Premise: ${selectedStory.premise}`
+							: null,
+					]
+						.filter(Boolean)
+						.join('\n')
 				: undefined;
-			const result = await api.ai.generate<{
-				name: string;
-				description: string;
-				layout: string;
-				lighting: string;
-				atmosphere: string;
-				soundscape: string;
-				smells: string;
-				notes: string;
-				tags: string[];
-			}>('location', genPrompt.trim(), { storyContext });
-			if (result.name) setName(result.name);
-			if (result.description) setDescription(result.description);
-			if (result.layout) setLayout(result.layout);
-			if (result.lighting) setLighting(result.lighting);
-			if (result.atmosphere) setAtmosphere(result.atmosphere);
-			if (result.soundscape) setSoundscape(result.soundscape);
-			if (result.smells) setSmells(result.smells);
-			if (result.notes) setNotes(result.notes);
-			if (result.tags.length) setTags(result.tags.join(', '));
+
+			const result = await api.ai.generate<FormValues>(
+				'location',
+				prompt,
+				{
+					storyContext,
+				},
+			);
+
+			const parsed = schema.parse(result);
+
+			form.reset({
+				...form.getValues(),
+				...parsed,
+			});
 		} catch (err) {
-			setError((err as Error).message);
+			setError(
+				err instanceof Error
+					? err.message
+					: 'Failed to generate location',
+			);
 		} finally {
 			setGenerating(false);
 		}
 	};
 
-	const handleSubmit = async () => {
-		if (!name.trim()) {
-			setError('Name is required');
-			return;
-		}
+	const handleSubmit = async (data: FormValues) => {
 		setSubmitting(true);
-		setError('');
-		const data: LocationCreate = {
-			name: name.trim(),
-			description: description.trim(),
-			layout: layout.trim(),
-			lighting: lighting.trim(),
-			atmosphere: atmosphere.trim(),
-			soundscape: soundscape.trim(),
-			smells: smells.trim(),
-			notes: notes.trim(),
-			tags: toArray(tags),
-		};
+		setError(null);
+
 		try {
-			let location: Location;
-			if (isEdit) {
-				location = await updateLocation(initial!.id, data);
-			} else {
-				location = await createLocation(data);
-			}
-			onSaved(location);
+			const parsedData = schema.parse(data);
+
+			isEdit
+				? await updateLocation(initial!.id, parsedData)
+				: await createLocation(parsedData);
 		} catch (err) {
-			setError((err as Error).message);
+			setError(
+				err instanceof Error ? err.message : 'Failed to save location',
+			);
 		} finally {
 			setSubmitting(false);
 		}
 	};
 
 	return (
-		<div
-			class={f.overlay}
-			onClick={(e) => e.target === e.currentTarget && onClose()}
-		>
-			<div class={f.modalLg}>
-				<div class={f.header}>
-					<h2 class={f.title}>
+		<Dialog>
+			<DialogTrigger>
+				<Button size="icon" variant="ghost" title="Edit story">
+					{initial ? '✎' : '+'}
+				</Button>
+			</DialogTrigger>
+			<DialogContent class="w-full max-w-3xl">
+				<DialogHeader>
+					<DialogTitle>
 						{isEdit ? 'Edit Location' : 'New Location'}
-					</h2>
-					<button class={f.closeBtn} onClick={onClose}>
-						✕
-					</button>
-				</div>
+					</DialogTitle>
+					<DialogClose />
+				</DialogHeader>
 
-				{/* AI generation */}
 				<div class={f.generateSection}>
 					<div class={f.generateRow}>
-						<input
+						<Input
 							class={f.input}
 							placeholder="Describe the location briefly (e.g. a dimly lit tavern with low ceilings)"
 							value={genPrompt}
@@ -138,157 +156,78 @@ export function LocationModal({ initial, onClose, onSaved }: Props) {
 								e.key === 'Enter' && handleGenerate()
 							}
 						/>
-						<button
+						<Button
 							class={f.generateBtn}
 							onClick={handleGenerate}
 							disabled={generating || !genPrompt.trim()}
 						>
 							{generating ? '…' : 'Generate'}
-						</button>
+						</Button>
 					</div>
 				</div>
-
-				<div class="flex flex-col gap-4.5">
-					<div class={f.field}>
-						<label class={f.label}>
-							Name <span class={f.required}>*</span>
-						</label>
-						<input
-							class={f.input}
-							value={name}
-							onInput={(e) =>
-								setName((e.target as HTMLInputElement).value)
-							}
-							placeholder="The Rusty Flagon"
-						/>
-					</div>
-					<div class={f.field}>
-						<label class={f.label}>Description</label>
-						<textarea
-							class={f.textarea}
-							value={description}
-							onInput={(e) =>
-								setDescription(
-									(e.target as HTMLTextAreaElement).value,
-								)
-							}
-							placeholder="Overview of this location"
-							style={{ minHeight: '56px' }}
-						/>
-					</div>
-					<div class={f.field}>
-						<label class={f.label}>Layout</label>
-						<textarea
-							class={f.textarea}
-							value={layout}
-							onInput={(e) =>
-								setLayout(
-									(e.target as HTMLTextAreaElement).value,
-								)
-							}
-							placeholder="Spatial description — size, shape, exits, notable features"
-							style={{ minHeight: '56px' }}
-						/>
-					</div>
-					<div class={f.field}>
-						<label class={f.label}>Lighting</label>
-						<input
-							class={f.input}
-							value={lighting}
-							onInput={(e) =>
-								setLighting(
-									(e.target as HTMLInputElement).value,
-								)
-							}
-							placeholder="e.g. Candlelit, warm amber glow from sconces"
-						/>
-					</div>
-					<div class={f.field}>
-						<label class={f.label}>Atmosphere</label>
-						<input
-							class={f.input}
-							value={atmosphere}
-							onInput={(e) =>
-								setAtmosphere(
-									(e.target as HTMLInputElement).value,
-								)
-							}
-							placeholder="e.g. Smoky, intimate, faintly oppressive"
-						/>
-					</div>
-					<div class={f.field}>
-						<label class={f.label}>Soundscape</label>
-						<input
-							class={f.input}
-							value={soundscape}
-							onInput={(e) =>
-								setSoundscape(
-									(e.target as HTMLInputElement).value,
-								)
-							}
-							placeholder="e.g. Muffled conversation, distant dripping water"
-						/>
-					</div>
-					<div class={f.field}>
-						<label class={f.label}>Smells</label>
-						<input
-							class={f.input}
-							value={smells}
-							onInput={(e) =>
-								setSmells((e.target as HTMLInputElement).value)
-							}
-							placeholder="e.g. Woodsmoke, tallow, spilled ale"
-						/>
-					</div>
-					<div class={f.field}>
-						<label class={f.label}>Notes</label>
-						<textarea
-							class={f.textarea}
-							value={notes}
-							onInput={(e) =>
-								setNotes(
-									(e.target as HTMLTextAreaElement).value,
-								)
-							}
-							placeholder="Consistency rules: always cold, no windows, ceiling so low tall people duck"
-							style={{ minHeight: '56px' }}
-						/>
-					</div>
-					<div class={f.field}>
-						<label class={f.label}>
-							Tags{' '}
-							<span class={f.labelHint}>(comma-separated)</span>
-						</label>
-						<input
-							class={f.input}
-							value={tags}
-							onInput={(e) =>
-								setTags((e.target as HTMLInputElement).value)
-							}
-							placeholder="tavern, indoor, dark, cramped"
-						/>
-					</div>
-				</div>
-
-				{error && <p class={f.errorMsg}>{error}</p>}
-
-				<div class={f.footer}>
-					<button class={f.cancelBtn} onClick={onClose}>
-						Cancel
-					</button>
-					<button
-						class={f.submitBtn}
-						onClick={handleSubmit}
-						disabled={submitting || !name.trim()}
+				<FormProvider {...form}>
+					<form
+						class="flex flex-col gap-4 pt-1"
+						onSubmit={form.handleSubmit(handleSubmit)}
 					>
-						{submitting
-							? 'Saving…'
-							: isEdit
-								? 'Save Changes'
-								: 'Create Location'}
-					</button>
-				</div>
-			</div>
-		</div>
+						<div class="flex flex-col gap-4.5">
+							<RHFInput
+								name="name"
+								label="Name"
+								placeholder="The Rusty Flagon"
+								required
+							/>
+							<RHFTextArea
+								name="description"
+								label="Description"
+								placeholder="Overview of this location"
+							/>
+							<RHFTextArea
+								name="layout"
+								label="Layout"
+								placeholder="Spatial description — size, shape, exits, notable features"
+							/>
+							<RHFTextArea
+								name="lighting"
+								label="Lighting"
+								placeholder="e.g. Candlelit, warm amber glow from sconces"
+							/>
+							<RHFTextArea
+								name="atmosphere"
+								label="Atmosphere"
+								placeholder="e.g. Smoky, intimate, faintly oppressive"
+							/>
+							<RHFTextArea
+								name="soundscape"
+								label="Soundscape"
+								placeholder="e.g. Muffled conversation, distant dripping water"
+							/>
+							<RHFTextArea
+								name="smells"
+								label="Smells"
+								placeholder="e.g. Woodsmoke, tallow, spilled ale"
+							/>
+							<RHFTextArea
+								name="notes"
+								label="Notes"
+								placeholder="Consistency rules: always cold, no windows, ceiling so low tall people duck"
+							/>
+							<RHFTagBox name="tags" label="Tags" />
+						</div>
+
+						{error && <p class={f.errorMsg}>{error}</p>}
+
+						<DialogFooter>
+							<Button type="button" variant="secondary">
+								Cancel
+							</Button>
+							<Button type="submit" disabled={submitting}>
+								{submitting ? 'Saving…' : 'Save Changes'}
+							</Button>
+						</DialogFooter>
+					</form>
+				</FormProvider>
+			</DialogContent>
+		</Dialog>
 	);
 }
