@@ -65,94 +65,13 @@ interface StoriesState {
 }
 
 export const useStoriesStore = create<StoriesState>((set, get) => ({
-	stories: [],
-	selectedStoryId: null,
-	characters: [],
-	locations: [],
+	addCanonEntry: async (storyId: string, entry) => {
+		const timeline = await api.canonTimeline.addEntry(storyId, entry);
+		set({ canonTimeline: timeline });
+	},
 	canonTimeline: null,
 	characterMemories: {},
-	fieldDefs: [],
-	loading: false,
-	error: null,
-
-	loadStories: async () => {
-		set({ loading: true, error: null });
-		try {
-			const stories = await api.stories.list();
-			set({ stories, loading: false });
-		} catch (err) {
-			set({ error: (err as Error).message, loading: false });
-		}
-	},
-
-	selectStory: async (id: string | null) => {
-		if (id === null) {
-			set({
-				selectedStoryId: null,
-				characters: [],
-				locations: [],
-				canonTimeline: null,
-				fieldDefs: [],
-			});
-			return;
-		}
-		set({
-			selectedStoryId: id,
-			characters: [],
-			locations: [],
-			canonTimeline: null,
-			fieldDefs: [],
-		});
-		try {
-			const { characters, locations } = await api.stories.get(id);
-			set({ characters, locations });
-		} catch {
-			// story may have no characters yet
-		}
-		try {
-			const canonTimeline = await api.canonTimeline.get(id);
-			set({ canonTimeline });
-		} catch {
-			// timeline may not exist yet for older stories
-		}
-		try {
-			const fieldDefs = await api.fieldDefs.list(id);
-			set({ fieldDefs });
-		} catch {
-			// field defs not yet seeded for this story
-		}
-	},
-
-	createStory: async (data: StoryCreate) => {
-		const story = await api.stories.create(data);
-		set((s) => ({ stories: [story, ...s.stories] }));
-		return story;
-	},
-
-	updateStory: async (id: string, data: StoryUpdate) => {
-		const story = await api.stories.update(id, data);
-		set((s) => ({
-			stories: s.stories.map((s2) => (s2.id === id ? story : s2)),
-		}));
-		return story;
-	},
-
-	deleteStory: async (id: string) => {
-		await api.stories.delete(id);
-		set((s) => ({
-			stories: s.stories.filter((s2) => s2.id !== id),
-			selectedStoryId:
-				s.selectedStoryId === id ? null : s.selectedStoryId,
-			canonTimeline: s.selectedStoryId === id ? null : s.canonTimeline,
-		}));
-	},
-
-	reloadCharacters: async () => {
-		const { selectedStoryId } = get();
-		if (!selectedStoryId) return;
-		const chars = await api.characters.list(selectedStoryId);
-		set({ characters: chars });
-	},
+	characters: [],
 
 	createCharacter: async (data: CharacterCreate) => {
 		const { selectedStoryId } = get();
@@ -162,14 +81,18 @@ export const useStoriesStore = create<StoriesState>((set, get) => ({
 		return char;
 	},
 
-	updateCharacter: async (charId: string, data: CharacterUpdate) => {
+	createLocation: async (data: LocationCreate) => {
 		const { selectedStoryId } = get();
 		if (!selectedStoryId) throw new Error('No story selected');
-		const char = await api.characters.update(selectedStoryId, charId, data);
-		set((s) => ({
-			characters: s.characters.map((c) => (c.id === charId ? char : c)),
-		}));
-		return char;
+		const location = await api.locations.create(selectedStoryId, data);
+		set((s) => ({ locations: [...s.locations, location] }));
+		return location;
+	},
+
+	createStory: async (data: StoryCreate) => {
+		const story = await api.stories.create(data);
+		set((s) => ({ stories: [story, ...s.stories] }));
+		return story;
 	},
 
 	deleteCharacter: async (charId: string) => {
@@ -179,28 +102,32 @@ export const useStoriesStore = create<StoriesState>((set, get) => ({
 		set((s) => {
 			const { [charId]: _, ...rest } = s.characterMemories;
 			return {
-				characters: s.characters.filter((c) => c.id !== charId),
 				characterMemories: rest,
+				characters: s.characters.filter((c) => c.id !== charId),
 			};
 		});
 	},
 
-	loadCharacterTimeline: async (charId: string) => {
+	deleteLocation: async (locationId: string) => {
 		const { selectedStoryId } = get();
-		if (!selectedStoryId) return;
-		const pairs = await api.characterMemories.chain(
-			selectedStoryId,
-			charId,
-		);
+		if (!selectedStoryId) throw new Error('No story selected');
+		await api.locations.delete(selectedStoryId, locationId);
 		set((s) => ({
-			characterMemories: { ...s.characterMemories, [charId]: pairs },
+			locations: s.locations.filter((l) => l.id !== locationId),
 		}));
 	},
 
-	loadFieldDefs: async (storyId: string) => {
-		const defs = await api.fieldDefs.list(storyId);
-		set({ fieldDefs: defs });
+	deleteStory: async (id: string) => {
+		await api.stories.delete(id);
+		set((s) => ({
+			canonTimeline: s.selectedStoryId === id ? null : s.canonTimeline,
+			selectedStoryId:
+				s.selectedStoryId === id ? null : s.selectedStoryId,
+			stories: s.stories.filter((s2) => s2.id !== id),
+		}));
 	},
+	error: null,
+	fieldDefs: [],
 
 	initCharacterGenesis: async (charId: string) => {
 		const { selectedStoryId } = get();
@@ -223,6 +150,51 @@ export const useStoriesStore = create<StoriesState>((set, get) => ({
 		}));
 	},
 
+	loadCanonTimeline: async (storyId: string) => {
+		try {
+			const canonTimeline = await api.canonTimeline.get(storyId);
+			set({ canonTimeline });
+		} catch {
+			set({ canonTimeline: null });
+		}
+	},
+
+	loadCharacterTimeline: async (charId: string) => {
+		const { selectedStoryId } = get();
+		if (!selectedStoryId) return;
+		const pairs = await api.characterMemories.chain(
+			selectedStoryId,
+			charId,
+		);
+		set((s) => ({
+			characterMemories: { ...s.characterMemories, [charId]: pairs },
+		}));
+	},
+
+	loadFieldDefs: async (storyId: string) => {
+		const defs = await api.fieldDefs.list(storyId);
+		set({ fieldDefs: defs });
+	},
+	loading: false,
+
+	loadStories: async () => {
+		set({ error: null, loading: true });
+		try {
+			const stories = await api.stories.list();
+			set({ loading: false, stories });
+		} catch (err) {
+			set({ error: (err as Error).message, loading: false });
+		}
+	},
+	locations: [],
+
+	reloadCharacters: async () => {
+		const { selectedStoryId } = get();
+		if (!selectedStoryId) return;
+		const chars = await api.characters.list(selectedStoryId);
+		set({ characters: chars });
+	},
+
 	reloadLocations: async () => {
 		const { selectedStoryId } = get();
 		if (!selectedStoryId) return;
@@ -230,12 +202,64 @@ export const useStoriesStore = create<StoriesState>((set, get) => ({
 		set({ locations });
 	},
 
-	createLocation: async (data: LocationCreate) => {
+	removeCanonEntry: async (storyId: string, entryId: string) => {
+		const timeline = await api.canonTimeline.removeEntry(storyId, entryId);
+		set({ canonTimeline: timeline });
+	},
+
+	reorderCanonTimeline: async (storyId: string, entryIds: string[]) => {
+		const timeline = await api.canonTimeline.reorder(storyId, entryIds);
+		set({ canonTimeline: timeline });
+	},
+	selectedStoryId: null,
+
+	selectStory: async (id: string | null) => {
+		if (id === null) {
+			set({
+				canonTimeline: null,
+				characters: [],
+				fieldDefs: [],
+				locations: [],
+				selectedStoryId: null,
+			});
+			return;
+		}
+		set({
+			canonTimeline: null,
+			characters: [],
+			fieldDefs: [],
+			locations: [],
+			selectedStoryId: id,
+		});
+		try {
+			const { characters, locations } = await api.stories.get(id);
+			set({ characters, locations });
+		} catch {
+			// story may have no characters yet
+		}
+		try {
+			const canonTimeline = await api.canonTimeline.get(id);
+			set({ canonTimeline });
+		} catch {
+			// timeline may not exist yet for older stories
+		}
+		try {
+			const fieldDefs = await api.fieldDefs.list(id);
+			set({ fieldDefs });
+		} catch {
+			// field defs not yet seeded for this story
+		}
+	},
+	stories: [],
+
+	updateCharacter: async (charId: string, data: CharacterUpdate) => {
 		const { selectedStoryId } = get();
 		if (!selectedStoryId) throw new Error('No story selected');
-		const location = await api.locations.create(selectedStoryId, data);
-		set((s) => ({ locations: [...s.locations, location] }));
-		return location;
+		const char = await api.characters.update(selectedStoryId, charId, data);
+		set((s) => ({
+			characters: s.characters.map((c) => (c.id === charId ? char : c)),
+		}));
+		return char;
 	},
 
 	updateLocation: async (locationId: string, data: LocationUpdate) => {
@@ -254,36 +278,11 @@ export const useStoriesStore = create<StoriesState>((set, get) => ({
 		return location;
 	},
 
-	deleteLocation: async (locationId: string) => {
-		const { selectedStoryId } = get();
-		if (!selectedStoryId) throw new Error('No story selected');
-		await api.locations.delete(selectedStoryId, locationId);
+	updateStory: async (id: string, data: StoryUpdate) => {
+		const story = await api.stories.update(id, data);
 		set((s) => ({
-			locations: s.locations.filter((l) => l.id !== locationId),
+			stories: s.stories.map((s2) => (s2.id === id ? story : s2)),
 		}));
-	},
-
-	loadCanonTimeline: async (storyId: string) => {
-		try {
-			const canonTimeline = await api.canonTimeline.get(storyId);
-			set({ canonTimeline });
-		} catch {
-			set({ canonTimeline: null });
-		}
-	},
-
-	addCanonEntry: async (storyId: string, entry) => {
-		const timeline = await api.canonTimeline.addEntry(storyId, entry);
-		set({ canonTimeline: timeline });
-	},
-
-	reorderCanonTimeline: async (storyId: string, entryIds: string[]) => {
-		const timeline = await api.canonTimeline.reorder(storyId, entryIds);
-		set({ canonTimeline: timeline });
-	},
-
-	removeCanonEntry: async (storyId: string, entryId: string) => {
-		const timeline = await api.canonTimeline.removeEntry(storyId, entryId);
-		set({ canonTimeline: timeline });
+		return story;
 	},
 }));

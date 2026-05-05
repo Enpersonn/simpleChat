@@ -5,6 +5,7 @@ import { useStoriesStore } from '@/src/store/stories';
 import { Badge } from '../../shared/Badge';
 import { Button } from '../../shared/Button';
 import { DialogClose } from '../../shared/Dialog';
+import { TagBox } from '../../shared/form/tag-box';
 import { f } from '../../shared/formCls';
 import {
 	DRAFT_STEPS,
@@ -713,132 +714,20 @@ export const FormContent = ({
 
 					<div class={f.field}>
 						<label class={f.label}>Genre</label>
-						<div class={f.tagGroup}>
-							{GENRE_OPTIONS.map((g) => (
-								<button
-									type="button"
-									key={g}
-									class={f.tag}
-									data-active={
-										genres.includes(g) ? 'true' : undefined
-									}
-									onClick={() => toggle(genres, g, setGenres)}
-								>
-									{g}
-								</button>
-							))}
-							{customGenres.map((g) => (
-								<button
-									key={g}
-									type="button"
-									class={f.tag}
-									data-active="true"
-									onClick={() => toggle(genres, g, setGenres)}
-								>
-									{g}
-									<span class={f.tagRemove}>×</span>
-								</button>
-							))}
-						</div>
-						<div class={f.tagAddRow}>
-							<input
-								class={f.customTagInput}
-								placeholder="Add genre…"
-								value={customGenre}
-								onInput={(e) =>
-									setCustomGenre(
-										(e.target as HTMLInputElement).value,
-									)
-								}
-								onKeyDown={(e) => {
-									if (e.key === 'Enter') {
-										e.preventDefault();
-										addCustomTag(
-											customGenre,
-											genres,
-											setGenres,
-											setCustomGenre,
-										);
-									}
-								}}
-							/>
-							<Button
-								variant="secondary"
-								size="icon"
-								onClick={() =>
-									addCustomTag(
-										customGenre,
-										genres,
-										setGenres,
-										setCustomGenre,
-									)
-								}
-							>
-								+
-							</Button>
-						</div>
+						<TagBox
+							options={GENRE_OPTIONS}
+							selected={genres}
+							setSelected={setGenres}
+						/>
 					</div>
 
 					<div class={f.field}>
 						<label class={f.label}>Tone</label>
-						<div class={f.tagGroup}>
-							{TONE_OPTIONS.map((t) => (
-								<Badge
-									key={t}
-									active={tones.includes(t)}
-									onClick={() => toggle(tones, t, setTones)}
-								>
-									{t}
-								</Badge>
-							))}
-							{customTones.map((t) => (
-								<Badge
-									key={t}
-									active
-									onClick={() => toggle(tones, t, setTones)}
-								>
-									{t}
-									<span class={f.tagRemove}>×</span>
-								</Badge>
-							))}
-						</div>
-						<div class={f.tagAddRow}>
-							<input
-								class={f.customTagInput}
-								placeholder="Add tone…"
-								value={customTone}
-								onInput={(e) =>
-									setCustomTone(
-										(e.target as HTMLInputElement).value,
-									)
-								}
-								onKeyDown={(e) => {
-									if (e.key === 'Enter') {
-										e.preventDefault();
-										addCustomTag(
-											customTone,
-											tones,
-											setTones,
-											setCustomTone,
-										);
-									}
-								}}
-							/>
-							<Button
-								variant="secondary"
-								size="icon"
-								onClick={() =>
-									addCustomTag(
-										customTone,
-										tones,
-										setTones,
-										setCustomTone,
-									)
-								}
-							>
-								+
-							</Button>
-						</div>
+						<TagBox
+							options={TONE_OPTIONS}
+							selected={tones}
+							setSelected={setTones}
+						/>
 					</div>
 
 					<div class={f.field}>
@@ -933,18 +822,20 @@ export const FormContent = ({
 								)}
 								<span class={f.charActions}>
 									<Button
-										class={f.iconActionBtn}
+										variant="ghost"
+										size="icon"
 										onClick={() => setEditingChar(c)}
 									>
 										✎
 									</Button>
-									<button
-										type="button"
+									<Button
+										variant="ghost"
+										size="icon"
 										class={f.iconActionBtn}
 										onClick={() => removeChar(c._localId)}
 									>
 										✕
-									</button>
+									</Button>
 								</span>
 							</div>
 						))}

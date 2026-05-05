@@ -48,7 +48,6 @@ export function LeftPanel() {
 	const ollamaHealthy = useSettingsStore((s) => s.ollamaHealthy);
 	const setGeneration = useSettingsStore((s) => s.setGeneration);
 
-	const [editingStory, setEditingStory] = useState<string | null>(null);
 	const [showNewChat, setShowNewChat] = useState(false);
 	const [branchAnchors, setBranchAnchors] = useState<Record<
 		string,
@@ -176,7 +175,7 @@ export function LeftPanel() {
 			{selectedStoryId && selectedStory ? (
 				/* ── Story detail view ── */
 				<>
-					<div class="flex min-h-[44px] shrink-0 items-center gap-1.5 border-border border-b px-3 py-2.5">
+					<div class="flex min-h-11 shrink-0 items-center gap-1.5 border-border border-b px-3 py-2.5">
 						<button
 							type="button"
 							class="shrink-0 rounded-sm px-1.5 py-0.5 text-[16px] text-text-muted transition-colors duration-150 hover:bg-gold-dim hover:text-gold"
@@ -583,16 +582,7 @@ export function LeftPanel() {
 						<div class={sectionCls}>
 							<div class={sectionHeaderCls}>
 								<span class={sectionLabelCls}>Story</span>
-								<button
-									type="button"
-									class={iconBtnCls}
-									onClick={() =>
-										setEditingStory(selectedStoryId)
-									}
-									title="Edit story settings"
-								>
-									✎
-								</button>
+								<EditStoryModal story={selectedStory} />
 							</div>
 							<button
 								type="button"
@@ -674,6 +664,7 @@ export function LeftPanel() {
 										</span>
 									</Button>
 									<div class={itemActionsCls}>
+										<EditStoryModal story={story} />
 										<button
 											type="button"
 											class={iconBtnCls}
@@ -701,18 +692,6 @@ export function LeftPanel() {
 					</div>
 				</>
 			)}
-			{editingStory &&
-				selectedStory &&
-				editingStory === selectedStory.id &&
-				createPortal(
-					<EditStoryModal
-						story={selectedStory}
-						onClose={() => setEditingStory(null)}
-						onSaved={() => setEditingStory(null)}
-					/>,
-					document.body,
-				)}
-
 			{(editingChar === 'new' || editingChar === 'new-persona') &&
 				createPortal(
 					<CharacterModal

@@ -1,13 +1,8 @@
 import type { ComponentChildren } from 'preact';
 import { createContext } from 'preact';
-import {
-	createPortal,
-	type PropsWithChildren,
-	type ReactElement,
-} from 'preact/compat';
+import { createPortal, type ReactElement } from 'preact/compat';
 import { useContext, useState } from 'preact/hooks';
 import { cn } from '@/utils/classes';
-import { Button } from './Button';
 import { Slot } from './Slot';
 
 type DialogCtx = { open: boolean; onOpen: () => void; onClose: () => void };
@@ -17,19 +12,35 @@ const DialogContext = createContext<DialogCtx>({
 	open: false,
 });
 
-type DialogProps = PropsWithChildren<{
-	defaultOpen?: boolean;
-}>;
+export const useDialog = () => useContext(DialogContext);
 
-export const Dialog = ({ children, defaultOpen = false }: DialogProps) => {
+type DialogProps = {
+	children: ComponentChildren;
+	defaultOpen?: boolean;
+	onClose?: () => void;
+	onOpen?: () => void;
+};
+
+export const Dialog = ({
+	children,
+	defaultOpen = false,
+	onClose: onCloseProp,
+	onOpen: onOpenProp,
+}: DialogProps) => {
 	const [open, setOpen] = useState(defaultOpen);
+
+	const handleOpen = () => {
+		setOpen(true);
+		onOpenProp?.();
+	};
+	const handleClose = () => {
+		setOpen(false);
+		onCloseProp?.();
+	};
+
 	return (
 		<DialogContext.Provider
-			value={{
-				onClose: () => setOpen(false),
-				onOpen: () => setOpen(true),
-				open,
-			}}
+			value={{ onClose: handleClose, onOpen: handleOpen, open }}
 		>
 			{children}
 		</DialogContext.Provider>
@@ -74,7 +85,7 @@ export const DialogContent = ({ children, class: cls }: BaseProps) => {
 		>
 			<div
 				class={cn(
-					'flex max-h-[calc(100vh-64px)] w-130 max-w-[calc(100vw-32px)] flex-col gap-[18px] overflow-y-auto rounded-lg border border-border-light bg-bg-secondary p-6 shadow-lg',
+					'flex max-h-[calc(100vh-64px)] max-w-[calc(100vw-32px)] flex-col gap-[18px] overflow-y-auto rounded-lg border border-border-light bg-bg-secondary p-6 shadow-lg',
 					cls,
 				)}
 			>
@@ -86,7 +97,9 @@ export const DialogContent = ({ children, class: cls }: BaseProps) => {
 };
 
 export const DialogHeader = ({ children, class: cls }: BaseProps) => (
-	<div class={cn('flex items-center justify-between', cls)}>{children}</div>
+	<div class={cn('flex shrink-0 items-center justify-between', cls)}>
+		{children}
+	</div>
 );
 
 export const DialogTitle = ({ children, class: cls }: BaseProps) => (
@@ -100,23 +113,24 @@ export const DialogTitle = ({ children, class: cls }: BaseProps) => (
 	</h2>
 );
 
-export const DialogClose = ({
-	class: cls,
-	children,
-}: PropsWithChildren<{ class?: string }>) => {
+export const DialogClose = ({ class: cls }: { class?: string }) => {
 	const { onClose } = useContext(DialogContext);
 	return (
-		<Button
-			class={cn(cls)}
-			size={children ? 'medium' : 'icon'}
+		<button
+			type="button"
+			class={cn(
+				'rounded-sm px-1.5 py-0.5 text-[18px] text-text-muted transition-colors duration-150 hover:bg-bg-hover hover:text-text-primary',
+				cls,
+			)}
 			onClick={onClose}
-			variant="secondary"
 		>
-			{children ? children : '✕'}
-		</Button>
+			✕
+		</button>
 	);
 };
 
 export const DialogFooter = ({ children, class: cls }: BaseProps) => (
-	<div class={cn('flex justify-end gap-2 pt-1', cls)}>{children}</div>
+	<div class={cn('flex shrink-0 justify-end gap-2 pt-1', cls)}>
+		{children}
+	</div>
 );

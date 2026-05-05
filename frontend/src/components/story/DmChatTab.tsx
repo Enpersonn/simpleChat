@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from 'preact/hooks';
-import { marked } from 'marked';
 import type { DmProposal, Turn } from '@simplechat/types';
+import { marked } from 'marked';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { api } from '../../lib/api.js';
 import { planMessageStream } from '../../lib/stream.js';
-import { useStoriesStore } from '../../store/stories.js';
 import { useSettingsStore } from '../../store/settings.js';
+import { useStoriesStore } from '../../store/stories.js';
 import { DmProposalCard } from './DmProposalCard.js';
 
 marked.setOptions({ breaks: true });
@@ -48,9 +48,9 @@ export function DmChatTab({ storyId }: Props) {
 					if (!cancelled) setTurns(history);
 				} else {
 					const created = await api.chats.create(storyId, {
+						activeSpeakers: [],
 						mode: 'planning',
 						title: 'Story Planning',
-						activeSpeakers: [],
 					});
 					if (!cancelled) {
 						setChatId(created.id);
@@ -82,22 +82,22 @@ export function DmChatTab({ storyId }: Props) {
 		setPendingProposals([]);
 
 		const tempUserTurn: Turn = {
-			id: `temp-${Date.now()}`,
 			chatId,
-			speaker: 'user',
+			id: `temp-${Date.now()}`,
+			pinned: false,
 			role: 'user',
+			speaker: 'user',
 			text,
 			timestamp: new Date().toISOString(),
-			pinned: false,
 		};
 		const streamingPlaceholder: Turn = {
-			id: 'streaming',
 			chatId,
-			speaker: 'dm',
+			id: 'streaming',
+			pinned: false,
 			role: 'assistant',
+			speaker: 'dm',
 			text: '',
 			timestamp: new Date().toISOString(),
-			pinned: false,
 		};
 		setTurns((prev) => [...prev, tempUserTurn, streamingPlaceholder]);
 		setIsStreaming(true);
@@ -108,11 +108,8 @@ export function DmChatTab({ storyId }: Props) {
 
 		let accumulated = '';
 		await planMessageStream({
-			storyId,
 			chatId,
-			text,
 			model: model || undefined,
-			signal: ac.signal,
 			onChunk: (chunk) => {
 				accumulated += chunk;
 				setStreamingText(accumulated);
@@ -121,9 +118,6 @@ export function DmChatTab({ storyId }: Props) {
 						t.id === 'streaming' ? { ...t, text: accumulated } : t,
 					),
 				);
-			},
-			onProposals: (proposals) => {
-				setPendingProposals(proposals);
 			},
 			onDone: async () => {
 				abortRef.current = null;
@@ -149,6 +143,12 @@ export function DmChatTab({ storyId }: Props) {
 					),
 				);
 			},
+			onProposals: (proposals) => {
+				setPendingProposals(proposals);
+			},
+			signal: ac.signal,
+			storyId,
+			text,
 		});
 	};
 
@@ -169,48 +169,51 @@ export function DmChatTab({ storyId }: Props) {
 				const priv = (d.private ?? {}) as Record<string, unknown>;
 				await api.characters.create(storyId, {
 					name: typeof d.name === 'string' ? d.name : 'Unknown',
-					role: typeof d.role === 'string' ? d.role : '',
+					private: {
+						fears: Array.isArray(priv.fears)
+							? (priv.fears as string[])
+							: [],
+						hiddenEmotionalState: '',
+						moralLimits: '',
+						privateKnowledge: [],
+						trueMotives:
+							typeof priv.trueMotives === 'string'
+								? priv.trueMotives
+								: '',
+					},
 					public: {
 						age: typeof pub.age === 'string' ? pub.age : '',
-						gender:
-							typeof pub.gender === 'string' ? pub.gender : '',
-						species:
-							typeof pub.species === 'string' ? pub.species : '',
 						appearance:
 							typeof pub.appearance === 'string'
 								? pub.appearance
-								: '',
-						personality: Array.isArray(pub.personality)
-							? (pub.personality as string[])
-							: [],
-						speechStyle:
-							typeof pub.speechStyle === 'string'
-								? pub.speechStyle
 								: '',
 						clothing:
 							typeof pub.clothing === 'string'
 								? pub.clothing
 								: '',
+						gender:
+							typeof pub.gender === 'string' ? pub.gender : '',
+						personality: Array.isArray(pub.personality)
+							? (pub.personality as string[])
+							: [],
 						reputation: '',
+						species:
+							typeof pub.species === 'string' ? pub.species : '',
+						speechStyle:
+							typeof pub.speechStyle === 'string'
+								? pub.speechStyle
+								: '',
 						voiceNotes: '',
 					},
-					private: {
-						trueMotives:
-							typeof priv.trueMotives === 'string'
-								? priv.trueMotives
-								: '',
-						fears: Array.isArray(priv.fears)
-							? (priv.fears as string[])
-							: [],
-						privateKnowledge: [],
-						moralLimits: '',
-						hiddenEmotionalState: '',
-					},
+					role: typeof d.role === 'string' ? d.role : '',
 				});
 				await reloadCharacters();
 			} else if (proposal.type === 'location') {
 				await api.locations.create(storyId, {
-					name: typeof d.name === 'string' ? d.name : 'Unknown',
+					atmosphere:
+						typeof d.atmosphere === 'string'
+							? d.atmosphere
+							: undefined,
 					description:
 						typeof d.description === 'string'
 							? d.description
@@ -218,16 +221,13 @@ export function DmChatTab({ storyId }: Props) {
 					layout: typeof d.layout === 'string' ? d.layout : undefined,
 					lighting:
 						typeof d.lighting === 'string' ? d.lighting : undefined,
-					atmosphere:
-						typeof d.atmosphere === 'string'
-							? d.atmosphere
-							: undefined,
+					name: typeof d.name === 'string' ? d.name : 'Unknown',
+					notes: typeof d.notes === 'string' ? d.notes : undefined,
+					smells: typeof d.smells === 'string' ? d.smells : undefined,
 					soundscape:
 						typeof d.soundscape === 'string'
 							? d.soundscape
 							: undefined,
-					smells: typeof d.smells === 'string' ? d.smells : undefined,
-					notes: typeof d.notes === 'string' ? d.notes : undefined,
 					tags: Array.isArray(d.tags) ? (d.tags as string[]) : [],
 				});
 				await reloadLocations();
@@ -242,11 +242,11 @@ export function DmChatTab({ storyId }: Props) {
 						`Character "${charName}" not found in this story`,
 					);
 				await api.characterMemories.create(storyId, char.id, {
-					summary: typeof d.summary === 'string' ? d.summary : '',
-					tags: Array.isArray(d.tags) ? (d.tags as string[]) : [],
+					deltas: { effects: [] },
 					importance:
 						typeof d.importance === 'number' ? d.importance : 0.5,
-					deltas: { effects: [] },
+					summary: typeof d.summary === 'string' ? d.summary : '',
+					tags: Array.isArray(d.tags) ? (d.tags as string[]) : [],
 				});
 			}
 			setPendingProposals((prev) =>
@@ -281,19 +281,19 @@ export function DmChatTab({ storyId }: Props) {
 
 	if (loading) {
 		return (
-			<div class="flex items-center justify-center h-[200px] text-[13px] text-text-muted">
+			<div class="flex h-[200px] items-center justify-center text-[13px] text-text-muted">
 				Loading DM Chat…
 			</div>
 		);
 	}
 
 	return (
-		<div class="flex flex-col h-[520px] min-h-0">
+		<div class="flex h-[520px] min-h-0 flex-col">
 			{error && (
-				<div class="flex items-center justify-between gap-2 py-2 px-3 bg-[#ff444422] border border-error rounded-sm text-xs text-error shrink-0 mb-2">
+				<div class="mb-2 flex shrink-0 items-center justify-between gap-2 rounded-sm border border-error bg-[#ff444422] px-3 py-2 text-error text-xs">
 					<span>⚠ {error}</span>
 					<button
-						class="text-error text-sm px-1 shrink-0"
+						class="shrink-0 px-1 text-error text-sm"
 						onClick={() => setError(null)}
 					>
 						✕
@@ -302,15 +302,15 @@ export function DmChatTab({ storyId }: Props) {
 			)}
 
 			<div
-				class="flex-1 overflow-y-auto flex flex-col gap-3 py-2 min-h-0"
+				class="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto py-2"
 				ref={messagesRef}
 			>
 				{turns.length === 0 && !isStreaming && (
-					<div class="flex flex-col items-center justify-center gap-2 h-full text-center text-text-muted px-6">
+					<div class="flex h-full flex-col items-center justify-center gap-2 px-6 text-center text-text-muted">
 						<strong class="text-sm text-text-secondary">
 							Story Workshop
 						</strong>
-						<p class="text-xs leading-[1.5] max-w-[360px]">
+						<p class="max-w-90 text-xs leading-normal">
 							Chat with your DM to plan characters, locations, and
 							backstory. Ask for suggestions or describe what you
 							have in mind — the DM will propose additions you can
@@ -324,13 +324,12 @@ export function DmChatTab({ storyId }: Props) {
 						class={`flex flex-col gap-1 ${turn.role === 'user' ? 'items-end' : 'items-start'}`}
 					>
 						<div class="flex items-center gap-1.5 px-1">
-							<span class="text-[11px] font-semibold text-text-muted uppercase tracking-[0.05em]">
+							<span class="font-semibold text-[11px] text-text-muted uppercase tracking-wider">
 								{getSpeakerName(turn)}
 							</span>
 						</div>
 						<div
-							class={`max-w-[92%] py-[9px] px-[13px] rounded text-[14px] leading-[1.55] text-text-primary break-words ${turn.role === 'user' ? 'bg-accent-dim rounded-br-[3px]' : 'bg-bg-tertiary border border-border-light rounded-bl-[3px]'}`}
-							// biome-ignore lint/security/noDangerouslySetInnerHtml: markdown rendered locally
+							class={`wrap-break-word max-w-[92%] rounded px-3.25 py-2.25 text-[14px] text-text-primary leading-[1.55] ${turn.role === 'user' ? 'rounded-br-[3px] bg-accent-dim' : 'rounded-bl-[3px] border border-border-light bg-bg-tertiary'}`}
 							dangerouslySetInnerHTML={{
 								__html: marked.parse(
 									turn.text ||
@@ -339,14 +338,14 @@ export function DmChatTab({ storyId }: Props) {
 							}}
 						/>
 						{turn.id === 'streaming' && (
-							<span class="inline-block w-[2px] h-[1em] bg-text-primary align-text-bottom ml-[2px] animate-[blink_1s_step-end_infinite]" />
+							<span class="ml-[2px] inline-block h-[1em] w-[2px] animate-[blink_1s_step-end_infinite] bg-text-primary align-text-bottom" />
 						)}
 					</div>
 				))}
 
 				{pendingProposals.length > 0 && (
 					<div class="flex flex-col gap-2 py-2 pb-1">
-						<div class="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-muted pl-[2px]">
+						<div class="pl-[2px] font-semibold text-[11px] text-text-muted uppercase tracking-[0.06em]">
 							Suggestions from DM
 						</div>
 						{pendingProposals.map((p) => (
@@ -362,10 +361,10 @@ export function DmChatTab({ storyId }: Props) {
 				)}
 			</div>
 
-			<div class="flex flex-col gap-1.5 pt-2.5 border-t border-border-light shrink-0 mt-2">
+			<div class="mt-2 flex shrink-0 flex-col gap-1.5 border-border-light border-t pt-2.5">
 				<textarea
 					ref={textareaRef}
-					class="w-full resize-none py-[9px] px-3 text-[13px] bg-bg-primary border border-border-light rounded-sm text-text-primary font-[inherit] leading-[1.5] box-border focus:outline-none focus:border-accent disabled:opacity-60 disabled:cursor-not-allowed"
+					class="box-border w-full resize-none rounded-sm border border-border-light bg-bg-primary px-3 py-[9px] font-[inherit] text-[13px] text-text-primary leading-[1.5] focus:border-accent focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
 					value={input}
 					onInput={(e) =>
 						setInput((e.target as HTMLTextAreaElement).value)
@@ -378,14 +377,14 @@ export function DmChatTab({ storyId }: Props) {
 				<div class="flex justify-end">
 					{isStreaming ? (
 						<button
-							class="py-1.5 px-[18px] text-[13px] font-semibold rounded-sm bg-transparent border border-error text-error transition-colors duration-150 hover:bg-[#ff444422]"
+							class="rounded-sm border border-error bg-transparent px-[18px] py-1.5 font-semibold text-[13px] text-error transition-colors duration-150 hover:bg-[#ff444422]"
 							onClick={handleStop}
 						>
 							Stop
 						</button>
 					) : (
 						<button
-							class="py-1.5 px-[18px] text-[13px] font-semibold rounded-sm bg-accent text-white transition-opacity duration-150 hover:enabled:opacity-85 disabled:opacity-40 disabled:cursor-not-allowed"
+							class="rounded-sm bg-accent px-[18px] py-1.5 font-semibold text-[13px] text-white transition-opacity duration-150 hover:enabled:opacity-85 disabled:cursor-not-allowed disabled:opacity-40"
 							onClick={handleSend}
 							disabled={!input.trim()}
 						>
