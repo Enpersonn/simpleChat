@@ -1,5 +1,4 @@
 import type { ContextSnapshot } from '../../lib/debug-types.js'
-import s from './ContextGraph.module.css'
 
 interface Props {
   snapshot: ContextSnapshot | null
@@ -176,7 +175,11 @@ function buildCharFullLabel(c: ContextSnapshot['characters'][0]): string {
 
 export function ContextGraph({ snapshot }: Props) {
   if (!snapshot) {
-    return <div class={s.placeholder}>Send a message to see the context graph</div>
+    return (
+      <div class="text-[11px] text-text-muted text-center py-6">
+        Send a message to see the context graph
+      </div>
+    )
   }
 
   const { nodes, edges } = buildGraph(snapshot)
@@ -184,9 +187,9 @@ export function ContextGraph({ snapshot }: Props) {
   const svgHeight = (hasRow6 ? 7 : 6) * ROW_H
 
   return (
-    <div class={s.root}>
+    <div class="overflow-x-auto">
       <svg
-        class={s.svg}
+        class="block w-full"
         width={SVG_WIDTH}
         height={svgHeight}
         viewBox={`0 0 ${SVG_WIDTH} ${svgHeight}`}
@@ -258,20 +261,23 @@ export function ContextGraph({ snapshot }: Props) {
       </svg>
 
       {/* Legend */}
-      <div style={{ display: 'flex', gap: '10px', marginTop: '6px', fontSize: '9px', color: 'var(--text-muted)' }}>
-        <span style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
-          <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--accent)', display: 'inline-block' }} />
+      <div class="flex gap-2.5 mt-1.5 text-[9px] text-text-muted">
+        <span class="flex items-center gap-[3px]">
+          <span class="w-2 h-2 rounded-full bg-accent inline-block" />
           injected
         </span>
-        <span style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
-          <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--bg-hover)', border: '1px solid var(--border)', display: 'inline-block', opacity: 0.6 }} />
+        <span class="flex items-center gap-[3px]">
+          <span
+            class="w-2 h-2 rounded-full bg-bg-hover border border-border inline-block"
+            style={{ opacity: 0.6 }}
+          />
           available
         </span>
-        <span style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+        <span class="flex items-center gap-[3px]">
           <svg width="16" height="8"><line x1="0" y1="4" x2="16" y2="4" stroke="var(--accent)" stroke-width="1.5" opacity="0.5" /></svg>
           in use
         </span>
-        <span style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+        <span class="flex items-center gap-[3px]">
           <svg width="16" height="8"><line x1="0" y1="4" x2="16" y2="4" stroke="var(--border)" stroke-width="0.75" stroke-dasharray="3,3" opacity="0.4" /></svg>
           accessible
         </span>

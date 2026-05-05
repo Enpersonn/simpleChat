@@ -18,7 +18,7 @@ export function chunkText(
       chunks.push(current.trimEnd());
       const tail =
         current.length > overlapChars ? current.slice(-overlapChars) : current;
-      current = tail.trimStart() + " " + sentence;
+      current = `${tail.trimStart()} ${sentence}`;
     } else {
       current += (current ? " " : "") + sentence;
     }

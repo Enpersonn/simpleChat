@@ -10,8 +10,7 @@ import type {
 } from '@simplechat/types'
 import { useStoriesStore } from '../../store/stories.js'
 import { api } from '../../lib/api.js'
-import s from './StoryCreateModal.module.css'
-import ms from './CharacterModal.module.css'
+import { f } from '../shared/formCls.js'
 
 type RelationEntry = { charId: string; otherCharName: string; emotion: string; publicAttitude: string; privateAttitude: string; trustLevel: number; sourceMemoryId?: string }
 type MemoryPair = { relation: CharacterMemoryRelation; memory: MemoryItem }
@@ -71,7 +70,7 @@ function EffectsEditor({ effects, onChange, fieldDefs }: EffectsEditorProps) {
   }
 
   return (
-    <div class={ms.effectsEditor}>
+    <div class="flex flex-col gap-1.5">
       <datalist id="effect-paths-list">
         {fieldDefs.map((d) => (
           <option key={d.id} value={d.path}>{d.label}</option>
@@ -85,10 +84,10 @@ function EffectsEditor({ effects, onChange, fieldDefs }: EffectsEditorProps) {
       )}
 
       {effects.map((effect, idx) => (
-        <div key={idx} class={ms.effectRow}>
-          <div class={ms.effectPathWrap}>
+        <div key={idx} class="flex items-center gap-1.5">
+          <div style="flex:2" class="min-w-0">
             <input
-              class={s.input}
+              class={f.input}
               list="effect-paths-list"
               placeholder="Path (e.g. public.personality)"
               value={effect.path}
@@ -97,7 +96,7 @@ function EffectsEditor({ effects, onChange, fieldDefs }: EffectsEditorProps) {
             />
           </div>
           <select
-            class={ms.effectOp}
+            class="w-[110px] shrink-0 px-[10px] py-2 rounded-sm border border-border bg-bg-tertiary text-text-primary text-[13px] transition-colors duration-150 focus:border-accent focus:outline-none"
             value={effect.op}
             onChange={(e) => update(idx, { op: (e.target as HTMLSelectElement).value as MemoryDeltaEffect['op'] })}
           >
@@ -107,18 +106,18 @@ function EffectsEditor({ effects, onChange, fieldDefs }: EffectsEditorProps) {
           </select>
           {effect.op !== 'unset' && (
             <input
-              class={s.input}
+              class={f.input}
               style={{ flex: 1 }}
               placeholder="Value"
               value={typeof effect.value === 'string' ? effect.value : effect.value != null ? String(effect.value) : ''}
               onInput={(e) => update(idx, { value: (e.target as HTMLInputElement).value })}
             />
           )}
-          <button class={s.iconActionBtn} onClick={() => remove(idx)} title="Remove effect">✕</button>
+          <button class={f.iconActionBtn} onClick={() => remove(idx)} title="Remove effect">✕</button>
         </div>
       ))}
 
-      <button class={s.aiBtn} onClick={add} style={{ marginTop: '6px' }}>+ Add effect</button>
+      <button class={f.aiBtn} onClick={add} style={{ marginTop: '6px' }}>+ Add effect</button>
     </div>
   )
 }
@@ -313,117 +312,117 @@ export function CharacterModal({ initial, initialDraft, defaultIsPersona, onClos
   const memories = pairs.map((p) => p.memory)
 
   return (
-    <div class={s.overlay} onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
-      <div class={s.modal}>
-        <div class={s.header}>
-          <span class={s.title}>{isEdit ? (isUserPersona ? 'Edit Persona' : 'Edit Character') : (isUserPersona ? 'New Persona' : 'New Character')}</span>
-          <button class={s.closeBtn} onClick={onClose}>✕</button>
+    <div class={f.overlay} onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
+      <div class={f.modal}>
+        <div class={f.header}>
+          <span class={f.title}>{isEdit ? (isUserPersona ? 'Edit Persona' : 'Edit Character') : (isUserPersona ? 'New Persona' : 'New Character')}</span>
+          <button class={f.closeBtn} onClick={onClose}>✕</button>
         </div>
 
         {isEdit && (
-          <div class={s.tabs}>
-            <button class={s.tabBtn} data-active={activeTab === 'character' ? 'true' : undefined} onClick={() => setActiveTab('character')}>Character</button>
-            <button class={s.tabBtn} data-active={activeTab === 'memories' ? 'true' : undefined} onClick={() => setActiveTab('memories')}>Memories</button>
-            <button class={s.tabBtn} data-active={activeTab === 'relations' ? 'true' : undefined} onClick={() => setActiveTab('relations')}>Relations</button>
-            <button class={s.tabBtn} data-active={activeTab === 'locations' ? 'true' : undefined} onClick={() => setActiveTab('locations')}>Locations</button>
+          <div class={f.tabs}>
+            <button class={f.tabBtn} data-active={activeTab === 'character' ? 'true' : undefined} onClick={() => setActiveTab('character')}>Character</button>
+            <button class={f.tabBtn} data-active={activeTab === 'memories' ? 'true' : undefined} onClick={() => setActiveTab('memories')}>Memories</button>
+            <button class={f.tabBtn} data-active={activeTab === 'relations' ? 'true' : undefined} onClick={() => setActiveTab('relations')}>Relations</button>
+            <button class={f.tabBtn} data-active={activeTab === 'locations' ? 'true' : undefined} onClick={() => setActiveTab('locations')}>Locations</button>
           </div>
         )}
 
-        {error && <div style={{ color: 'var(--error)', fontSize: '12px' }}>{error}</div>}
+        {error && <p class={f.errorMsg}>{error}</p>}
 
         {activeTab === 'character' && (
           <>
             {selectedStoryId && (
-              <div class={s.generateSection}>
-                <label class={s.label}>Generate from description</label>
-                <div class={s.generateRow}>
+              <div class={f.generateSection}>
+                <label class={f.label}>Generate from description</label>
+                <div class={f.generateRow}>
                   <textarea
-                    class={s.textarea}
+                    class={f.textarea}
                     placeholder="e.g. a bitter old sea captain secretly searching for his lost daughter…"
                     value={genPrompt}
                     onInput={(e) => setGenPrompt((e.target as HTMLTextAreaElement).value)}
                     style={{ minHeight: '56px', flex: 1 }}
                   />
-                  <button class={s.generateBtn} onClick={handleGenerate} disabled={generating || !genPrompt.trim()}>
+                  <button class={f.generateBtn} onClick={handleGenerate} disabled={generating || !genPrompt.trim()}>
                     {generating ? 'Generating…' : '✨ Generate'}
                   </button>
                 </div>
               </div>
             )}
 
-            <div class={s.field}>
-              <label class={s.label}>Name <span class={s.required}>*</span></label>
-              <input class={s.input} value={name} onInput={(e) => setName((e.target as HTMLInputElement).value)} placeholder="e.g. Seraphine Voss" />
+            <div class={f.field}>
+              <label class={f.label}>Name <span class={f.required}>*</span></label>
+              <input class={f.input} value={name} onInput={(e) => setName((e.target as HTMLInputElement).value)} placeholder="e.g. Seraphine Voss" />
             </div>
 
-            <div class={s.field}>
-              <label class={s.label}>Role / Title</label>
-              <input class={s.input} value={role} onInput={(e) => setRole((e.target as HTMLInputElement).value)} placeholder="e.g. Merchant, Detective, Villain" />
+            <div class={f.field}>
+              <label class={f.label}>Role / Title</label>
+              <input class={f.input} value={role} onInput={(e) => setRole((e.target as HTMLInputElement).value)} placeholder="e.g. Merchant, Detective, Villain" />
             </div>
 
-            <div class={s.field}>
-              <label class={s.label} style={{ display: 'flex', alignItems: 'center', gap: '8px', textTransform: 'none', fontSize: '13px', letterSpacing: 0 }}>
+            <div class={f.field}>
+              <label class={f.label} style={{ display: 'flex', alignItems: 'center', gap: '8px', textTransform: 'none', fontSize: '13px', letterSpacing: 0 }}>
                 <input type="checkbox" checked={isUserPersona} onChange={(e) => setIsUserPersona((e.target as HTMLInputElement).checked)} />
                 This is the player's persona (user character)
               </label>
             </div>
 
-            <div class={s.field}>
-              <label class={s.label}>Personal Info</label>
-              <div class={s.infoGrid}>
-                <div class={s.infoCell}>
-                  <span class={s.subLabel}>Age</span>
-                  <input class={s.input} value={age} onInput={(e) => setAge((e.target as HTMLInputElement).value)} placeholder="e.g. mid-30s" />
+            <div class={f.field}>
+              <label class={f.label}>Personal Info</label>
+              <div class={f.infoGrid}>
+                <div class={f.infoCell}>
+                  <span class={f.subLabel}>Age</span>
+                  <input class={f.input} value={age} onInput={(e) => setAge((e.target as HTMLInputElement).value)} placeholder="e.g. mid-30s" />
                 </div>
-                <div class={s.infoCell}>
-                  <span class={s.subLabel}>Gender</span>
-                  <input class={s.input} value={gender} onInput={(e) => setGender((e.target as HTMLInputElement).value)} placeholder="e.g. woman" />
+                <div class={f.infoCell}>
+                  <span class={f.subLabel}>Gender</span>
+                  <input class={f.input} value={gender} onInput={(e) => setGender((e.target as HTMLInputElement).value)} placeholder="e.g. woman" />
                 </div>
-                <div class={s.infoCell}>
-                  <span class={s.subLabel}>Species</span>
-                  <input class={s.input} value={species} onInput={(e) => setSpecies((e.target as HTMLInputElement).value)} placeholder="e.g. human, wolf" />
+                <div class={f.infoCell}>
+                  <span class={f.subLabel}>Species</span>
+                  <input class={f.input} value={species} onInput={(e) => setSpecies((e.target as HTMLInputElement).value)} placeholder="e.g. human, wolf" />
                 </div>
               </div>
             </div>
 
-            <div class={s.field}>
-              <label class={s.label}>Clothing</label>
-              <input class={s.input} value={clothing} onInput={(e) => setClothing((e.target as HTMLInputElement).value)} placeholder="e.g. worn leather coat, silver earrings" />
+            <div class={f.field}>
+              <label class={f.label}>Clothing</label>
+              <input class={f.input} value={clothing} onInput={(e) => setClothing((e.target as HTMLInputElement).value)} placeholder="e.g. worn leather coat, silver earrings" />
             </div>
 
-            <div class={s.field}>
-              <label class={s.label}>Appearance</label>
-              <textarea class={s.textarea} value={appearance} onInput={(e) => setAppearance((e.target as HTMLTextAreaElement).value)} placeholder="Physical description, mannerisms…" style={{ minHeight: '60px' }} />
+            <div class={f.field}>
+              <label class={f.label}>Appearance</label>
+              <textarea class={f.textarea} value={appearance} onInput={(e) => setAppearance((e.target as HTMLTextAreaElement).value)} placeholder="Physical description, mannerisms…" style={{ minHeight: '60px' }} />
             </div>
 
-            <div class={s.field}>
-              <label class={s.label}>Personality Traits <span style={{ color: 'var(--text-muted)', fontWeight: 400, textTransform: 'none' }}>(comma-separated)</span></label>
-              <input class={s.input} value={personality} onInput={(e) => setPersonality((e.target as HTMLInputElement).value)} placeholder="e.g. sardonic, loyal, restless" />
+            <div class={f.field}>
+              <label class={f.label}>Personality Traits <span class={f.labelHint}>(comma-separated)</span></label>
+              <input class={f.input} value={personality} onInput={(e) => setPersonality((e.target as HTMLInputElement).value)} placeholder="e.g. sardonic, loyal, restless" />
             </div>
 
-            <div class={s.field}>
-              <label class={s.label}>Speech Style</label>
-              <textarea class={s.textarea} value={speechStyle} onInput={(e) => setSpeechStyle((e.target as HTMLTextAreaElement).value)} placeholder="How they speak — terse, verbose, formal, dialect…" style={{ minHeight: '56px' }} />
+            <div class={f.field}>
+              <label class={f.label}>Speech Style</label>
+              <textarea class={f.textarea} value={speechStyle} onInput={(e) => setSpeechStyle((e.target as HTMLTextAreaElement).value)} placeholder="How they speak — terse, verbose, formal, dialect…" style={{ minHeight: '56px' }} />
             </div>
 
-            <div class={s.field}>
-              <label class={s.label}>True Motives <span style={{ color: 'var(--text-muted)', fontWeight: 400, textTransform: 'none' }}>(private — LLM only)</span></label>
-              <textarea class={s.textarea} value={trueMotives} onInput={(e) => setTrueMotives((e.target as HTMLTextAreaElement).value)} placeholder="Hidden goals never directly revealed in play…" style={{ minHeight: '56px' }} />
+            <div class={f.field}>
+              <label class={f.label}>True Motives <span class={f.labelHint}>(private — LLM only)</span></label>
+              <textarea class={f.textarea} value={trueMotives} onInput={(e) => setTrueMotives((e.target as HTMLTextAreaElement).value)} placeholder="Hidden goals never directly revealed in play…" style={{ minHeight: '56px' }} />
             </div>
 
-            <div class={s.field}>
-              <label class={s.label}>Hidden Fears <span style={{ color: 'var(--text-muted)', fontWeight: 400, textTransform: 'none' }}>(comma-separated, private)</span></label>
-              <input class={s.input} value={fears} onInput={(e) => setFears((e.target as HTMLInputElement).value)} placeholder="e.g. abandonment, losing control" />
+            <div class={f.field}>
+              <label class={f.label}>Hidden Fears <span class={f.labelHint}>(comma-separated, private)</span></label>
+              <input class={f.input} value={fears} onInput={(e) => setFears((e.target as HTMLInputElement).value)} placeholder="e.g. abandonment, losing control" />
             </div>
 
-            <div class={s.field}>
-              <label class={s.label}>Model Override <span style={{ color: 'var(--text-muted)', fontWeight: 400, textTransform: 'none' }}>(leave blank to use chat default)</span></label>
-              <input class={s.input} value={modelOverride} onInput={(e) => setModelOverride((e.target as HTMLInputElement).value)} placeholder="e.g. llama3:8b" />
+            <div class={f.field}>
+              <label class={f.label}>Model Override <span class={f.labelHint}>(leave blank to use chat default)</span></label>
+              <input class={f.input} value={modelOverride} onInput={(e) => setModelOverride((e.target as HTMLInputElement).value)} placeholder="e.g. llama3:8b" />
             </div>
 
-            <div class={s.footer}>
-              <button class={s.cancelBtn} onClick={onClose}>Cancel</button>
-              <button class={s.submitBtn} onClick={handleSubmit} disabled={submitting || !name.trim()}>
+            <div class={f.footer}>
+              <button class={f.cancelBtn} onClick={onClose}>Cancel</button>
+              <button class={f.submitBtn} onClick={handleSubmit} disabled={submitting || !name.trim()}>
                 {submitting ? 'Saving…' : isEdit ? 'Save Changes' : 'Create Character'}
               </button>
             </div>
@@ -431,11 +430,9 @@ export function CharacterModal({ initial, initialDraft, defaultIsPersona, onClos
         )}
 
         {activeTab === 'locations' && (
-          <div class={ms.memList}>
+          <div class="flex flex-col gap-2 max-h-[400px] overflow-y-auto">
             {locations.length === 0 ? (
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)', padding: '8px 0' }}>
-                No locations in this story yet.
-              </div>
+              <p class={f.hint}>No locations in this story yet.</p>
             ) : (
               <>
                 {locations.map((loc) => {
@@ -457,44 +454,44 @@ export function CharacterModal({ initial, initialDraft, defaultIsPersona, onClos
                     })
                   }
                   return (
-                    <div key={loc.id} class={ms.memCard}>
-                      <div class={ms.memCardHeader}>
+                    <div key={loc.id} class="py-2.5 px-3 border border-border rounded-sm bg-bg-tertiary flex flex-col gap-[5px] group/memcard">
+                      <div class="flex items-center gap-1.5">
                         <span style={{ fontWeight: 600, fontSize: '13px' }}>{loc.name}</span>
                       </div>
-                      <div class={s.infoGrid} style={{ marginTop: '6px' }}>
-                        <div class={s.infoCell}>
-                          <span class={s.subLabel}>Comfort: {comfort}/10</span>
+                      <div class={f.infoGrid} style={{ marginTop: '6px' }}>
+                        <div class={f.infoCell}>
+                          <span class={f.subLabel}>Comfort: {comfort}/10</span>
                           <input type="range" min="0" max="10" step="1" value={comfort}
                             onInput={(e) => updateFeeling({ comfort: parseInt((e.target as HTMLInputElement).value, 10) })}
                             style={{ width: '100%' }} />
                         </div>
-                        <div class={s.infoCell}>
-                          <span class={s.subLabel}>Tension: {tension}/10</span>
+                        <div class={f.infoCell}>
+                          <span class={f.subLabel}>Tension: {tension}/10</span>
                           <input type="range" min="0" max="10" step="1" value={tension}
                             onInput={(e) => updateFeeling({ tension: parseInt((e.target as HTMLInputElement).value, 10) })}
                             style={{ width: '100%' }} />
                         </div>
                       </div>
-                      <div class={s.field} style={{ marginTop: '6px' }}>
-                        <span class={s.subLabel}>Emotion at this place</span>
-                        <input class={s.input} placeholder="e.g. nostalgic, uneasy, at home"
+                      <div class={f.field} style={{ marginTop: '6px' }}>
+                        <span class={f.subLabel}>Emotion at this place</span>
+                        <input class={f.input} placeholder="e.g. nostalgic, uneasy, at home"
                           value={emotion}
                           onInput={(e) => updateFeeling({ emotion: (e.target as HTMLInputElement).value })} />
                       </div>
-                      <div class={s.field}>
-                        <span class={s.subLabel}>Notes (private)</span>
-                        <input class={s.input} placeholder="Why they feel this way…"
+                      <div class={f.field}>
+                        <span class={f.subLabel}>Notes (private)</span>
+                        <input class={f.input} placeholder="Why they feel this way…"
                           value={notes}
                           onInput={(e) => updateFeeling({ notes: (e.target as HTMLInputElement).value })} />
                       </div>
                     </div>
                   )
                 })}
-                <div class={s.footer}>
-                  <button class={s.cancelBtn} onClick={onClose}>Cancel</button>
+                <div class={f.footer}>
+                  <button class={f.cancelBtn} onClick={onClose}>Cancel</button>
                   <button
                     type="button"
-                    class={s.submitBtn}
+                    class={f.submitBtn}
                     disabled={locSaving}
                     onClick={async () => {
                       if (!selectedStoryId || !initial) return
@@ -518,24 +515,22 @@ export function CharacterModal({ initial, initialDraft, defaultIsPersona, onClos
         )}
 
         {activeTab === 'relations' && (
-          <div class={ms.memList}>
+          <div class="flex flex-col gap-2 max-h-[400px] overflow-y-auto">
             {relations.length === 0 ? (
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)', padding: '8px 0' }}>
-                No relations yet. Add memories with relationship effects to establish them.
-              </div>
+              <p class={f.hint}>No relations yet. Add memories with relationship effects to establish them.</p>
             ) : (
               relations.map((r) => {
                 const sourceMem = r.sourceMemoryId ? memories.find((m) => m.id === r.sourceMemoryId) : undefined
                 return (
-                  <div key={r.charId} class={ms.memCard}>
-                    <div class={ms.memCardHeader}>
+                  <div key={r.charId} class="py-2.5 px-3 border border-border rounded-sm bg-bg-tertiary flex flex-col gap-[5px] group/memcard">
+                    <div class="flex items-center gap-1.5">
                       <span style={{ fontWeight: 600, fontSize: '13px' }}>{r.otherCharName}</span>
-                      {r.emotion && <span class={ms.memBranch}>{r.emotion}</span>}
-                      <span class={ms.memImportance} style={{ marginLeft: 'auto' }}>{r.trustLevel}/10</span>
+                      {r.emotion && <span class="text-[10px] text-text-muted italic flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{r.emotion}</span>}
+                      <span class="text-[10px] font-semibold py-[1px] px-1.5 rounded-full bg-bg-secondary text-text-muted shrink-0" style={{ marginLeft: 'auto' }}>{r.trustLevel}/10</span>
                     </div>
-                    {r.publicAttitude && <div class={ms.memSummary}>{r.publicAttitude}</div>}
+                    {r.publicAttitude && <div class="text-xs text-text-primary leading-normal">{r.publicAttitude}</div>}
                     {r.privateAttitude && (
-                      <div class={ms.memSummary} style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Private: {r.privateAttitude}</div>
+                      <div class="text-xs text-text-primary leading-normal" style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Private: {r.privateAttitude}</div>
                     )}
                     {sourceMem && (
                       <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
@@ -553,37 +548,38 @@ export function CharacterModal({ initial, initialDraft, defaultIsPersona, onClos
           <>
             {memoryForm === null ? (
               <>
-                <div class={ms.memHeader}>
-                  <span class={ms.memCount}>{pairs.length} {pairs.length === 1 ? 'memory' : 'memories'} in chain</span>
-                  <button class={s.aiBtn} onClick={openNewMemory}>+ Add Memory</button>
+                <div class="flex items-center justify-between">
+                  <span class="text-xs text-text-muted">{pairs.length} {pairs.length === 1 ? 'memory' : 'memories'} in chain</span>
+                  <button class={f.aiBtn} onClick={openNewMemory}>+ Add Memory</button>
                 </div>
 
                 {pairs.length === 0 && (
-                  <div style={{ fontSize: '12px', color: 'var(--text-muted)', padding: '8px 0' }}>
-                    No memories yet. Add memories to shape how this character evolves over time.
-                  </div>
+                  <p class={f.hint}>No memories yet. Add memories to shape how this character evolves over time.</p>
                 )}
 
-                <div class={ms.memList}>
+                <div class="flex flex-col gap-2 max-h-[400px] overflow-y-auto">
                   {pairs.map(({ relation, memory: m }) => (
-                    <div key={m.id} class={ms.memCard}>
-                      <div class={ms.memCardHeader}>
-                        <span class={ms.memImportance} data-high={m.importance >= 0.8 ? 'true' : undefined}>
+                    <div key={m.id} class="py-2.5 px-3 border border-border rounded-sm bg-bg-tertiary flex flex-col gap-[5px] group/memcard">
+                      <div class="flex items-center gap-1.5">
+                        <span
+                          class="text-[10px] font-semibold py-[1px] px-1.5 rounded-full bg-bg-secondary text-text-muted shrink-0 data-[high=true]:bg-accent-dim data-[high=true]:text-accent"
+                          data-high={m.importance >= 0.8 ? 'true' : undefined}
+                        >
                           {Math.round(m.importance * 100)}%
                         </span>
-                        {relation.branchLabel && <span class={ms.memBranch}>{relation.branchLabel}</span>}
-                        <div class={ms.memActions}>
-                          <button class={s.iconActionBtn} onClick={() => openEditMemory({ relation, memory: m })}>✎</button>
-                          <button class={s.iconActionBtn} onClick={() => handleDeleteMemory(m.id)}>✕</button>
+                        {relation.branchLabel && <span class="text-[10px] text-text-muted italic flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{relation.branchLabel}</span>}
+                        <div class="hidden gap-0.5 shrink-0 group-hover/memcard:flex">
+                          <button class={f.iconActionBtn} onClick={() => openEditMemory({ relation, memory: m })}>✎</button>
+                          <button class={f.iconActionBtn} onClick={() => handleDeleteMemory(m.id)}>✕</button>
                         </div>
                       </div>
-                      <div class={ms.memSummary}>{m.summary}</div>
+                      <div class="text-xs text-text-primary leading-normal">{m.summary}</div>
                       {m.tags.length > 0 && (
-                        <div class={ms.memTags}>{m.tags.map((t) => <span key={t} class={ms.memTag}>{t}</span>)}</div>
+                        <div class="flex flex-wrap gap-1">{m.tags.map((t) => <span key={t} class="text-[10px] py-[1px] px-1.5 rounded-full bg-bg-secondary text-text-muted border border-border">{t}</span>)}</div>
                       )}
                       {m.deltas.effects.length > 0 && (
-                        <div class={ms.memDelta}>
-                          <span class={ms.deltaItem} data-type="add">
+                        <div class="flex flex-wrap gap-1 mt-0.5">
+                          <span class="text-[10px] py-[1px] px-1.5 rounded-full bg-success-dim text-success">
                             {m.deltas.effects.length} {m.deltas.effects.length === 1 ? 'effect' : 'effects'}
                           </span>
                         </div>
@@ -593,11 +589,11 @@ export function CharacterModal({ initial, initialDraft, defaultIsPersona, onClos
                 </div>
               </>
             ) : (
-              <div class={ms.memForm}>
-                <div class={s.field}>
-                  <label class={s.label}>Summary <span class={s.required}>*</span></label>
+              <div class="flex flex-col gap-3.5">
+                <div class={f.field}>
+                  <label class={f.label}>Summary <span class={f.required}>*</span></label>
                   <textarea
-                    class={s.textarea}
+                    class={f.textarea}
                     placeholder="What happened? What changed for this character?"
                     value={memoryForm.summary}
                     onInput={(e) => setMF({ summary: (e.target as HTMLTextAreaElement).value })}
@@ -605,18 +601,18 @@ export function CharacterModal({ initial, initialDraft, defaultIsPersona, onClos
                   />
                 </div>
 
-                <div class={s.field}>
-                  <label class={s.label}>Tags <span style={{ color: 'var(--text-muted)', fontWeight: 400, textTransform: 'none' }}>(comma-separated)</span></label>
+                <div class={f.field}>
+                  <label class={f.label}>Tags <span class={f.labelHint}>(comma-separated)</span></label>
                   <input
-                    class={s.input}
+                    class={f.input}
                     placeholder="e.g. betrayal, war, loss"
                     value={memoryForm.tags}
                     onInput={(e) => setMF({ tags: (e.target as HTMLInputElement).value })}
                   />
                 </div>
 
-                <div class={s.field}>
-                  <label class={s.label}>Importance: {Math.round(memoryForm.importance * 100)}%</label>
+                <div class={f.field}>
+                  <label class={f.label}>Importance: {Math.round(memoryForm.importance * 100)}%</label>
                   <input
                     type="range" min="0" max="1" step="0.05"
                     value={memoryForm.importance}
@@ -628,18 +624,18 @@ export function CharacterModal({ initial, initialDraft, defaultIsPersona, onClos
                   </div>
                 </div>
 
-                <div class={s.field}>
-                  <label class={s.label}>Branch Label <span style={{ color: 'var(--text-muted)', fontWeight: 400, textTransform: 'none' }}>(optional)</span></label>
+                <div class={f.field}>
+                  <label class={f.label}>Branch Label <span class={f.labelHint}>(optional)</span></label>
                   <input
-                    class={s.input}
+                    class={f.input}
                     placeholder="e.g. Before the war"
                     value={memoryForm.branchLabel}
                     onInput={(e) => setMF({ branchLabel: (e.target as HTMLInputElement).value })}
                   />
                 </div>
 
-                <div class={s.field}>
-                  <label class={s.label}>Character Effects</label>
+                <div class={f.field}>
+                  <label class={f.label}>Character Effects</label>
                   <EffectsEditor
                     effects={memoryForm.effects}
                     onChange={(effects) => setMF({ effects })}
@@ -647,9 +643,9 @@ export function CharacterModal({ initial, initialDraft, defaultIsPersona, onClos
                   />
                 </div>
 
-                <div class={s.footer}>
-                  <button class={s.cancelBtn} onClick={() => setMemoryForm(null)}>Cancel</button>
-                  <button class={s.submitBtn} onClick={handleSaveMemory} disabled={memSaving || !memoryForm.summary.trim()}>
+                <div class={f.footer}>
+                  <button class={f.cancelBtn} onClick={() => setMemoryForm(null)}>Cancel</button>
+                  <button class={f.submitBtn} onClick={handleSaveMemory} disabled={memSaving || !memoryForm.summary.trim()}>
                     {memSaving ? 'Saving…' : memoryForm.id ? 'Save Changes' : 'Add Memory'}
                   </button>
                 </div>

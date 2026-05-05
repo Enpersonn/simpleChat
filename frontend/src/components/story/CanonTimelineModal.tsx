@@ -4,7 +4,6 @@ import { useStoriesStore } from '../../store/stories.js'
 import { api } from '../../lib/api.js'
 import { NewChatModal } from '../chat/NewChatModal.js'
 import { useChatsStore } from '../../store/chats.js'
-import s from './CanonTimelineModal.module.css'
 
 interface Props {
   storyId: string
@@ -117,22 +116,31 @@ export function CanonTimelineModal({ storyId, onClose }: Props) {
 
   return (
     <>
-      <div class={s.overlay} onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
-        <div class={s.modal}>
-          <div class={s.header}>
-            <div class={s.headerLeft}>
-              <span class={s.title}>Canon Timeline</span>
-              {story && <span class={s.subtitle}>{story.title}</span>}
+      <div
+        class="fixed inset-0 bg-black/70 flex items-stretch justify-center z-100 backdrop-blur-sm"
+        onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+      >
+        <div class="bg-bg-primary border-x border-border-light w-[680px] max-w-full flex flex-col overflow-hidden">
+          {/* Header */}
+          <div class="flex items-center justify-between py-[18px] px-6 pb-[14px] border-b border-border shrink-0 bg-bg-secondary">
+            <div class="flex flex-col gap-[2px]">
+              <span class="text-base font-semibold text-text-primary">Canon Timeline</span>
+              {story && <span class="text-[11px] text-text-muted">{story.title}</span>}
             </div>
-            <button class={s.closeBtn} onClick={onClose}>✕</button>
+            <button
+              class="text-text-muted text-[18px] py-1 px-2 rounded-sm shrink-0 transition-colors duration-150 hover:text-text-primary hover:bg-bg-hover"
+              onClick={onClose}
+            >
+              ✕
+            </button>
           </div>
 
+          {/* Toolbar */}
           {charsInTimeline.length > 0 && (
-            <div class={s.toolbar}>
-              <span class={s.filterLabel}>Filter</span>
+            <div class="flex items-center gap-2 py-2.5 px-6 border-b border-border shrink-0 bg-bg-secondary flex-wrap">
+              <span class="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-muted shrink-0">Filter</span>
               <button
-                class={s.filterPill}
-                data-active={activeCharFilter === null ? 'true' : undefined}
+                class={`text-[11px] py-[3px] px-2.5 rounded-xl border transition-all duration-150 whitespace-nowrap cursor-pointer ${activeCharFilter === null ? 'bg-accent-dim border-accent text-accent' : 'border-border-light text-text-secondary bg-transparent hover:border-accent hover:text-text-primary'}`}
                 onClick={() => setActiveCharFilter(null)}
               >
                 All
@@ -140,8 +148,7 @@ export function CanonTimelineModal({ storyId, onClose }: Props) {
               {charsInTimeline.map((char) => (
                 <button
                   key={char.id}
-                  class={s.filterPill}
-                  data-active={activeCharFilter === char.id ? 'true' : undefined}
+                  class={`text-[11px] py-[3px] px-2.5 rounded-xl border transition-all duration-150 whitespace-nowrap cursor-pointer ${activeCharFilter === char.id ? 'bg-accent-dim border-accent text-accent' : 'border-border-light text-text-secondary bg-transparent hover:border-accent hover:text-text-primary'}`}
                   onClick={() => setActiveCharFilter(activeCharFilter === char.id ? null : char.id)}
                 >
                   {char.name}
@@ -150,11 +157,12 @@ export function CanonTimelineModal({ storyId, onClose }: Props) {
             </div>
           )}
 
-          <div class={s.body}>
+          {/* Body */}
+          <div class="flex-1 overflow-y-auto px-6 py-6 flex flex-col gap-0">
             {visibleEntries.length === 0 && (
-              <div class={s.emptyState}>
-                <span class={s.emptyIcon}>⏱</span>
-                <span class={s.emptyText}>
+              <div class="flex flex-col items-center justify-center gap-2.5 py-[60px] px-6 text-text-muted text-center">
+                <span class="text-[32px] opacity-40">⏱</span>
+                <span class="text-sm italic">
                   {entries.length === 0
                     ? 'No canon memories yet. Import a story with text to extract events automatically, or add memories to characters and add them here.'
                     : 'No events match the current filter.'}
@@ -164,10 +172,10 @@ export function CanonTimelineModal({ storyId, onClose }: Props) {
 
             {visibleEntries.length > 0 && (
               <>
-                <div class={s.timelineBound}>
-                  <span class={s.timelineBoundLine} />
+                <div class="flex items-center gap-2.5 py-2 text-text-muted text-[11px] font-semibold tracking-[0.08em] uppercase">
+                  <span class="flex-1 h-px bg-border-light" />
                   <span>Start of Story</span>
-                  <span class={s.timelineBoundLine} />
+                  <span class="flex-1 h-px bg-border-light" />
                 </div>
 
                 {visibleEntries.map((entry, idx) => {
@@ -179,58 +187,67 @@ export function CanonTimelineModal({ storyId, onClose }: Props) {
                   return (
                     <div
                       key={entry.id}
-                      class={s.entryWrapper}
+                      class="flex flex-col items-center"
                       onDragOver={(e) => handleDragOver(e as DragEvent, idx)}
                       onDrop={(e) => handleDrop(e as DragEvent, idx)}
                     >
-                      <div class={s.entryConnector} data-drop={isDropTarget ? 'true' : undefined} />
+                      <div
+                        class={`w-[2px] shrink-0 bg-border-light transition-all duration-100 ${isDropTarget ? 'h-7 !bg-accent rounded-[2px]' : 'h-3'}`}
+                      />
 
                       <div
-                        class={s.entryCard}
+                        class={`w-full bg-bg-secondary border border-border-light rounded-lg py-3.5 px-4 flex gap-3 items-start cursor-grab transition-all duration-150 relative hover:border-border hover:shadow-lg ${isDragging ? 'opacity-40' : ''}`}
                         draggable
-                        data-dragging={isDragging ? 'true' : undefined}
                         onDragStart={(e) => handleDragStart(e as DragEvent, entry.id)}
                         onDragEnd={handleDragEnd}
                       >
-                        <span class={s.dragHandle} title="Drag to reorder">⠿</span>
+                        <span class="text-base text-text-muted cursor-grab shrink-0 leading-[1.4] select-none pt-[2px] group-hover:text-text-secondary">⠿</span>
 
-                        <div class={s.entryContent}>
-                          <div class={s.entryMeta}>
-                            <span class={s.charIcon}>{char?.isUserPersona ? '🧑' : '🎭'}</span>
-                            <span class={s.charName}>{char?.name ?? 'Unknown'}</span>
-                            {entry.label && <span class={s.entryLabel}>{entry.label}</span>}
+                        <div class="flex-1 min-w-0 flex flex-col gap-1.5">
+                          <div class="flex items-center gap-2 flex-wrap">
+                            <span class="text-[13px] opacity-80 shrink-0">{char?.isUserPersona ? '🧑' : '🎭'}</span>
+                            <span class="text-xs font-semibold text-accent shrink-0">{char?.name ?? 'Unknown'}</span>
+                            {entry.label && (
+                              <span class="text-[11px] text-text-muted italic overflow-hidden text-ellipsis whitespace-nowrap">{entry.label}</span>
+                            )}
                           </div>
 
                           {memory ? (
                             <>
-                              <div class={s.entrySummary}>{memory.summary}</div>
-                              <div class={s.entryFooter}>
+                              <div class="text-[13px] text-text-primary leading-[1.45]">{memory.summary}</div>
+                              <div class="flex items-center gap-1.5 flex-wrap">
                                 {memory.tags.slice(0, 4).map((tag) => (
-                                  <span key={tag} class={s.tag}>{tag}</span>
+                                  <span key={tag} class="text-[10px] py-[2px] px-[7px] rounded-[9px] bg-bg-active text-text-muted whitespace-nowrap">{tag}</span>
                                 ))}
-                                <div class={s.importanceBar} title={`Importance: ${memory.importance.toFixed(1)}`}>
-                                  <div class={s.importanceFill} style={{ width: `${memory.importance * 100}%` }} />
+                                <div
+                                  class="h-[3px] rounded-[2px] bg-border-light w-12 relative overflow-hidden shrink-0"
+                                  title={`Importance: ${memory.importance.toFixed(1)}`}
+                                >
+                                  <div
+                                    class="absolute top-0 left-0 h-full rounded-[2px] bg-accent"
+                                    style={{ width: `${memory.importance * 100}%` }}
+                                  />
                                 </div>
-                                <span class={s.importanceVal}>{memory.importance.toFixed(1)}</span>
+                                <span class="text-[10px] text-text-muted">{memory.importance.toFixed(1)}</span>
                               </div>
                             </>
                           ) : (
-                            <div class={s.entrySummary} style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                            <div class="text-[13px] leading-[1.45]" style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>
                               {entry.label ?? 'Memory not found'}
                             </div>
                           )}
                         </div>
 
-                        <div class={s.entryActions}>
+                        <div class="flex flex-col items-end gap-1.5 shrink-0">
                           <button
-                            class={s.startBtn}
+                            class="text-[11px] font-semibold py-[5px] px-2.5 rounded-sm bg-accent-dim text-accent border border-transparent whitespace-nowrap transition-all duration-150 hover:bg-accent hover:text-white hover:border-accent"
                             onClick={() => handleStartChat(entry)}
                             title="Start a new chat from this point in the story"
                           >
                             ▶ Start here
                           </button>
                           <button
-                            class={s.deleteBtn}
+                            class="text-[11px] py-1 px-1.5 rounded-sm text-text-muted transition-all duration-150 leading-none hover:text-error hover:bg-[rgba(239,68,68,0.1)]"
                             onClick={() => handleDelete(entry.id)}
                             title="Remove from timeline"
                           >
@@ -242,14 +259,20 @@ export function CanonTimelineModal({ storyId, onClose }: Props) {
                   )
                 })}
 
-                <div class={s.entryWrapper} onDragOver={(e) => handleDragOver(e as DragEvent, visibleEntries.length)} onDrop={(e) => handleDrop(e as DragEvent, visibleEntries.length)}>
-                  <div class={s.entryConnector} data-drop={dropTargetIdx === visibleEntries.length ? 'true' : undefined} />
+                <div
+                  class="flex flex-col items-center"
+                  onDragOver={(e) => handleDragOver(e as DragEvent, visibleEntries.length)}
+                  onDrop={(e) => handleDrop(e as DragEvent, visibleEntries.length)}
+                >
+                  <div
+                    class={`w-[2px] shrink-0 bg-border-light transition-all duration-100 ${dropTargetIdx === visibleEntries.length ? 'h-7 !bg-accent rounded-[2px]' : 'h-3'}`}
+                  />
                 </div>
 
-                <div class={s.timelineBound}>
-                  <span class={s.timelineBoundLine} />
+                <div class="flex items-center gap-2.5 py-2 text-text-muted text-[11px] font-semibold tracking-[0.08em] uppercase">
+                  <span class="flex-1 h-px bg-border-light" />
                   <span>End of Canon</span>
-                  <span class={s.timelineBoundLine} />
+                  <span class="flex-1 h-px bg-border-light" />
                 </div>
               </>
             )}

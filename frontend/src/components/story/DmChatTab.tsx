@@ -6,7 +6,6 @@ import { planMessageStream } from '../../lib/stream.js'
 import { useStoriesStore } from '../../store/stories.js'
 import { useSettingsStore } from '../../store/settings.js'
 import { DmProposalCard } from './DmProposalCard.js'
-import s from './DmChatTab.module.css'
 
 marked.setOptions({ breaks: true })
 
@@ -235,44 +234,50 @@ export function DmChatTab({ storyId }: Props) {
   }
 
   if (loading) {
-    return <div class={s.loading}>Loading DM Chat…</div>
+    return (
+      <div class="flex items-center justify-center h-[200px] text-[13px] text-text-muted">
+        Loading DM Chat…
+      </div>
+    )
   }
 
   return (
-    <div class={s.root}>
+    <div class="flex flex-col h-[520px] min-h-0">
       {error && (
-        <div class={s.error}>
+        <div class="flex items-center justify-between gap-2 py-2 px-3 bg-[#ff444422] border border-error rounded-sm text-xs text-error shrink-0 mb-2">
           <span>⚠ {error}</span>
-          <button onClick={() => setError(null)}>✕</button>
+          <button class="text-error text-sm px-1 shrink-0" onClick={() => setError(null)}>✕</button>
         </div>
       )}
 
-      <div class={s.messages} ref={messagesRef}>
+      <div class="flex-1 overflow-y-auto flex flex-col gap-3 py-2 min-h-0" ref={messagesRef}>
         {turns.length === 0 && !isStreaming && (
-          <div class={s.empty}>
-            <strong>Story Workshop</strong>
-            <p>Chat with your DM to plan characters, locations, and backstory. Ask for suggestions or describe what you have in mind — the DM will propose additions you can accept directly.</p>
+          <div class="flex flex-col items-center justify-center gap-2 h-full text-center text-text-muted px-6">
+            <strong class="text-sm text-text-secondary">Story Workshop</strong>
+            <p class="text-xs leading-[1.5] max-w-[360px]">Chat with your DM to plan characters, locations, and backstory. Ask for suggestions or describe what you have in mind — the DM will propose additions you can accept directly.</p>
           </div>
         )}
         {turns.map((turn) => (
-          <div key={turn.id} class={s.message} data-role={turn.role}>
-            <div class={s.messageMeta}>
-              <span class={s.speakerName}>{getSpeakerName(turn)}</span>
+          <div key={turn.id} class={`flex flex-col gap-1 ${turn.role === 'user' ? 'items-end' : 'items-start'}`}>
+            <div class="flex items-center gap-1.5 px-1">
+              <span class="text-[11px] font-semibold text-text-muted uppercase tracking-[0.05em]">{getSpeakerName(turn)}</span>
             </div>
             <div
-              class={s.bubble}
+              class={`max-w-[92%] py-[9px] px-[13px] rounded text-[14px] leading-[1.55] text-text-primary break-words ${turn.role === 'user' ? 'bg-accent-dim rounded-br-[3px]' : 'bg-bg-tertiary border border-border-light rounded-bl-[3px]'}`}
               // biome-ignore lint/security/noDangerouslySetInnerHtml: markdown rendered locally
               dangerouslySetInnerHTML={{
                 __html: marked.parse(turn.text || (turn.id === 'streaming' ? '…' : '')) as string,
               }}
             />
-            {turn.id === 'streaming' && <span class={s.cursor} />}
+            {turn.id === 'streaming' && (
+              <span class="inline-block w-[2px] h-[1em] bg-text-primary align-text-bottom ml-[2px] animate-[blink_1s_step-end_infinite]" />
+            )}
           </div>
         ))}
 
         {pendingProposals.length > 0 && (
-          <div class={s.proposals}>
-            <div class={s.proposalsLabel}>Suggestions from DM</div>
+          <div class="flex flex-col gap-2 py-2 pb-1">
+            <div class="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-muted pl-[2px]">Suggestions from DM</div>
             {pendingProposals.map((p) => (
               <DmProposalCard
                 key={p.id}
@@ -286,10 +291,10 @@ export function DmChatTab({ storyId }: Props) {
         )}
       </div>
 
-      <div class={s.composer}>
+      <div class="flex flex-col gap-1.5 pt-2.5 border-t border-border-light shrink-0 mt-2">
         <textarea
           ref={textareaRef}
-          class={s.input}
+          class="w-full resize-none py-[9px] px-3 text-[13px] bg-bg-primary border border-border-light rounded-sm text-text-primary font-[inherit] leading-[1.5] box-border focus:outline-none focus:border-accent disabled:opacity-60 disabled:cursor-not-allowed"
           value={input}
           onInput={(e) => setInput((e.target as HTMLTextAreaElement).value)}
           onKeyDown={handleKeyDown}
@@ -297,12 +302,17 @@ export function DmChatTab({ storyId }: Props) {
           rows={2}
           disabled={isStreaming}
         />
-        <div class={s.composerActions}>
+        <div class="flex justify-end">
           {isStreaming ? (
-            <button class={s.stopBtn} onClick={handleStop}>Stop</button>
+            <button
+              class="py-1.5 px-[18px] text-[13px] font-semibold rounded-sm bg-transparent border border-error text-error transition-colors duration-150 hover:bg-[#ff444422]"
+              onClick={handleStop}
+            >
+              Stop
+            </button>
           ) : (
             <button
-              class={s.sendBtn}
+              class="py-1.5 px-[18px] text-[13px] font-semibold rounded-sm bg-accent text-white transition-opacity duration-150 hover:enabled:opacity-85 disabled:opacity-40 disabled:cursor-not-allowed"
               onClick={handleSend}
               disabled={!input.trim()}
             >

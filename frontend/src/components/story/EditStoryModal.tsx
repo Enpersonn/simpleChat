@@ -4,8 +4,7 @@ import { useStoriesStore } from '../../store/stories.js'
 import { api } from '../../lib/api.js'
 import { CharacterModal } from './CharacterModal.js'
 import { DmChatTab } from './DmChatTab.js'
-import s from './StoryCreateModal.module.css'
-import dm from './EditStoryModal.module.css'
+import { f } from '../shared/formCls.js'
 
 const GENRE_OPTIONS = ['Fantasy', 'Sci-Fi', 'Horror', 'Romance', 'Mystery', 'Thriller', 'Historical', 'Contemporary']
 const TONE_OPTIONS = ['Dark', 'Light', 'Grim', 'Hopeful', 'Intimate', 'Epic', 'Tense', 'Whimsical', 'Melancholic', 'Romantic']
@@ -97,23 +96,24 @@ export function EditStoryModal({ story, onClose, onSaved }: Props) {
 
   return (
     <>
-      <div class={s.overlay} onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
-        <div class={s.modal}>
-          <div class={s.header}>
-            <span class={s.title}>Edit Story</span>
-            <button class={s.closeBtn} onClick={onClose}>✕</button>
+      <div class={f.overlay} onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
+        <div class={f.modal}>
+          <div class={f.header}>
+            <span class={f.title}>Edit Story</span>
+            <button class={f.closeBtn} onClick={onClose}>✕</button>
           </div>
 
-          <div class={dm.tabBar}>
+          {/* Tab bar */}
+          <div class="flex gap-0.5 border-b border-border-light pb-0 mb-1 shrink-0">
             <button
-              class={dm.tab}
+              class="py-[7px] px-4 text-[13px] font-medium text-text-muted rounded-t-sm cursor-pointer bg-transparent border-none border-b-2 border-transparent -mb-px transition-colors duration-150 hover:text-text-primary data-[active=true]:text-accent data-[active=true]:border-b-accent data-[active=true]:font-semibold"
               data-active={activeTab === 'settings' ? 'true' : undefined}
               onClick={() => setActiveTab('settings')}
             >
               Settings
             </button>
             <button
-              class={dm.tab}
+              class="py-[7px] px-4 text-[13px] font-medium text-text-muted rounded-t-sm cursor-pointer bg-transparent border-none border-b-2 border-transparent -mb-px transition-colors duration-150 hover:text-text-primary data-[active=true]:text-accent data-[active=true]:border-b-accent data-[active=true]:font-semibold"
               data-active={activeTab === 'dm' ? 'true' : undefined}
               onClick={() => setActiveTab('dm')}
             >
@@ -124,25 +124,25 @@ export function EditStoryModal({ story, onClose, onSaved }: Props) {
           {activeTab === 'dm' && <DmChatTab storyId={story.id} />}
 
           {activeTab === 'settings' && <>
-          {error && <div style={{ color: 'var(--error)', fontSize: '12px' }}>{error}</div>}
+          {error && <p class={f.errorMsg}>{error}</p>}
 
-          <div class={s.field}>
-            <label class={s.label}>Title <span class={s.required}>*</span></label>
-            <input class={s.input} value={title} onInput={(e) => setTitle((e.target as HTMLInputElement).value)} />
+          <div class={f.field}>
+            <label class={f.label}>Title <span class={f.required}>*</span></label>
+            <input class={f.input} value={title} onInput={(e) => setTitle((e.target as HTMLInputElement).value)} />
           </div>
 
-          <div class={s.field}>
-            <label class={s.label}>Premise</label>
+          <div class={f.field}>
+            <label class={f.label}>Premise</label>
             <textarea
-              class={s.textarea}
+              class={f.textarea}
               value={premise}
               onInput={(e) => setPremise((e.target as HTMLTextAreaElement).value)}
               placeholder="What is this story about?"
               style={{ minHeight: '120px' }}
             />
-            <div class={s.aiBar}>
+            <div class={f.aiBar}>
               <button
-                class={s.aiBtn}
+                class={f.aiBtn}
                 onClick={handleRegenerate}
                 disabled={generating || !premise.trim()}
                 title="Regenerate genres, tone, rules and writing style from the current premise"
@@ -152,13 +152,13 @@ export function EditStoryModal({ story, onClose, onSaved }: Props) {
             </div>
           </div>
 
-          <div class={s.field}>
-            <label class={s.label}>Genre</label>
-            <div class={s.tagGroup}>
+          <div class={f.field}>
+            <label class={f.label}>Genre</label>
+            <div class={f.tagGroup}>
               {GENRE_OPTIONS.map((g) => (
                 <button
                   key={g}
-                  class={s.tag}
+                  class={f.tag}
                   data-active={genres.includes(g) ? 'true' : undefined}
                   onClick={() => toggle(genres, g, setGenres)}
                 >
@@ -166,30 +166,30 @@ export function EditStoryModal({ story, onClose, onSaved }: Props) {
                 </button>
               ))}
               {customGenres.map((g) => (
-                <button key={g} class={s.tag} data-active="true" onClick={() => toggle(genres, g, setGenres)}>
-                  {g}<span class={s.tagRemove}>×</span>
+                <button key={g} class={f.tag} data-active="true" onClick={() => toggle(genres, g, setGenres)}>
+                  {g}<span class={f.tagRemove}>×</span>
                 </button>
               ))}
             </div>
-            <div class={s.tagAddRow}>
+            <div class={f.tagAddRow}>
               <input
-                class={s.customTagInput}
+                class={f.customTagInput}
                 placeholder="Add genre…"
                 value={customGenre}
                 onInput={(e) => setCustomGenre((e.target as HTMLInputElement).value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCustomTag(customGenre, genres, setGenres, setCustomGenre) } }}
               />
-              <button class={s.tagAddBtn} onClick={() => addCustomTag(customGenre, genres, setGenres, setCustomGenre)}>+</button>
+              <button class={f.tagAddBtn} onClick={() => addCustomTag(customGenre, genres, setGenres, setCustomGenre)}>+</button>
             </div>
           </div>
 
-          <div class={s.field}>
-            <label class={s.label}>Tone</label>
-            <div class={s.tagGroup}>
+          <div class={f.field}>
+            <label class={f.label}>Tone</label>
+            <div class={f.tagGroup}>
               {TONE_OPTIONS.map((t) => (
                 <button
                   key={t}
-                  class={s.tag}
+                  class={f.tag}
                   data-active={tones.includes(t) ? 'true' : undefined}
                   onClick={() => toggle(tones, t, setTones)}
                 >
@@ -197,37 +197,37 @@ export function EditStoryModal({ story, onClose, onSaved }: Props) {
                 </button>
               ))}
               {customTones.map((t) => (
-                <button key={t} class={s.tag} data-active="true" onClick={() => toggle(tones, t, setTones)}>
-                  {t}<span class={s.tagRemove}>×</span>
+                <button key={t} class={f.tag} data-active="true" onClick={() => toggle(tones, t, setTones)}>
+                  {t}<span class={f.tagRemove}>×</span>
                 </button>
               ))}
             </div>
-            <div class={s.tagAddRow}>
+            <div class={f.tagAddRow}>
               <input
-                class={s.customTagInput}
+                class={f.customTagInput}
                 placeholder="Add tone…"
                 value={customTone}
                 onInput={(e) => setCustomTone((e.target as HTMLInputElement).value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCustomTag(customTone, tones, setTones, setCustomTone) } }}
               />
-              <button class={s.tagAddBtn} onClick={() => addCustomTag(customTone, tones, setTones, setCustomTone)}>+</button>
+              <button class={f.tagAddBtn} onClick={() => addCustomTag(customTone, tones, setTones, setCustomTone)}>+</button>
             </div>
           </div>
 
-          <div class={s.field}>
-            <label class={s.label}>World Rules <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(one per line)</span></label>
-            <textarea class={s.textarea} value={rules} onInput={(e) => setRules((e.target as HTMLTextAreaElement).value)} style={{ minHeight: '60px' }} />
+          <div class={f.field}>
+            <label class={f.label}>World Rules <span class={f.labelHint}>(one per line)</span></label>
+            <textarea class={f.textarea} value={rules} onInput={(e) => setRules((e.target as HTMLTextAreaElement).value)} style={{ minHeight: '60px' }} />
           </div>
 
-          <div class={s.field}>
-            <label class={s.label}>Writing Style</label>
-            <textarea class={s.textarea} value={writingStyle} onInput={(e) => setWritingStyle((e.target as HTMLTextAreaElement).value)} style={{ minHeight: '56px' }} />
+          <div class={f.field}>
+            <label class={f.label}>Writing Style</label>
+            <textarea class={f.textarea} value={writingStyle} onInput={(e) => setWritingStyle((e.target as HTMLTextAreaElement).value)} style={{ minHeight: '56px' }} />
           </div>
 
-          <div class={s.field}>
-            <label class={s.label}>Opening Message <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(optional — used when starting a new chat)</span></label>
+          <div class={f.field}>
+            <label class={f.label}>Opening Message <span class={f.labelHint}>(optional — used when starting a new chat)</span></label>
             <textarea
-              class={s.textarea}
+              class={f.textarea}
               placeholder="The scene opens on a rain-slicked street…"
               value={openingMessage}
               onInput={(e) => setOpeningMessage((e.target as HTMLTextAreaElement).value)}
@@ -235,38 +235,38 @@ export function EditStoryModal({ story, onClose, onSaved }: Props) {
             />
           </div>
 
-          <div class={s.field}>
-            <label class={s.label}>System Prompt Override <span style={{ color: 'var(--text-muted)', fontWeight: 400, textTransform: 'none' }}>(replaces all default instructions if set)</span></label>
-            <textarea class={s.textarea} value={systemPromptOverride} onInput={(e) => setSystemPromptOverride((e.target as HTMLTextAreaElement).value)} placeholder="Leave blank to use default instructions…" style={{ minHeight: '80px' }} />
+          <div class={f.field}>
+            <label class={f.label}>System Prompt Override <span class={f.labelHint}>(replaces all default instructions if set)</span></label>
+            <textarea class={f.textarea} value={systemPromptOverride} onInput={(e) => setSystemPromptOverride((e.target as HTMLTextAreaElement).value)} placeholder="Leave blank to use default instructions…" style={{ minHeight: '80px' }} />
           </div>
 
-          <div class={s.field}>
-            <div class={s.charSectionHeader}>
-              <label class={s.label} style={{ margin: 0 }}>Characters</label>
-              <div class={s.charAddBtns}>
-                <button class={s.aiBtn} onClick={() => setEditingChar('new-persona')}>+ Persona</button>
-                <button class={s.aiBtn} onClick={() => setEditingChar('new')}>+ Character</button>
+          <div class={f.field}>
+            <div class={f.charSectionHeader}>
+              <label class={f.label} style={{margin:0}}>Characters</label>
+              <div class={f.charAddBtns}>
+                <button class={f.aiBtn} onClick={() => setEditingChar('new-persona')}>+ Persona</button>
+                <button class={f.aiBtn} onClick={() => setEditingChar('new')}>+ Character</button>
               </div>
             </div>
             {characters.length === 0 && (
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>No characters yet.</div>
+              <p class={f.hint}>No characters yet.</p>
             )}
             {characters.map((c) => (
-              <div key={c.id} class={s.charRow}>
-                <span class={s.charIcon}>{c.isUserPersona ? '🧑' : '🎭'}</span>
-                <span class={s.charName}>{c.name}</span>
-                {c.role && <span class={s.charRole}>{c.role}</span>}
-                <span class={s.charActions}>
-                  <button class={s.iconActionBtn} onClick={() => setEditingChar(c)}>✎</button>
-                  <button class={s.iconActionBtn} onClick={() => handleDeleteChar(c.id)}>✕</button>
+              <div key={c.id} class={f.charRow}>
+                <span class={f.charIcon}>{c.isUserPersona ? '🧑' : '🎭'}</span>
+                <span class={f.charName}>{c.name}</span>
+                {c.role && <span class={f.charRole}>{c.role}</span>}
+                <span class={f.charActions}>
+                  <button class={f.iconActionBtn} onClick={() => setEditingChar(c)}>✎</button>
+                  <button class={f.iconActionBtn} onClick={() => handleDeleteChar(c.id)}>✕</button>
                 </span>
               </div>
             ))}
           </div>
 
-          <div class={s.footer}>
-            <button class={s.cancelBtn} onClick={onClose}>Cancel</button>
-            <button class={s.submitBtn} onClick={handleSubmit} disabled={submitting || !title.trim()}>
+          <div class={f.footer}>
+            <button class={f.cancelBtn} onClick={onClose}>Cancel</button>
+            <button class={f.submitBtn} onClick={handleSubmit} disabled={submitting || !title.trim()}>
               {submitting ? 'Saving…' : 'Save Changes'}
             </button>
           </div>

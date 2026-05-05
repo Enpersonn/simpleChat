@@ -10,7 +10,6 @@ import type {
   LlmCallData,
   ExtractionData,
 } from '../../lib/debug-types.js'
-import s from './FlowTimeline.module.css'
 
 const STEP_ORDER: PipelineStep[] = [
   'data_load',
@@ -39,7 +38,11 @@ export function FlowTimeline({ events, snapshot }: Props) {
   const [expanded, setExpanded] = useState<Set<PipelineStep>>(new Set())
 
   if (events.length === 0) {
-    return <div class={s.empty}>Send a message to see the pipeline flow</div>
+    return (
+      <div class="text-[11px] text-text-muted text-center py-4">
+        Send a message to see the pipeline flow
+      </div>
+    )
   }
 
   const byStep = new Map<PipelineStep, { start?: PipelineEvent; terminal?: PipelineEvent }>()
@@ -60,7 +63,7 @@ export function FlowTimeline({ events, snapshot }: Props) {
   }
 
   return (
-    <div class={s.root}>
+    <div class="flex flex-col gap-0.5">
       {STEP_ORDER.map((step) => {
         const entry = byStep.get(step)
         if (!entry) return null
@@ -75,24 +78,44 @@ export function FlowTimeline({ events, snapshot }: Props) {
         const canExpand = terminal?.status === 'complete' && hasData
 
         return (
-          <div key={step} class={s.step}>
+          <div key={step} class="rounded overflow-hidden">
             <div
-              class={s.stepHeader}
+              class={`flex items-center gap-1.5 px-1.5 py-[5px] bg-bg-secondary border border-border select-none hover:bg-bg-hover ${isOpen ? 'rounded-t border-b-transparent' : 'rounded'}`}
               data-open={isOpen ? 'true' : undefined}
               onClick={() => canExpand && toggle(step)}
               style={{ cursor: canExpand ? 'pointer' : 'default' }}
             >
-              <span class={s.dot} data-status={status} />
-              <span class={s.stepLabel}>{STEP_LABELS[step]}</span>
+              {/* Status dot */}
+              {status === 'complete' && (
+                <span class="w-2 h-2 rounded-full shrink-0 bg-success" />
+              )}
+              {status === 'error' && (
+                <span class="w-2 h-2 rounded-full shrink-0 bg-error" />
+              )}
+              {status === 'running' && (
+                <span class="w-2 h-2 rounded-full shrink-0 bg-accent animate-pulse-dot" />
+              )}
+              {status === 'pending' && (
+                <span class="w-2 h-2 rounded-full shrink-0 bg-border" />
+              )}
+              <span class="flex-1 text-[11px] font-medium text-text-primary">
+                {STEP_LABELS[step]}
+              </span>
               {terminal?.durationMs !== undefined && (
-                <span class={s.duration}>{terminal.durationMs}ms</span>
+                <span class="text-[10px] text-text-muted tabular-nums">
+                  {terminal.durationMs}ms
+                </span>
               )}
               {canExpand && (
-                <span class={s.chevron} data-open={isOpen ? 'true' : undefined}>▾</span>
+                <span
+                  class={`text-[10px] text-text-muted shrink-0 transition-transform duration-150 ${isOpen ? 'rotate-180' : ''}`}
+                >
+                  ▾
+                </span>
               )}
             </div>
             {isOpen && terminal?.data && (
-              <div class={s.stepBody}>
+              <div class="bg-bg-tertiary border border-border border-t-0 rounded-b px-2 py-2 text-[10px] text-text-secondary leading-[1.5]">
                 <StepData step={step} data={terminal.data} snapshot={snapshot} />
               </div>
             )}
@@ -115,18 +138,18 @@ function StepData({
   if (step === 'data_load') {
     const d = data as DataLoadData
     return (
-      <div class={s.statRow}>
-        <div class={s.stat}>
-          <span class={s.statNum}>{d.characterCount}</span>
-          <span class={s.statLabel}>Chars</span>
+      <div class="flex gap-3">
+        <div class="flex flex-col items-center">
+          <span class="text-[14px] font-semibold text-text-primary">{d.characterCount}</span>
+          <span class="text-[9px] text-text-muted uppercase tracking-[0.04em]">Chars</span>
         </div>
-        <div class={s.stat}>
-          <span class={s.statNum}>{d.locationCount}</span>
-          <span class={s.statLabel}>Locations</span>
+        <div class="flex flex-col items-center">
+          <span class="text-[14px] font-semibold text-text-primary">{d.locationCount}</span>
+          <span class="text-[9px] text-text-muted uppercase tracking-[0.04em]">Locations</span>
         </div>
-        <div class={s.stat}>
-          <span class={s.statNum}>{d.turnCount}</span>
-          <span class={s.statLabel}>Turns</span>
+        <div class="flex flex-col items-center">
+          <span class="text-[14px] font-semibold text-text-primary">{d.turnCount}</span>
+          <span class="text-[9px] text-text-muted uppercase tracking-[0.04em]">Turns</span>
         </div>
       </div>
     )
@@ -134,9 +157,10 @@ function StepData({
 
   if (step === 'memory_chain') {
     const d = data as MemoryChainData
-    if (d.chains.length === 0) return <span class={s.noResults}>No characters</span>
+    if (d.chains.length === 0)
+      return <span class="text-text-muted italic">No characters</span>
     return (
-      <table class={s.chainTable}>
+      <table class="w-full border-collapse">
         <tbody>
           {d.chains.map((c) => {
             const diff = c.effectiveDiff
@@ -160,24 +184,28 @@ function StepData({
 
             return (
               <tr key={c.characterId}>
-                <td class={s.chainName}>{c.characterName}</td>
-                <td class={s.chainLen}>{c.chainLength} mem</td>
-                <td class={s.chainDiff}>
+                <td class="py-0.5 px-1 align-top font-medium text-text-primary whitespace-nowrap">
+                  {c.characterName}
+                </td>
+                <td class="py-0.5 px-1 align-top text-text-muted whitespace-nowrap">
+                  {c.chainLength} mem
+                </td>
+                <td class="py-0.5 px-1 align-top text-text-secondary text-[9px]">
                   {hasDiff ? (
                     diffParts.map((p, i) => (
                       <span
                         key={i}
                         class={
-                          p.startsWith('+') ? s.diffAdd :
-                          p.startsWith('−') ? s.diffRemove :
-                          s.diffChanged
+                          p.startsWith('+') ? 'text-success' :
+                          p.startsWith('−') ? 'text-error' :
+                          'text-warning'
                         }
                       >
                         {p}{i < diffParts.length - 1 ? ' · ' : ''}
                       </span>
                     ))
                   ) : (
-                    <span style={{ color: 'var(--text-muted)' }}>no delta</span>
+                    <span class="text-text-muted">no delta</span>
                   )}
                 </td>
               </tr>
@@ -195,30 +223,52 @@ function StepData({
     )
     return (
       <div>
-        <div style={{ marginBottom: '4px', color: 'var(--text-muted)', fontSize: '9px' }}>
+        <div class="mb-1 text-text-muted text-[9px]">
           {d.results.length} of {d.accessibleCount} accessible memories injected
         </div>
         {d.results.length === 0 ? (
-          <span class={s.noResults}>No memories retrieved</span>
+          <span class="text-text-muted italic">No memories retrieved</span>
         ) : (
-          <div class={s.memPills}>
+          <div class="flex flex-wrap gap-1 mt-1">
             {d.results.map((r) => {
               const summary = memMap.get(r.memoryId) ?? r.summary
               const reasonLabel =
                 r.reason === 'always_include' ? 'Always' :
                 r.reason === 'tag_match' ? `Tag (${r.score ?? 1})` :
                 'LLM picked'
+              // color-mix() backgrounds kept as inline styles
+              const pillStyle =
+                r.reason === 'always_include'
+                  ? { background: 'color-mix(in srgb, var(--accent) 20%, transparent)', border: '1px solid color-mix(in srgb, var(--accent) 40%, transparent)' }
+                  : r.reason === 'tag_match'
+                  ? { background: 'color-mix(in srgb, #4ade80 15%, transparent)', border: '1px solid color-mix(in srgb, #4ade80 35%, transparent)' }
+                  : { background: 'color-mix(in srgb, #fbbf24 15%, transparent)', border: '1px solid color-mix(in srgb, #fbbf24 35%, transparent)' }
               return (
-                <div key={r.memoryId} class={s.memPill} data-reason={r.reason} title={summary}>
-                  <span class={s.memPillSummary}>{summary.slice(0, 40)}{summary.length > 40 ? '…' : ''}</span>
-                  <span class={s.memPillReason}>{reasonLabel}</span>
+                <div
+                  key={r.memoryId}
+                  class="flex flex-col gap-0.5 px-1.5 py-[3px] rounded-[3px] text-[9px] max-w-[160px]"
+                  style={pillStyle}
+                  title={summary}
+                >
+                  <span class="text-text-primary font-medium overflow-hidden text-ellipsis whitespace-nowrap">
+                    {summary.slice(0, 40)}{summary.length > 40 ? '…' : ''}
+                  </span>
+                  <span class="text-text-muted text-[8px]">{reasonLabel}</span>
                 </div>
               )
             })}
           </div>
         )}
         {d.llmFallbackFired && (
-          <div class={s.llmBanner}>LLM fallback fired</div>
+          <div
+            class="mt-1.5 px-1.5 py-[3px] rounded-[3px] text-[9px] text-warning"
+            style={{
+              background: 'color-mix(in srgb, #fbbf24 15%, transparent)',
+              border: '1px solid color-mix(in srgb, #fbbf24 30%, transparent)',
+            }}
+          >
+            LLM fallback fired
+          </div>
         )}
       </div>
     )
@@ -228,22 +278,22 @@ function StepData({
     const d = data as ContextAssemblyData
     const locLabel = d.currentLocationId ? 'Active' : 'None'
     return (
-      <div class={s.kv}>
-        <div class={s.kvRow}>
-          <span class={s.kvKey}>Prompt length</span>
-          <span class={s.kvVal}>{d.systemPromptLength.toLocaleString()} chars</span>
+      <div class="flex flex-col gap-[3px]">
+        <div class="flex justify-between gap-2">
+          <span class="text-text-muted">Prompt length</span>
+          <span class="text-text-primary font-medium text-right">{d.systemPromptLength.toLocaleString()} chars</span>
         </div>
-        <div class={s.kvRow}>
-          <span class={s.kvKey}>Memories injected</span>
-          <span class={s.kvVal}>{d.injectedMemoryIds.length}</span>
+        <div class="flex justify-between gap-2">
+          <span class="text-text-muted">Memories injected</span>
+          <span class="text-text-primary font-medium text-right">{d.injectedMemoryIds.length}</span>
         </div>
-        <div class={s.kvRow}>
-          <span class={s.kvKey}>Location</span>
-          <span class={s.kvVal}>{locLabel}</span>
+        <div class="flex justify-between gap-2">
+          <span class="text-text-muted">Location</span>
+          <span class="text-text-primary font-medium text-right">{locLabel}</span>
         </div>
-        <div class={s.kvRow}>
-          <span class={s.kvKey}>Mood tags</span>
-          <span class={s.kvVal}>{d.moodTagCount}</span>
+        <div class="flex justify-between gap-2">
+          <span class="text-text-muted">Mood tags</span>
+          <span class="text-text-primary font-medium text-right">{d.moodTagCount}</span>
         </div>
       </div>
     )
@@ -252,18 +302,18 @@ function StepData({
   if (step === 'llm_call') {
     const d = data as LlmCallData
     return (
-      <div class={s.kv}>
-        <div class={s.kvRow}>
-          <span class={s.kvKey}>Model</span>
-          <span class={s.kvVal}>{d.model}</span>
+      <div class="flex flex-col gap-[3px]">
+        <div class="flex justify-between gap-2">
+          <span class="text-text-muted">Model</span>
+          <span class="text-text-primary font-medium text-right">{d.model}</span>
         </div>
-        <div class={s.kvRow}>
-          <span class={s.kvKey}>~Tokens out</span>
-          <span class={s.kvVal}>{d.tokenCount.toLocaleString()}</span>
+        <div class="flex justify-between gap-2">
+          <span class="text-text-muted">~Tokens out</span>
+          <span class="text-text-primary font-medium text-right">{d.tokenCount.toLocaleString()}</span>
         </div>
-        <div class={s.kvRow}>
-          <span class={s.kvKey}>Duration</span>
-          <span class={s.kvVal}>{d.durationMs.toLocaleString()}ms</span>
+        <div class="flex justify-between gap-2">
+          <span class="text-text-muted">Duration</span>
+          <span class="text-text-primary font-medium text-right">{d.durationMs.toLocaleString()}ms</span>
         </div>
       </div>
     )
@@ -272,29 +322,35 @@ function StepData({
   if (step === 'extraction') {
     const d = data as ExtractionData
     return (
-      <div class={s.extractResult}>
-        <div class={s.kvRow}>
-          <span class={s.kvKey}>Location changed</span>
-          <span class={s.extractBadge} data-ok={d.locationChanged ? 'true' : 'false'}>
+      <div class="flex flex-col gap-[3px]">
+        <div class="flex justify-between gap-2">
+          <span class="text-text-muted">Location changed</span>
+          <span
+            class={`inline-block px-[5px] py-[1px] rounded-[3px] text-[9px] font-medium ${d.locationChanged ? 'text-success' : 'text-text-muted bg-bg-hover'}`}
+            style={d.locationChanged ? { background: 'color-mix(in srgb, #4ade80 15%, transparent)' } : undefined}
+          >
             {d.locationChanged ? 'Yes' : 'No'}
           </span>
         </div>
         {d.newLocationCreated && (
-          <div class={s.kvRow}>
-            <span class={s.kvKey}>New location</span>
-            <span class={s.kvVal}>{d.newLocationName ?? '?'}</span>
+          <div class="flex justify-between gap-2">
+            <span class="text-text-muted">New location</span>
+            <span class="text-text-primary font-medium text-right">{d.newLocationName ?? '?'}</span>
           </div>
         )}
-        <div class={s.kvRow}>
-          <span class={s.kvKey}>Overrides changed</span>
-          <span class={s.extractBadge} data-ok={d.overridesChanged ? 'true' : 'false'}>
+        <div class="flex justify-between gap-2">
+          <span class="text-text-muted">Overrides changed</span>
+          <span
+            class={`inline-block px-[5px] py-[1px] rounded-[3px] text-[9px] font-medium ${d.overridesChanged ? 'text-success' : 'text-text-muted bg-bg-hover'}`}
+            style={d.overridesChanged ? { background: 'color-mix(in srgb, #4ade80 15%, transparent)' } : undefined}
+          >
             {d.overridesChanged ? 'Yes' : 'No'}
           </span>
         </div>
         {(d.locationChanged || d.newLocationCreated) && d.newLocationId && (
-          <div class={s.kvRow}>
-            <span class={s.kvKey}>New location ID</span>
-            <span class={s.kvVal} style={{ fontSize: '9px' }}>{d.newLocationId}</span>
+          <div class="flex justify-between gap-2">
+            <span class="text-text-muted">New location ID</span>
+            <span class="text-text-primary font-medium text-right text-[9px]">{d.newLocationId}</span>
           </div>
         )}
       </div>

@@ -103,6 +103,15 @@ export const api = {
           method: "DELETE",
         },
       ),
+    delete: (storyId: string, chatId: string) =>
+      request<{ ok: boolean }>(`/stories/${storyId}/chats/${chatId}`, {
+        method: "DELETE",
+      }),
+    update: (storyId: string, chatId: string, data: { title?: string; mode?: string }) =>
+      request<Chat>(`/stories/${storyId}/chats/${chatId}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      }),
   },
 
   characters: {

@@ -3,7 +3,6 @@ import { marked } from 'marked'
 import type { Turn } from '@simplechat/types'
 import { useChatsStore } from '../../store/chats.js'
 import { useSettingsStore } from '../../store/settings.js'
-import s from './ChatMessage.module.css'
 
 marked.setOptions({ breaks: true })
 
@@ -29,7 +28,6 @@ export function ChatMessage({ turn, speakerName, isStreaming }: Props) {
   const htmlContent = turn.text
     ? marked.parse(turn.text) as string
     : ''
-
 
   const handleRegenerate = () => {
     regenerate({
@@ -73,28 +71,50 @@ export function ChatMessage({ turn, speakerName, isStreaming }: Props) {
 
   const cancelEdit = () => setEditing(false)
 
+  const rootCls = [
+    'flex flex-col gap-1 max-w-[820px] relative group/msg',
+    isUser
+      ? 'self-end items-end max-w-[680px]'
+      : 'self-start items-start',
+  ].join(' ')
+
+  const avatarCls = [
+    'w-5.5 h-5.5 rounded-full text-[10px] font-bold flex items-center justify-center shrink-0',
+    isUser ? 'bg-accent-dim text-accent' : 'bg-bg-tertiary text-text-secondary',
+  ].join(' ')
+
+  const bubbleCls = [
+    'px-4 py-2.5 rounded-lg leading-[1.8] text-[length:var(--bubble-font-size,16px)] break-words relative',
+    isUser
+      ? 'bg-user-bubble border border-accent-border rounded-br-sm font-ui'
+      : 'bg-assistant-bubble border border-border rounded-bl-sm font-reading',
+  ].join(' ')
+
+  const actionBtnCls = 'text-[11px] text-text-muted py-0.5 px-1.5 rounded-sm border border-border bg-bg-secondary transition-all duration-150 hover:text-text-primary hover:border-accent'
+  const deleteBtnCls = `${actionBtnCls} hover:!text-error hover:!border-error`
+
   return (
-    <div class={s.root} data-role={turn.role}>
-      <div class={s.meta}>
-        <div class={s.avatar}>{initial}</div>
-        <span class={s.name}>{speakerName}</span>
+    <div class={rootCls} data-role={turn.role}>
+      <div class="flex items-center gap-1.5 px-1">
+        <div class={avatarCls}>{initial}</div>
+        <span class="text-[11px] font-semibold text-text-muted tracking-[0.02em]">{speakerName}</span>
       </div>
 
-      <div class={s.bubble}>
+      <div class={bubbleCls}>
         {editing ? (
-          <div class={s.editArea}>
+          <div class="flex flex-col gap-1.5 w-full">
             <textarea
-              class={s.editTextarea}
+              class="w-full p-2 text-[length:var(--bubble-font-size,16px)] font-ui border border-accent rounded-sm bg-bg-secondary text-text-primary resize-y leading-[1.6]"
               value={editText}
               onInput={(e) => setEditText((e.target as HTMLTextAreaElement).value)}
               rows={Math.max(3, editText.split('\n').length)}
             />
-            <div class={s.editActions}>
+            <div class="flex gap-1.5">
               {isUser && (
-                <button class={s.editSaveBtn} onClick={saveAndResend}>Save & Resend</button>
+                <button type="button" class="text-[11px] py-[3px] px-2.5 rounded-sm border border-accent bg-accent text-text-on-accent font-semibold transition-opacity duration-150 hover:opacity-85" onClick={saveAndResend}>Save & Resend</button>
               )}
-              <button class={isUser ? s.actionBtn : s.editSaveBtn} onClick={saveEdit}>Save</button>
-              <button class={s.actionBtn} onClick={cancelEdit}>Cancel</button>
+              <button type="button" class={isUser ? actionBtnCls : "text-[11px] py-[3px] px-2.5 rounded-sm border border-accent bg-accent text-text-on-accent font-semibold transition-opacity duration-150 hover:opacity-85"} onClick={saveEdit}>Save</button>
+              <button type="button" class={actionBtnCls} onClick={cancelEdit}>Cancel</button>
             </div>
           </div>
         ) : (
@@ -104,21 +124,24 @@ export function ChatMessage({ turn, speakerName, isStreaming }: Props) {
             dangerouslySetInnerHTML={{ __html: htmlContent }}
           />
         )}
-        {isStreaming && <span class={s.cursor} />}
+        {isStreaming && (
+          <span class="inline-block w-0.5 h-[1em] bg-accent ml-0.5 align-text-bottom animate-blink" />
+        )}
       </div>
 
       {!isStreaming && !editing && (
-        <div class={s.actions}>
+        <div class="flex gap-1 py-0.5 px-1 opacity-0 transition-opacity duration-150 group-hover/msg:opacity-100">
           {!isUser && (
-            <button class={s.actionBtn} onClick={handleRegenerate} title="Regenerate response">
+            <button type="button" class={actionBtnCls} onClick={handleRegenerate} title="Regenerate response">
               ↻ Regen
             </button>
           )}
-          <button class={s.actionBtn} onClick={startEdit} title="Edit message">
+          <button type="button" class={actionBtnCls} onClick={startEdit} title="Edit message">
             ✎ Edit
           </button>
           <button
-            class={`${s.actionBtn} ${s.deleteBtn}`}
+            type="button"
+            class={deleteBtnCls}
             onClick={() => deleteTurn(turn.id)}
             title="Delete message"
           >

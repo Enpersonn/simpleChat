@@ -2,7 +2,7 @@ import { useState } from 'preact/hooks'
 import type { StoryLocation as Location, LocationCreate } from '@simplechat/types'
 import { useStoriesStore } from '../../store/stories.js'
 import { api } from '../../lib/api.js'
-import s from './StoryCreateModal.module.css'
+import { f } from '../shared/formCls.js'
 
 interface Props {
   initial?: Location
@@ -90,71 +90,73 @@ export function LocationModal({ initial, onClose, onSaved }: Props) {
   }
 
   return (
-    <div class={s.overlay} onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div class={s.modal} style={{ maxWidth: '600px' }}>
-        <div class={s.modalHeader}>
-          <h2 class={s.modalTitle}>{isEdit ? 'Edit Location' : 'New Location'}</h2>
-          <button class={s.closeBtn} onClick={onClose}>✕</button>
+    <div class={f.overlay} onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div class={f.modalLg}>
+        <div class={f.header}>
+          <h2 class={f.title}>{isEdit ? 'Edit Location' : 'New Location'}</h2>
+          <button class={f.closeBtn} onClick={onClose}>✕</button>
         </div>
 
         {/* AI generation */}
-        <div class={s.genRow}>
-          <input
-            class={s.genInput}
-            placeholder="Describe the location briefly (e.g. a dimly lit tavern with low ceilings)"
-            value={genPrompt}
-            onInput={(e) => setGenPrompt((e.target as HTMLInputElement).value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleGenerate()}
-          />
-          <button class={s.genBtn} onClick={handleGenerate} disabled={generating || !genPrompt.trim()}>
-            {generating ? '…' : 'Generate'}
-          </button>
+        <div class={f.generateSection}>
+          <div class={f.generateRow}>
+            <input
+              class={f.input}
+              placeholder="Describe the location briefly (e.g. a dimly lit tavern with low ceilings)"
+              value={genPrompt}
+              onInput={(e) => setGenPrompt((e.target as HTMLInputElement).value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleGenerate()}
+            />
+            <button class={f.generateBtn} onClick={handleGenerate} disabled={generating || !genPrompt.trim()}>
+              {generating ? '…' : 'Generate'}
+            </button>
+          </div>
         </div>
 
-        <div class={s.fields}>
-          <label class={s.field}>
-            <span class={s.fieldLabel}>Name *</span>
-            <input class={s.input} value={name} onInput={(e) => setName((e.target as HTMLInputElement).value)} placeholder="The Rusty Flagon" />
-          </label>
-          <label class={s.field}>
-            <span class={s.fieldLabel}>Description</span>
-            <textarea class={s.textarea} value={description} onInput={(e) => setDescription((e.target as HTMLTextAreaElement).value)} placeholder="Overview of this location" rows={2} />
-          </label>
-          <label class={s.field}>
-            <span class={s.fieldLabel}>Layout</span>
-            <textarea class={s.textarea} value={layout} onInput={(e) => setLayout((e.target as HTMLTextAreaElement).value)} placeholder="Spatial description — size, shape, exits, notable features" rows={2} />
-          </label>
-          <label class={s.field}>
-            <span class={s.fieldLabel}>Lighting</span>
-            <input class={s.input} value={lighting} onInput={(e) => setLighting((e.target as HTMLInputElement).value)} placeholder="e.g. Candlelit, warm amber glow from sconces" />
-          </label>
-          <label class={s.field}>
-            <span class={s.fieldLabel}>Atmosphere</span>
-            <input class={s.input} value={atmosphere} onInput={(e) => setAtmosphere((e.target as HTMLInputElement).value)} placeholder="e.g. Smoky, intimate, faintly oppressive" />
-          </label>
-          <label class={s.field}>
-            <span class={s.fieldLabel}>Soundscape</span>
-            <input class={s.input} value={soundscape} onInput={(e) => setSoundscape((e.target as HTMLInputElement).value)} placeholder="e.g. Muffled conversation, distant dripping water" />
-          </label>
-          <label class={s.field}>
-            <span class={s.fieldLabel}>Smells</span>
-            <input class={s.input} value={smells} onInput={(e) => setSmells((e.target as HTMLInputElement).value)} placeholder="e.g. Woodsmoke, tallow, spilled ale" />
-          </label>
-          <label class={s.field}>
-            <span class={s.fieldLabel}>Notes</span>
-            <textarea class={s.textarea} value={notes} onInput={(e) => setNotes((e.target as HTMLTextAreaElement).value)} placeholder="Consistency rules: always cold, no windows, ceiling so low tall people duck" rows={2} />
-          </label>
-          <label class={s.field}>
-            <span class={s.fieldLabel}>Tags (comma-separated)</span>
-            <input class={s.input} value={tags} onInput={(e) => setTags((e.target as HTMLInputElement).value)} placeholder="tavern, indoor, dark, cramped" />
-          </label>
+        <div class="flex flex-col gap-4.5">
+          <div class={f.field}>
+            <label class={f.label}>Name <span class={f.required}>*</span></label>
+            <input class={f.input} value={name} onInput={(e) => setName((e.target as HTMLInputElement).value)} placeholder="The Rusty Flagon" />
+          </div>
+          <div class={f.field}>
+            <label class={f.label}>Description</label>
+            <textarea class={f.textarea} value={description} onInput={(e) => setDescription((e.target as HTMLTextAreaElement).value)} placeholder="Overview of this location" style={{ minHeight: '56px' }} />
+          </div>
+          <div class={f.field}>
+            <label class={f.label}>Layout</label>
+            <textarea class={f.textarea} value={layout} onInput={(e) => setLayout((e.target as HTMLTextAreaElement).value)} placeholder="Spatial description — size, shape, exits, notable features" style={{ minHeight: '56px' }} />
+          </div>
+          <div class={f.field}>
+            <label class={f.label}>Lighting</label>
+            <input class={f.input} value={lighting} onInput={(e) => setLighting((e.target as HTMLInputElement).value)} placeholder="e.g. Candlelit, warm amber glow from sconces" />
+          </div>
+          <div class={f.field}>
+            <label class={f.label}>Atmosphere</label>
+            <input class={f.input} value={atmosphere} onInput={(e) => setAtmosphere((e.target as HTMLInputElement).value)} placeholder="e.g. Smoky, intimate, faintly oppressive" />
+          </div>
+          <div class={f.field}>
+            <label class={f.label}>Soundscape</label>
+            <input class={f.input} value={soundscape} onInput={(e) => setSoundscape((e.target as HTMLInputElement).value)} placeholder="e.g. Muffled conversation, distant dripping water" />
+          </div>
+          <div class={f.field}>
+            <label class={f.label}>Smells</label>
+            <input class={f.input} value={smells} onInput={(e) => setSmells((e.target as HTMLInputElement).value)} placeholder="e.g. Woodsmoke, tallow, spilled ale" />
+          </div>
+          <div class={f.field}>
+            <label class={f.label}>Notes</label>
+            <textarea class={f.textarea} value={notes} onInput={(e) => setNotes((e.target as HTMLTextAreaElement).value)} placeholder="Consistency rules: always cold, no windows, ceiling so low tall people duck" style={{ minHeight: '56px' }} />
+          </div>
+          <div class={f.field}>
+            <label class={f.label}>Tags <span class={f.labelHint}>(comma-separated)</span></label>
+            <input class={f.input} value={tags} onInput={(e) => setTags((e.target as HTMLInputElement).value)} placeholder="tavern, indoor, dark, cramped" />
+          </div>
         </div>
 
-        {error && <div class={s.error}>{error}</div>}
+        {error && <p class={f.errorMsg}>{error}</p>}
 
-        <div class={s.actions}>
-          <button class={s.cancelBtn} onClick={onClose}>Cancel</button>
-          <button class={s.saveBtn} onClick={handleSubmit} disabled={submitting || !name.trim()}>
+        <div class={f.footer}>
+          <button class={f.cancelBtn} onClick={onClose}>Cancel</button>
+          <button class={f.submitBtn} onClick={handleSubmit} disabled={submitting || !name.trim()}>
             {submitting ? 'Saving…' : isEdit ? 'Save Changes' : 'Create Location'}
           </button>
         </div>

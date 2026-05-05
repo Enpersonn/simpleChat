@@ -31,7 +31,7 @@ interface StoriesState {
   error: string | null;
 
   loadStories: () => Promise<void>;
-  selectStory: (id: string) => Promise<void>;
+  selectStory: (id: string | null) => Promise<void>;
   createStory: (data: StoryCreate) => Promise<Story>;
   updateStory: (id: string, data: StoryUpdate) => Promise<Story>;
   deleteStory: (id: string) => Promise<void>;
@@ -82,7 +82,11 @@ export const useStoriesStore = create<StoriesState>((set, get) => ({
     }
   },
 
-  selectStory: async (id: string) => {
+  selectStory: async (id: string | null) => {
+    if (id === null) {
+      set({ selectedStoryId: null, characters: [], locations: [], canonTimeline: null, fieldDefs: [] });
+      return;
+    }
     set({
       selectedStoryId: id,
       characters: [],

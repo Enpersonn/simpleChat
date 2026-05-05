@@ -3,7 +3,7 @@ import type { Story, CharacterCreate, LocationCreate, MemoryDeltaEffect } from '
 import { useStoriesStore } from '../../store/stories.js'
 import { api } from '../../lib/api.js'
 import { CharacterModal } from './CharacterModal.js'
-import s from './StoryCreateModal.module.css'
+import { f } from '../shared/formCls.js'
 
 const GENRE_OPTIONS = ['Fantasy', 'Sci-Fi', 'Horror', 'Romance', 'Mystery', 'Thriller', 'Historical', 'Contemporary']
 const TONE_OPTIONS = ['Dark', 'Light', 'Grim', 'Hopeful', 'Intimate', 'Epic', 'Tense', 'Whimsical', 'Melancholic', 'Romantic']
@@ -392,36 +392,36 @@ export function StoryCreateModal({ onClose, onCreated }: Props) {
 
   const formContent = (
     <>
-      {error && <div style={{ color: 'var(--error)', fontSize: '12px' }}>{error}</div>}
+      {error && <div class={f.errorMsg}>{error}</div>}
 
       {genStep > 0 && (
-        <div class={s.genProgress}>
-          <span class={s.genSpinner}>↻</span>
-          <span class={s.genLabel}>{steps[genStep - 1]}</span>
-          <span class={s.genCount}>{genStep} / {steps.length}</span>
+        <div class={f.genProgress}>
+          <span class={f.genSpinner}>↻</span>
+          <span class={f.genLabel}>{steps[genStep - 1]}</span>
+          <span class={f.genCount}>{genStep} / {steps.length}</span>
         </div>
       )}
 
       {tab === 'import' && (
-        <div class={s.field}>
-          <label class={s.label}>Paste your story notes, excerpts, or drafts</label>
+        <div class={f.field}>
+          <label class={f.label}>Paste your story notes, excerpts, or drafts</label>
           <textarea
-            class={s.textarea}
+            class={f.textarea}
             placeholder="Paste story notes, chapter drafts, character sketches, world-building notes…"
             value={importText}
             onInput={(e) => setImportText((e.target as HTMLTextAreaElement).value)}
             style={{ minHeight: '220px' }}
           />
-          <div class={s.aiBar}>
+          <div class={f.aiBar}>
             <button
-              class={s.aiBtn}
+              class={f.aiBtn}
               onClick={handleParse}
               disabled={generating || !importText.trim()}
             >
               {generating ? '✨ Parsing…' : '✨ Parse & Generate'}
             </button>
           </div>
-          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+          <div class="text-[11px] text-text-muted mt-1">
             The LLM will synthesise a clean premise and extract characters, locations, and canon memories. Review all fields before creating.
           </div>
         </div>
@@ -429,28 +429,28 @@ export function StoryCreateModal({ onClose, onCreated }: Props) {
 
       {tab === 'write' && (
         <>
-          <div class={s.field}>
-            <label class={s.label}>Title <span class={s.required}>*</span></label>
+          <div class={f.field}>
+            <label class={f.label}>Title <span class={f.required}>*</span></label>
             <input
-              class={s.input}
+              class={f.input}
               placeholder="e.g. Ashes of Vallor"
               value={title}
               onInput={(e) => setTitle((e.target as HTMLInputElement).value)}
             />
           </div>
 
-          <div class={s.field}>
-            <label class={s.label}>Premise</label>
+          <div class={f.field}>
+            <label class={f.label}>Premise</label>
             <textarea
-              class={s.textarea}
+              class={f.textarea}
               placeholder="What is this story about? Who are the key players? What world does it inhabit?"
               value={premise}
               onInput={(e) => setPremise((e.target as HTMLTextAreaElement).value)}
               style={{ minHeight: '120px' }}
             />
-            <div class={s.aiBar}>
+            <div class={f.aiBar}>
               <button
-                class={s.aiBtn}
+                class={f.aiBtn}
                 onClick={handleDraft}
                 disabled={generating || !premise.trim()}
                 title="Use the premise to generate genres, tone, rules, writing style, characters, locations and backstory"
@@ -460,13 +460,13 @@ export function StoryCreateModal({ onClose, onCreated }: Props) {
             </div>
           </div>
 
-          <div class={s.field}>
-            <label class={s.label}>Genre</label>
-            <div class={s.tagGroup}>
+          <div class={f.field}>
+            <label class={f.label}>Genre</label>
+            <div class={f.tagGroup}>
               {GENRE_OPTIONS.map((g) => (
                 <button
                   key={g}
-                  class={s.tag}
+                  class={f.tag}
                   data-active={genres.includes(g) ? 'true' : undefined}
                   onClick={() => toggle(genres, g, setGenres)}
                 >
@@ -474,30 +474,30 @@ export function StoryCreateModal({ onClose, onCreated }: Props) {
                 </button>
               ))}
               {customGenres.map((g) => (
-                <button key={g} class={s.tag} data-active="true" onClick={() => toggle(genres, g, setGenres)}>
-                  {g}<span class={s.tagRemove}>×</span>
+                <button key={g} class={f.tag} data-active="true" onClick={() => toggle(genres, g, setGenres)}>
+                  {g}<span class={f.tagRemove}>×</span>
                 </button>
               ))}
             </div>
-            <div class={s.tagAddRow}>
+            <div class={f.tagAddRow}>
               <input
-                class={s.customTagInput}
+                class={f.customTagInput}
                 placeholder="Add genre…"
                 value={customGenre}
                 onInput={(e) => setCustomGenre((e.target as HTMLInputElement).value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCustomTag(customGenre, genres, setGenres, setCustomGenre) } }}
               />
-              <button class={s.tagAddBtn} onClick={() => addCustomTag(customGenre, genres, setGenres, setCustomGenre)}>+</button>
+              <button class={f.tagAddBtn} onClick={() => addCustomTag(customGenre, genres, setGenres, setCustomGenre)}>+</button>
             </div>
           </div>
 
-          <div class={s.field}>
-            <label class={s.label}>Tone</label>
-            <div class={s.tagGroup}>
+          <div class={f.field}>
+            <label class={f.label}>Tone</label>
+            <div class={f.tagGroup}>
               {TONE_OPTIONS.map((t) => (
                 <button
                   key={t}
-                  class={s.tag}
+                  class={f.tag}
                   data-active={tones.includes(t) ? 'true' : undefined}
                   onClick={() => toggle(tones, t, setTones)}
                 >
@@ -505,27 +505,27 @@ export function StoryCreateModal({ onClose, onCreated }: Props) {
                 </button>
               ))}
               {customTones.map((t) => (
-                <button key={t} class={s.tag} data-active="true" onClick={() => toggle(tones, t, setTones)}>
-                  {t}<span class={s.tagRemove}>×</span>
+                <button key={t} class={f.tag} data-active="true" onClick={() => toggle(tones, t, setTones)}>
+                  {t}<span class={f.tagRemove}>×</span>
                 </button>
               ))}
             </div>
-            <div class={s.tagAddRow}>
+            <div class={f.tagAddRow}>
               <input
-                class={s.customTagInput}
+                class={f.customTagInput}
                 placeholder="Add tone…"
                 value={customTone}
                 onInput={(e) => setCustomTone((e.target as HTMLInputElement).value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCustomTag(customTone, tones, setTones, setCustomTone) } }}
               />
-              <button class={s.tagAddBtn} onClick={() => addCustomTag(customTone, tones, setTones, setCustomTone)}>+</button>
+              <button class={f.tagAddBtn} onClick={() => addCustomTag(customTone, tones, setTones, setCustomTone)}>+</button>
             </div>
           </div>
 
-          <div class={s.field}>
-            <label class={s.label}>World Rules <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(one per line)</span></label>
+          <div class={f.field}>
+            <label class={f.label}>World Rules <span class={f.labelHint}>(one per line)</span></label>
             <textarea
-              class={s.textarea}
+              class={f.textarea}
               placeholder={"No modern technology\nMagic has a social cost\nThe gods are silent"}
               value={rules}
               onInput={(e) => setRules((e.target as HTMLTextAreaElement).value)}
@@ -533,10 +533,10 @@ export function StoryCreateModal({ onClose, onCreated }: Props) {
             />
           </div>
 
-          <div class={s.field}>
-            <label class={s.label}>Writing Style</label>
+          <div class={f.field}>
+            <label class={f.label}>Writing Style</label>
             <textarea
-              class={s.textarea}
+              class={f.textarea}
               placeholder="e.g. cinematic, sensory-rich, short punchy dialogue, third-person intimate"
               value={writingStyle}
               onInput={(e) => setWritingStyle((e.target as HTMLTextAreaElement).value)}
@@ -544,10 +544,10 @@ export function StoryCreateModal({ onClose, onCreated }: Props) {
             />
           </div>
 
-          <div class={s.field}>
-            <label class={s.label}>Opening Message <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(optional)</span></label>
+          <div class={f.field}>
+            <label class={f.label}>Opening Message <span class={f.labelHint}>(optional)</span></label>
             <textarea
-              class={s.textarea}
+              class={f.textarea}
               placeholder="The scene opens on a rain-slicked street…"
               value={openingMessage}
               onInput={(e) => setOpeningMessage((e.target as HTMLTextAreaElement).value)}
@@ -555,40 +555,40 @@ export function StoryCreateModal({ onClose, onCreated }: Props) {
             />
           </div>
 
-          <div class={s.field}>
-            <div class={s.charSectionHeader}>
-              <label class={s.label} style={{ margin: 0 }}>Characters</label>
-              <div class={s.charAddBtns}>
-                <button class={s.aiBtn} onClick={() => setEditingChar('new-persona')}>+ Persona</button>
-                <button class={s.aiBtn} onClick={() => setEditingChar('new')}>+ Character</button>
+          <div class={f.field}>
+            <div class={f.charSectionHeader}>
+              <label class={f.label} style={{ margin: 0 }}>Characters</label>
+              <div class={f.charAddBtns}>
+                <button class={f.aiBtn} onClick={() => setEditingChar('new-persona')}>+ Persona</button>
+                <button class={f.aiBtn} onClick={() => setEditingChar('new')}>+ Character</button>
               </div>
             </div>
             {pendingChars.length === 0 && (
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>No characters yet — draft from premise or add manually.</div>
+              <div class="text-xs text-text-muted">No characters yet — draft from premise or add manually.</div>
             )}
             {pendingChars.map((c) => (
-              <div key={c._localId} class={s.charRow}>
-                <span class={s.charIcon}>{c.isUserPersona ? '🧑' : '🎭'}</span>
-                <span class={s.charName}>{c.name}</span>
-                {c.role && <span class={s.charRole}>{c.role}</span>}
-                <span class={s.charActions}>
-                  <button class={s.iconActionBtn} onClick={() => setEditingChar(c)}>✎</button>
-                  <button class={s.iconActionBtn} onClick={() => removeChar(c._localId)}>✕</button>
+              <div key={c._localId} class={f.charRow}>
+                <span class={f.charIcon}>{c.isUserPersona ? '🧑' : '🎭'}</span>
+                <span class={f.charName}>{c.name}</span>
+                {c.role && <span class={f.charRole}>{c.role}</span>}
+                <span class={f.charActions}>
+                  <button class={f.iconActionBtn} onClick={() => setEditingChar(c)}>✎</button>
+                  <button class={f.iconActionBtn} onClick={() => removeChar(c._localId)}>✕</button>
                 </span>
               </div>
             ))}
           </div>
 
           {pendingLocations.length > 0 && (
-            <div class={s.field}>
-              <label class={s.label}>Locations</label>
+            <div class={f.field}>
+              <label class={f.label}>Locations</label>
               {pendingLocations.map((l) => (
-                <div key={l._localId} class={s.charRow}>
-                  <span class={s.charIcon}>📍</span>
-                  <span class={s.charName}>{l.name}</span>
-                  {l.description && <span class={s.charRole}>{l.description}</span>}
-                  <span class={s.charActions}>
-                    <button class={s.iconActionBtn} onClick={() => removeLoc(l._localId)}>✕</button>
+                <div key={l._localId} class={f.charRow}>
+                  <span class={f.charIcon}>📍</span>
+                  <span class={f.charName}>{l.name}</span>
+                  {l.description && <span class={f.charRole}>{l.description}</span>}
+                  <span class={f.charActions}>
+                    <button class={f.iconActionBtn} onClick={() => removeLoc(l._localId)}>✕</button>
                   </span>
                 </div>
               ))}
@@ -596,19 +596,19 @@ export function StoryCreateModal({ onClose, onCreated }: Props) {
           )}
 
           {pendingMemories.length > 0 && (
-            <div class={s.field}>
-              <label class={s.label}>Canon Memories <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>({pendingMemories.length} events extracted)</span></label>
+            <div class={f.field}>
+              <label class={f.label}>Canon Memories <span class={f.labelHint}>({pendingMemories.length} events extracted)</span></label>
               {pendingMemories.map((m) => (
-                <div key={m._localId} class={s.charRow}>
-                  <span class={s.charIcon}>🧠</span>
-                  <span class={s.charName} title={m.summary} style={{ fontStyle: 'italic' }}>{m.characterName}</span>
-                  <span class={s.charRole} title={m.summary}>{m.summary.slice(0, 50)}{m.summary.length > 50 ? '…' : ''}</span>
-                  <span class={s.charActions}>
-                    <button class={s.iconActionBtn} onClick={() => setPendingMemories((prev) => prev.filter((x) => x._localId !== m._localId))}>✕</button>
+                <div key={m._localId} class={f.charRow}>
+                  <span class={f.charIcon}>🧠</span>
+                  <span class={f.charName} title={m.summary} style={{ fontStyle: 'italic' }}>{m.characterName}</span>
+                  <span class={f.charRole} title={m.summary}>{m.summary.slice(0, 50)}{m.summary.length > 50 ? '…' : ''}</span>
+                  <span class={f.charActions}>
+                    <button class={f.iconActionBtn} onClick={() => setPendingMemories((prev) => prev.filter((x) => x._localId !== m._localId))}>✕</button>
                   </span>
                 </div>
               ))}
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+              <div class="text-[11px] text-text-muted mt-1">
                 These will be added to the canon timeline on story creation. Remove any you don't want.
               </div>
             </div>
@@ -616,14 +616,14 @@ export function StoryCreateModal({ onClose, onCreated }: Props) {
         </>
       )}
 
-      <div class={s.footer}>
-        <button class={s.cancelBtn} onClick={onClose}>Cancel</button>
+      <div class={f.footer}>
+        <button class={f.cancelBtn} onClick={onClose}>Cancel</button>
         {tab === 'import' ? (
-          <button class={s.submitBtn} onClick={() => setTab('write')} disabled={generating}>
+          <button class={f.submitBtn} onClick={() => setTab('write')} disabled={generating}>
             {generating ? 'Parsing…' : 'Review fields →'}
           </button>
         ) : (
-          <button class={s.submitBtn} onClick={handleSubmit} disabled={submitting || !title.trim()}>
+          <button class={f.submitBtn} onClick={handleSubmit} disabled={submitting || !title.trim()}>
             {submitting ? 'Creating…' : 'Create Story'}
           </button>
         )}
@@ -633,31 +633,31 @@ export function StoryCreateModal({ onClose, onCreated }: Props) {
 
   return (
     <>
-      <div class={s.overlay} onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
-        <div class={showPreview ? s.modalWide : s.modal}>
-          <div class={s.header}>
-            <span class={s.title}>New Story</span>
-            <button class={s.closeBtn} onClick={onClose}>✕</button>
+      <div class={f.overlay} onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
+        <div class={showPreview ? f.modalWide : f.modal}>
+          <div class={f.header}>
+            <span class={f.title}>New Story</span>
+            <button class={f.closeBtn} onClick={onClose}>✕</button>
           </div>
 
           {showPreview ? (
-            <div class={s.modalBody}>
-              <div class={s.formCol}>
-                <div class={s.tabs}>
-                  <button type="button" class={s.tabBtn} data-active={tab === 'write' ? 'true' : undefined} onClick={() => setTab('write')}>Write</button>
-                  <button type="button" class={s.tabBtn} data-active={tab === 'import' ? 'true' : undefined} onClick={() => setTab('import')}>Import from text</button>
+            <div class="flex flex-row flex-1 min-h-0 -mx-6">
+              <div class="w-[520px] shrink-0 overflow-y-auto px-6 pt-1 pb-6 flex flex-col gap-4.5">
+                <div class={f.tabs}>
+                  <button type="button" class={f.tabBtn} data-active={tab === 'write' ? 'true' : undefined} onClick={() => setTab('write')}>Write</button>
+                  <button type="button" class={f.tabBtn} data-active={tab === 'import' ? 'true' : undefined} onClick={() => setTab('import')}>Import from text</button>
                 </div>
                 {formContent}
               </div>
-              <div class={s.previewCol}>
+              <div class="flex-1 min-w-[260px] overflow-y-auto px-6 pt-1 pb-6 border-l border-border bg-bg-primary">
                 <StoryPreviewPanel preview={livePreview} genStep={genStep} tab={tab} />
               </div>
             </div>
           ) : (
             <>
-              <div class={s.tabs}>
-                <button type="button" class={s.tabBtn} data-active={tab === 'write' ? 'true' : undefined} onClick={() => setTab('write')}>Write</button>
-                <button type="button" class={s.tabBtn} data-active={tab === 'import' ? 'true' : undefined} onClick={() => setTab('import')}>Import from text</button>
+              <div class={f.tabs}>
+                <button type="button" class={f.tabBtn} data-active={tab === 'write' ? 'true' : undefined} onClick={() => setTab('write')}>Write</button>
+                <button type="button" class={f.tabBtn} data-active={tab === 'import' ? 'true' : undefined} onClick={() => setTab('import')}>Import from text</button>
               </div>
               {formContent}
             </>
@@ -702,24 +702,24 @@ function StoryPreviewPanel({ preview, genStep, tab }: PreviewPanelProps) {
   const isDone = genStep === 0
 
   return (
-    <div class={s.previewPanel}>
-      <div style={{ fontSize: '10px', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '16px' }}>
+    <div class={f.previewPanel}>
+      <div class="text-[10px] tracking-[0.1em] uppercase text-text-muted mb-4">
         {isDone ? 'Story Preview' : tab === 'import' ? 'Extracting…' : 'Generating…'}
       </div>
 
       {/* Title + pills */}
       {preview.title ? (
-        <div class={s.previewFadeIn}>
-          <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.3, marginBottom: '10px' }}>
+        <div class={f.previewFadeIn}>
+          <div class="text-[20px] font-bold text-text-primary leading-[1.3] mb-[10px]">
             {preview.title}
           </div>
           {(preview.genres.length > 0 || preview.tone.length > 0) && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+            <div class="flex flex-wrap gap-[5px]">
               {preview.genres.map((g) => (
-                <span key={g} style={{ padding: '2px 8px', fontSize: '10px', borderRadius: '99px', background: 'var(--accent-dim)', color: 'var(--accent)', border: '1px solid var(--accent)', fontWeight: 500 }}>{g}</span>
+                <span key={g} class="py-[2px] px-2 text-[10px] rounded-full bg-accent-dim text-accent border border-accent font-medium">{g}</span>
               ))}
               {preview.tone.map((t) => (
-                <span key={t} style={{ padding: '2px 8px', fontSize: '10px', borderRadius: '99px', background: 'var(--bg-tertiary)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>{t}</span>
+                <span key={t} class="py-[2px] px-2 text-[10px] rounded-full bg-bg-tertiary text-text-muted border border-border">{t}</span>
               ))}
             </div>
           )}
@@ -730,8 +730,8 @@ function StoryPreviewPanel({ preview, genStep, tab }: PreviewPanelProps) {
 
       {/* Characters */}
       {(preview.characters.length > 0 || activeSection === 'characters') && (
-        <div style={{ marginTop: '20px' }}>
-          <div style={{ fontSize: '10px', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '8px' }}>Characters</div>
+        <div class="mt-5">
+          <div class="text-[10px] font-semibold tracking-[0.06em] uppercase text-text-muted mb-2">Characters</div>
           {preview.characters.map((c) => (
             <PreviewCard key={c.name} icon={c.isUserPersona ? '🧑' : '🎭'} name={c.name} sub={c.role} />
           ))}
@@ -741,8 +741,8 @@ function StoryPreviewPanel({ preview, genStep, tab }: PreviewPanelProps) {
 
       {/* Locations */}
       {(preview.locations.length > 0 || activeSection === 'locations') && (
-        <div style={{ marginTop: '20px' }}>
-          <div style={{ fontSize: '10px', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '8px' }}>Locations</div>
+        <div class="mt-5">
+          <div class="text-[10px] font-semibold tracking-[0.06em] uppercase text-text-muted mb-2">Locations</div>
           {preview.locations.map((l) => (
             <PreviewCard key={l.name} icon="📍" name={l.name} sub={l.description.slice(0, 55) + (l.description.length > 55 ? '…' : '')} />
           ))}
@@ -752,8 +752,8 @@ function StoryPreviewPanel({ preview, genStep, tab }: PreviewPanelProps) {
 
       {/* Memories / Backstory */}
       {(preview.memories.length > 0 || activeSection === 'memories') && (
-        <div style={{ marginTop: '20px' }}>
-          <div style={{ fontSize: '10px', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '8px' }}>
+        <div class="mt-5">
+          <div class="text-[10px] font-semibold tracking-[0.06em] uppercase text-text-muted mb-2">
             {tab === 'import' ? 'Canon Events' : 'Backstory'}
           </div>
           {preview.memories.map((m, i) => (
@@ -768,15 +768,18 @@ function StoryPreviewPanel({ preview, genStep, tab }: PreviewPanelProps) {
 
 function PreviewCard({ icon, name, sub, importance }: { icon: string; name: string; sub?: string; importance?: number }) {
   return (
-    <div class={s.previewCard}>
-      <span style={{ fontSize: '14px', flexShrink: 0 }}>{icon}</span>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</div>
-        {sub && <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '1px', lineHeight: 1.4 }}>{sub}</div>}
+    <div class={f.previewCard}>
+      <span class="text-[14px] shrink-0">{icon}</span>
+      <div class="flex-1 min-w-0">
+        <div class="text-xs font-medium text-text-primary overflow-hidden text-ellipsis whitespace-nowrap">{name}</div>
+        {sub && <div class="text-[11px] text-text-muted mt-[1px] leading-[1.4]">{sub}</div>}
       </div>
       {importance !== undefined && (
-        <div style={{ width: '28px', height: '3px', borderRadius: '99px', background: 'var(--bg-hover)', flexShrink: 0, alignSelf: 'center' }}>
-          <div style={{ width: `${importance * 100}%`, height: '100%', borderRadius: '99px', background: importance >= 0.8 ? 'var(--accent)' : 'var(--text-muted)' }} />
+        <div class="w-7 h-[3px] rounded-full bg-bg-hover shrink-0 self-center">
+          <div
+            class={importance >= 0.8 ? 'h-full rounded-full bg-accent' : 'h-full rounded-full bg-text-muted'}
+            style={{ width: `${importance * 100}%` }}
+          />
         </div>
       )}
     </div>
@@ -785,9 +788,9 @@ function PreviewCard({ icon, name, sub, importance }: { icon: string; name: stri
 
 function SkeletonBlock({ lines }: { lines: number }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+    <div class="flex flex-col gap-1.5">
       {Array.from({ length: lines }).map((_, i) => (
-        <div key={i} class={s.previewSkeleton} style={{ height: i === 0 ? '20px' : '12px', borderRadius: 'var(--radius-sm)', width: i === 0 ? '70%' : '45%' }} />
+        <div key={i} class={f.previewSkeleton} style={{ height: i === 0 ? '20px' : '12px', borderRadius: '4px', width: i === 0 ? '70%' : '45%' }} />
       ))}
     </div>
   )
@@ -795,6 +798,6 @@ function SkeletonBlock({ lines }: { lines: number }) {
 
 function SkeletonCard() {
   return (
-    <div class={s.previewSkeleton} style={{ height: '38px', borderRadius: 'var(--radius-sm)', marginTop: '6px' }} />
+    <div class={f.previewSkeleton} style={{ height: '38px', borderRadius: '4px', marginTop: '6px' }} />
   )
 }

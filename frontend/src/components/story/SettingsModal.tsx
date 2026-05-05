@@ -1,161 +1,237 @@
-import { useEffect, useState } from 'preact/hooks'
-import { useSettingsStore } from '../../store/settings.js'
-import s from './StoryCreateModal.module.css'
-import ms from './SettingsModal.module.css'
+import { useEffect, useState } from "preact/hooks";
+import { useSettingsStore } from "../../store/settings.js";
+import { f } from "../shared/formCls.js";
+import { OllamaStatus } from "../shared/OllamaStatus.js";
 
 export function SettingsModal({ onClose }: { onClose: () => void }) {
-  const { appSettings, saveSettings, availableModels, loadModels, modelsLoading, ollamaHealthy, checkHealth } = useSettingsStore()
+  const {
+    appSettings,
+    saveSettings,
+    availableModels,
+    loadModels,
+    modelsLoading,
+    ollamaHealthy,
+    checkHealth,
+  } = useSettingsStore();
 
-  const [endpoint, setEndpoint] = useState(appSettings.ollamaEndpoint)
-  const [model, setModel] = useState(appSettings.activeModel)
-  const [theme, setTheme] = useState(appSettings.theme)
-  const [fontSize, setFontSize] = useState(appSettings.fontSize)
-  const [globalNote, setGlobalNote] = useState(appSettings.globalNote)
+  const [endpoint, setEndpoint] = useState(appSettings.ollamaEndpoint);
+  const [model, setModel] = useState(appSettings.activeModel);
+  const [theme, setTheme] = useState(appSettings.theme);
+  const [fontSize, setFontSize] = useState(appSettings.fontSize);
+  const [globalNote, setGlobalNote] = useState(appSettings.globalNote);
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme)
-  }, [theme])
+    document.documentElement.setAttribute("data-theme", theme);
+  }, [theme]);
 
   useEffect(() => {
-    document.documentElement.style.setProperty('--bubble-font-size', `${fontSize}px`)
-  }, [fontSize])
+    document.documentElement.style.setProperty(
+      "--bubble-font-size",
+      `${fontSize}px`,
+    );
+  }, [fontSize]);
 
-  const [submitting, setSubmitting] = useState(false)
-  const [testing, setTesting] = useState(false)
-  const [testResult, setTestResult] = useState<'ok' | 'fail' | null>(null)
-  const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<"ok" | "fail" | null>(null);
+  const [error, setError] = useState("");
 
   const handleTest = async () => {
-    setTesting(true)
-    setTestResult(null)
+    setTesting(true);
+    setTestResult(null);
     // Save endpoint first so the backend uses the current value when testing
     try {
-      await saveSettings({ ollamaEndpoint: endpoint.trim() })
+      await saveSettings({ ollamaEndpoint: endpoint.trim() });
     } catch {
       // non-fatal — the test will still reflect reality
     }
-    await checkHealth()
-    const store = useSettingsStore.getState()
-    const healthy = store.ollamaHealthy
-    setTestResult(healthy ? 'ok' : 'fail')
+    await checkHealth();
+    const store = useSettingsStore.getState();
+    const healthy = store.ollamaHealthy;
+    setTestResult(healthy ? "ok" : "fail");
     if (healthy) {
-      await loadModels()
+      await loadModels();
     }
-    setTesting(false)
-  }
+    setTesting(false);
+  };
 
   const handleLoadModels = async () => {
-    await loadModels()
-  }
+    await loadModels();
+  };
 
   const handleSubmit = async () => {
-    setSubmitting(true)
-    setError('')
+    setSubmitting(true);
+    setError("");
     try {
-      await saveSettings({ ollamaEndpoint: endpoint.trim(), activeModel: model.trim(), theme, fontSize, globalNote: globalNote.trim() })
-      onClose()
+      await saveSettings({
+        ollamaEndpoint: endpoint.trim(),
+        activeModel: model.trim(),
+        theme,
+        fontSize,
+        globalNote: globalNote.trim(),
+      });
+      onClose();
     } catch (err) {
-      setError((err as Error).message)
-      setSubmitting(false)
+      setError((err as Error).message);
+      setSubmitting(false);
     }
-  }
-
-  const statusDot = ollamaHealthy === true
-    ? <span class={ms.dot} data-status="ok" title="Ollama reachable" />
-    : ollamaHealthy === false
-    ? <span class={ms.dot} data-status="fail" title="Ollama unreachable" />
-    : <span class={ms.dot} data-status="unknown" title="Status unknown" />
+  };
 
   return (
-    <div class={s.overlay} onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
-      <div class={s.modal} style={{ width: '460px' }}>
-        <div class={s.header}>
-          <span class={s.title}>Settings</span>
-          <button class={s.closeBtn} onClick={onClose}>✕</button>
+    <div
+      class={f.overlay}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div class={f.modal} style={{ width: "460px" }}>
+        <div class={f.header}>
+          <span class={f.title}>Settings</span>
+          <button type="button" class={f.closeBtn} onClick={onClose}>
+            ✕
+          </button>
         </div>
 
-        {error && <div style={{ color: 'var(--error)', fontSize: '12px' }}>{error}</div>}
+        {error && <p class={f.errorMsg}>{error}</p>}
 
-        <div class={s.field}>
-          <div class={ms.labelRow}>
-            <label class={s.label}>Ollama Endpoint</label>
-            {statusDot}
+        <div class={f.field}>
+          <div class="flex items-center gap-[6px]">
+            <label class={f.label}>Ollama Endpoint</label>
+            <OllamaStatus healthy={ollamaHealthy} />
           </div>
-          <div class={ms.modelRow}>
-            <input class={s.input} style={{ flex: 1 }} value={endpoint} onInput={(e) => setEndpoint((e.target as HTMLInputElement).value)} placeholder="http://localhost:11434" />
-            <button class={ms.testBtn} onClick={handleTest} disabled={testing}>
-              {testing ? '…' : 'Test'}
+          <div class="flex gap-[6px] items-center">
+            <input
+              class={f.input}
+              style={{ flex: 1 }}
+              value={endpoint}
+              onInput={(e) => setEndpoint((e.target as HTMLInputElement).value)}
+              placeholder="http://localhost:11434"
+            />
+            <button
+              type="button"
+              class="px-[12px] py-[7px] text-[12px] font-semibold border border-accent rounded-sm bg-accent-dim text-accent shrink-0 transition-all duration-150 hover:enabled:bg-accent hover:enabled:text-text-on-accent disabled:opacity-50 disabled:cursor-default"
+              onClick={handleTest}
+              disabled={testing}
+            >
+              {testing ? "…" : "Test"}
             </button>
           </div>
-          {testResult === 'ok' && (
-            <div class={ms.statusMsg} data-ok="true">
-              ✓ Connected — {availableModels.length} model{availableModels.length !== 1 ? 's' : ''} found
+          {testResult === "ok" && (
+            <div class="text-[12px] px-[8px] py-[5px] rounded-sm border text-success border-success-border bg-success-dim">
+              ✓ Connected — {availableModels.length} model
+              {availableModels.length !== 1 ? "s" : ""} found
             </div>
           )}
-          {testResult === 'fail' && (
-            <div class={ms.statusMsg} data-ok="false">
+          {testResult === "fail" && (
+            <div class="text-[12px] px-[8px] py-[5px] rounded-sm border text-error border-error-border bg-error-dim">
               ✕ Could not reach Ollama at this endpoint. Is it running?
             </div>
           )}
         </div>
 
-        <div class={s.field}>
-          <label class={s.label}>Active Model (default)</label>
-          <div class={ms.modelRow}>
-            <input class={s.input} style={{ flex: 1 }} value={model} onInput={(e) => setModel((e.target as HTMLInputElement).value)} placeholder="e.g. llama3:8b" />
+        <div class={f.field}>
+          <label class={f.label}>Active Model (default)</label>
+          <div class="flex gap-[6px] items-center">
+            <input
+              class={f.input}
+              style={{ flex: 1 }}
+              value={model}
+              onInput={(e) => setModel((e.target as HTMLInputElement).value)}
+              placeholder="e.g. llama3:8b"
+            />
             <button
-              class={ms.refreshBtn}
+              class="px-[10px] py-[7px] text-[15px] border border-border rounded-sm bg-bg-tertiary text-text-muted shrink-0 transition-all duration-150 hover:enabled:border-accent hover:enabled:text-accent disabled:opacity-50 disabled:cursor-default"
               onClick={handleLoadModels}
               disabled={modelsLoading}
-              title={modelsLoading ? 'Loading…' : 'Load available models'}
-              style={{ minWidth: '32px' }}
+              title={modelsLoading ? "Loading…" : "Load available models"}
+              style={{ minWidth: "32px" }}
             >
-              <span class={modelsLoading ? ms.spinning : undefined}>↻</span>
+              <span class={modelsLoading ? "inline-block animate-spin-slow" : undefined}>↻</span>
             </button>
           </div>
           {availableModels.length > 0 && (
-            <div class={ms.modelList}>
+            <div class="flex flex-col gap-[2px] max-h-[160px] overflow-y-auto border border-border rounded-sm bg-bg-tertiary p-[4px]">
               {availableModels.map((m) => (
-                <button key={m} class={ms.modelOption} data-active={m === model ? 'true' : undefined} onClick={() => setModel(m)}>
+                <button
+                  key={m}
+                  class="flex items-center justify-between text-left px-[8px] py-[5px] text-[12px] rounded-sm text-text-secondary whitespace-nowrap overflow-hidden text-ellipsis hover:bg-bg-hover hover:text-text-primary data-[active=true]:bg-accent-dim data-[active=true]:text-accent data-[active=true]:font-medium"
+                  data-active={m === model ? "true" : undefined}
+                  onClick={() => setModel(m)}
+                >
                   {m}
-                  {m === model && <span class={ms.checkmark}>✓</span>}
+                  {m === model && <span class="text-[11px] text-accent shrink-0">✓</span>}
                 </button>
               ))}
             </div>
           )}
           {availableModels.length === 0 && !modelsLoading && (
-            <div class={ms.hint}>Click ↻ to load available models from Ollama</div>
+            <div class="text-[11px] text-text-muted italic">
+              Click ↻ to load available models from Ollama
+            </div>
           )}
-          {modelsLoading && <div class={ms.hint}>Loading models…</div>}
+          {modelsLoading && <div class="text-[11px] text-text-muted italic">Loading models…</div>}
         </div>
 
-        <div class={s.field}>
-          <label class={s.label}>Theme</label>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            {(['dark', 'light'] as const).map((t) => (
-              <button key={t} class={s.tag} data-active={theme === t ? 'true' : undefined} onClick={() => setTheme(t)} style={{ flex: 1, textAlign: 'center' }}>
-                {t === 'dark' ? '🌙 Dark' : '☀️ Light'}
+        <div class={f.field}>
+          <label class={f.label}>Theme</label>
+          <div class={f.toggleRow}>
+            {(["dark", "light"] as const).map((t) => (
+              <button
+                type="button"
+                key={t}
+                class={f.tag}
+                data-active={theme === t ? "true" : undefined}
+                onClick={() => setTheme(t)}
+              >
+                {t === "dark" ? "🌙 Dark" : "☀️ Light"}
               </button>
             ))}
           </div>
         </div>
 
-        <div class={s.field}>
-          <label class={s.label}>Font Size ({fontSize}px)</label>
-          <input type="range" min={12} max={20} step={1} value={fontSize} onInput={(e) => setFontSize(Number((e.target as HTMLInputElement).value))} style={{ width: '100%', accentColor: 'var(--accent)' }} />
+        <div class={f.field}>
+          <label class={f.label}>Font Size ({fontSize}px)</label>
+          <input
+            type="range"
+            min={12}
+            max={20}
+            step={1}
+            value={fontSize}
+            onInput={(e) =>
+              setFontSize(Number((e.target as HTMLInputElement).value))
+            }
+            style={{ width: "100%", accentColor: "var(--accent)" }}
+          />
         </div>
 
-        <div class={s.field}>
-          <label class={s.label}>Global Note <span style={{ color: 'var(--text-muted)', fontWeight: 400, textTransform: 'none' }}>(appended to every system prompt)</span></label>
-          <textarea class={s.textarea} value={globalNote} onInput={(e) => setGlobalNote((e.target as HTMLTextAreaElement).value)} placeholder="e.g. always write in present tense, avoid purple prose…" style={{ minHeight: '72px' }} />
+        <div class={f.field}>
+          <label class={f.label}>
+            Global Note{" "}
+            <span class={f.labelHint}>(appended to every system prompt)</span>
+          </label>
+          <textarea
+            class={f.textarea}
+            value={globalNote}
+            onInput={(e) =>
+              setGlobalNote((e.target as HTMLTextAreaElement).value)
+            }
+            placeholder="e.g. always write in present tense, avoid purple prose…"
+            style={{ minHeight: "72px" }}
+          />
         </div>
 
-        <div class={s.footer}>
-          <button class={s.cancelBtn} onClick={onClose}>Cancel</button>
-          <button class={s.submitBtn} onClick={handleSubmit} disabled={submitting}>
-            {submitting ? 'Saving…' : 'Save Settings'}
+        <div class={f.footer}>
+          <button class={f.cancelBtn} onClick={onClose}>
+            Cancel
+          </button>
+          <button
+            class={f.submitBtn}
+            onClick={handleSubmit}
+            disabled={submitting}
+          >
+            {submitting ? "Saving…" : "Save Settings"}
           </button>
         </div>
       </div>
     </div>
-  )
+  );
 }

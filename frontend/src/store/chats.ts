@@ -23,6 +23,8 @@ interface ChatsState extends StreamingState {
   loadChats: (storyId: string) => Promise<void>
   openChat: (storyId: string, chatId: string) => Promise<void>
   createChat: (storyId: string, mode: ChatMode, activeSpeakers?: string[], memoryAnchors?: Record<string, string>, startingLocationId?: string) => Promise<Chat>
+  deleteChat: (storyId: string, chatId: string) => Promise<void>
+  updateChat: (storyId: string, chatId: string, data: { title?: string; mode?: string }) => Promise<void>
   sendMessage: (params: SendParams) => Promise<void>
   regenerate: (params: RegenerateParams) => Promise<void>
   editAndResend: (turnId: string, text: string, params: RegenerateParams) => Promise<void>
@@ -56,7 +58,19 @@ interface RegenerateParams {
   model?: string
 }
 
-export const useChatsStore = create<ChatsState>((set, get) => ({
+export const useChatsStore = create<ChatsState>((set, get) => {
+  const streamDone = () => {
+    const { activeStoryId: sid, activeChatId: cid } = get()
+    if (sid && cid) {
+      api.chats.history(sid, cid)
+        .then((turns) => set({ turns, isStreaming: false, streamingText: '', abortController: null }))
+        .catch((err) => set({ error: err instanceof Error ? err.message : 'Failed to load history', isStreaming: false, streamingText: '', abortController: null }))
+    } else {
+      set({ isStreaming: false, streamingText: '', abortController: null })
+    }
+  }
+
+  return {
   chats: [],
   activeChatId: null,
   activeStoryId: null,
@@ -83,6 +97,24 @@ export const useChatsStore = create<ChatsState>((set, get) => ({
     const chat = await api.chats.create(storyId, { mode, activeSpeakers, memoryAnchors, startingLocationId })
     set((s) => ({ chats: [chat, ...s.chats] }))
     return chat
+  },
+
+  deleteChat: async (storyId: string, chatId: string) => {
+    await api.chats.delete(storyId, chatId)
+    set((s) => {
+      const wasActive = s.activeChatId === chatId
+      return {
+        chats: s.chats.filter((c) => c.id !== chatId),
+        activeChatId: wasActive ? null : s.activeChatId,
+        activeStoryId: wasActive ? null : s.activeStoryId,
+        turns: wasActive ? [] : s.turns,
+      }
+    })
+  },
+
+  updateChat: async (storyId: string, chatId: string, data: { title?: string; mode?: string }) => {
+    const updated = await api.chats.update(storyId, chatId, data)
+    set((s) => ({ chats: s.chats.map((c) => c.id === chatId ? updated : c) }))
   },
 
   sendMessage: async (params: SendParams) => {
@@ -143,25 +175,7 @@ export const useChatsStore = create<ChatsState>((set, get) => ({
           ),
         }))
       },
-      onDone: () => {
-        const { activeStoryId: sid, activeChatId: cid } = get()
-        if (sid && cid) {
-          api.chats.history(sid, cid)
-            .then((turns) => {
-              set({ turns, isStreaming: false, streamingText: '', abortController: null })
-            })
-            .catch((err) => {
-              set({ error: err instanceof Error ? err.message : 'Failed to load history', isStreaming: false, streamingText: '', abortController: null })
-            })
-        } else {
-          set((s) => ({
-            isStreaming: false,
-            streamingText: '',
-            abortController: null,
-            turns: s.turns.filter((t) => t.id !== 'streaming'),
-          }))
-        }
-      },
+      onDone: streamDone,
       onError: (msg) => {
         set((s) => ({
           isStreaming: false,
@@ -218,18 +232,7 @@ export const useChatsStore = create<ChatsState>((set, get) => ({
           ),
         }))
       },
-      onDone: () => {
-        const { activeStoryId: sid, activeChatId: cid } = get()
-        if (sid && cid) {
-          api.chats.history(sid, cid)
-            .then((turns) => {
-              set({ turns, isStreaming: false, streamingText: '', abortController: null })
-            })
-            .catch((err) => {
-              set({ error: err instanceof Error ? err.message : 'Failed to load history', isStreaming: false, streamingText: '', abortController: null })
-            })
-        }
-      },
+      onDone: streamDone,
       onError: (msg) => {
         set({ isStreaming: false, streamingText: '', abortController: null, error: msg })
       },
@@ -285,18 +288,7 @@ export const useChatsStore = create<ChatsState>((set, get) => ({
             ),
           }))
         },
-        onDone: () => {
-          const { activeStoryId: sid, activeChatId: cid } = get()
-          if (sid && cid) {
-            api.chats.history(sid, cid)
-              .then((freshTurns) => {
-                set({ turns: freshTurns, isStreaming: false, streamingText: '', abortController: null })
-              })
-              .catch((err) => {
-                set({ error: err instanceof Error ? err.message : 'Failed to load history', isStreaming: false, streamingText: '', abortController: null })
-              })
-          }
-        },
+        onDone: streamDone,
         onError: (msg) => {
           set({ isStreaming: false, streamingText: '', abortController: null, error: msg })
         },
@@ -334,15 +326,7 @@ export const useChatsStore = create<ChatsState>((set, get) => ({
           turns: s.turns.map((t) => t.id === 'streaming' ? { ...t, text: s.streamingText + text } : t),
         }))
       },
-      onDone: () => {
-        api.chats.history(storyId, chatId)
-          .then((turns) => {
-            set({ turns, isStreaming: false, streamingText: '', abortController: null })
-          })
-          .catch((err) => {
-            set({ error: err instanceof Error ? err.message : 'Failed to load history', isStreaming: false, streamingText: '', abortController: null })
-          })
-      },
+      onDone: streamDone,
       onError: (msg) => {
         set((s) => ({
           isStreaming: false, streamingText: '', abortController: null, error: msg,
@@ -383,4 +367,5 @@ export const useChatsStore = create<ChatsState>((set, get) => ({
       set({ error: err instanceof Error ? err.message : 'Failed to edit message' })
     }
   },
-}))
+  }
+})

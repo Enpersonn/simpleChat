@@ -11,11 +11,13 @@ import { LocationModal } from '../story/LocationModal.js'
 import { NewChatModal } from '../chat/NewChatModal.js'
 import { SettingsModal } from '../story/SettingsModal.js'
 import { CanonTimelineModal } from '../story/CanonTimelineModal.js'
-import s from './LeftPanel.module.css'
+import { OllamaStatus } from '../shared/OllamaStatus.js'
+import { ConfirmDialog } from '../shared/ConfirmDialog.js'
+import { ModeTag } from '../shared/ModeTag.js'
 
 export function LeftPanel() {
-  const { stories, selectedStoryId, characters, locations, characterMemories, loadStories, selectStory, deleteStory, deleteCharacter, deleteLocation, loadCharacterTimeline, initCharacterGenesis } = useStoriesStore()
-  const { chats, activeChatId, loadChats, openChat, createChat, generateOpener } = useChatsStore()
+  const { stories, selectedStoryId, characters, locations, characterMemories, loading: storiesLoading, error: storiesError, loadStories, selectStory, deleteStory, deleteCharacter, deleteLocation, loadCharacterTimeline, initCharacterGenesis } = useStoriesStore()
+  const { chats, activeChatId, loadChats, openChat, createChat, generateOpener, deleteChat } = useChatsStore()
   const ollamaHealthy = useSettingsStore((s) => s.ollamaHealthy)
   const setGeneration = useSettingsStore((s) => s.setGeneration)
 
@@ -28,6 +30,7 @@ export function LeftPanel() {
   const [showSettings, setShowSettings] = useState(false)
   const [showTimeline, setShowTimeline] = useState(false)
   const [expandedTimeline, setExpandedTimeline] = useState<string | null>(null)
+  const [pendingConfirm, setPendingConfirm] = useState<{ message: string; onConfirm: () => void } | null>(null)
 
   useEffect(() => { loadStories() }, [])
 
@@ -40,6 +43,10 @@ export function LeftPanel() {
     await selectStory(id)
   }
 
+  const handleBack = async () => {
+    await selectStory(null)
+  }
+
   const handleChatClick = (chat: Chat) => {
     if (!selectedStoryId) return
     if (chat.id === activeChatId) return
@@ -47,22 +54,25 @@ export function LeftPanel() {
     setGeneration({ responseLength: chat.mode === 'storyteller' ? 'paragraph+' : 'medium' })
   }
 
-  const handleDeleteStory = async (e: MouseEvent, id: string) => {
+  const handleDeleteStory = (e: MouseEvent, id: string) => {
     e.stopPropagation()
-    if (!confirm('Delete this story and all its chats?')) return
-    await deleteStory(id)
+    setPendingConfirm({ message: 'Delete this story and all its chats?', onConfirm: () => deleteStory(id) })
   }
 
-  const handleDeleteChar = async (e: MouseEvent, charId: string) => {
+  const handleDeleteChar = (e: MouseEvent, charId: string) => {
     e.stopPropagation()
-    if (!confirm('Delete this character?')) return
-    await deleteCharacter(charId)
+    setPendingConfirm({ message: 'Delete this character?', onConfirm: () => deleteCharacter(charId) })
   }
 
-  const handleDeleteLocation = async (e: MouseEvent, locationId: string) => {
+  const handleDeleteLocation = (e: MouseEvent, locationId: string) => {
     e.stopPropagation()
-    if (!confirm('Delete this location?')) return
-    await deleteLocation(locationId)
+    setPendingConfirm({ message: 'Delete this location?', onConfirm: () => deleteLocation(locationId) })
+  }
+
+  const handleDeleteChat = (e: MouseEvent, chatId: string) => {
+    e.stopPropagation()
+    if (!selectedStoryId) return
+    setPendingConfirm({ message: 'Delete this chat and all its messages?', onConfirm: () => deleteChat(selectedStoryId, chatId) })
   }
 
   const handleToggleTimeline = async (charId: string) => {
@@ -89,207 +99,258 @@ export function LeftPanel() {
   const selectedStory = stories.find((s) => s.id === selectedStoryId)
   const storyChats = chats.filter((c) => c.storyId === selectedStoryId && c.mode !== 'planning')
 
+  /* Shared class strings */
+  const itemCls = "group/item flex items-center gap-1.5 px-3 py-1.5 cursor-pointer text-[13px] text-text-secondary relative transition-colors duration-100 hover:bg-bg-hover hover:text-text-primary data-[active=true]:bg-gold-dim data-[active=true]:text-text-primary before:content-[''] before:absolute before:left-0 before:top-0 before:bottom-0 before:w-0.5 before:bg-transparent data-[active=true]:before:bg-gold before:rounded-r-sm"
+  const itemActionsCls = "hidden group-hover/item:flex items-center gap-0.5 shrink-0"
+  const iconBtnCls = "text-[12px] px-1 py-px rounded-sm text-text-muted leading-none transition-colors duration-100 hover:text-text-primary hover:bg-bg-active data-[active=true]:text-accent"
+  const sectionCls = "py-2 pb-1"
+  const sectionHeaderCls = "flex items-center justify-between px-3 py-1"
+  const sectionLabelCls = "text-[10px] font-semibold tracking-[0.08em] uppercase text-gold-label"
+  const addBtnCls = "text-[18px] leading-none text-text-muted px-0.5 rounded-sm transition-colors duration-150 hover:text-accent"
+  const emptyCls = "px-3 py-2 text-[12px] text-text-muted italic"
+
   return (
-    <div class={s.root}>
-      <div class={s.header}>
-        <span class={s.logo}>SimpleChat</span>
-        <span
-          class={s.health}
-          data-ok={ollamaHealthy === true ? 'true' : ollamaHealthy === false ? 'false' : undefined}
-          title={ollamaHealthy === true ? 'Ollama connected' : ollamaHealthy === false ? 'Ollama unreachable' : 'Checking…'}
-        />
-      </div>
-
-      <div class={s.scroll}>
-        {/* Stories */}
-        <div class={s.section}>
-          <div class={s.sectionHeader}>
-            <span class={s.sectionLabel}>Stories</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              {selectedStoryId && (
-                <button class={s.addBtn} onClick={() => setShowTimeline(true)} title="Canon Timeline" style={{ fontSize: '13px' }}>⏱</button>
-              )}
-              <button class={s.addBtn} onClick={() => setShowCreateStory(true)} title="New story">+</button>
-            </div>
+    <div class="flex flex-col h-full overflow-hidden">
+      {selectedStoryId && selectedStory ? (
+        /* ── Story detail view ── */
+        <>
+          <div class="flex items-center gap-1.5 px-3 py-2.5 border-b border-border shrink-0 min-h-[44px]">
+            <button
+              class="text-[16px] text-text-muted px-1.5 py-0.5 rounded-sm shrink-0 transition-colors duration-150 hover:text-gold hover:bg-gold-dim"
+              onClick={handleBack}
+              title="Back to stories"
+            >←</button>
+            <span
+              class="font-display text-[12px] font-semibold text-gold tracking-[0.06em] flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap"
+              title={selectedStory.title}
+            >{selectedStory.title}</span>
+            <OllamaStatus healthy={ollamaHealthy} />
           </div>
-          {stories.length === 0 && <div class={s.empty}>No stories yet</div>}
-          {stories.map((story) => (
-            <div
-              key={story.id}
-              class={s.item}
-              data-active={story.id === selectedStoryId ? 'true' : undefined}
-              onClick={() => handleStoryClick(story.id)}
-            >
-              <span class={s.itemIcon}>📖</span>
-              <span class={s.itemLabel} title={story.title}>{story.title}</span>
-              <div class={s.itemActions}>
-                <button
-                  class={s.iconBtn}
-                  onClick={(e) => { e.stopPropagation(); setEditingStory(story.id) }}
-                  title="Edit story"
-                >✎</button>
-                <button
-                  class={s.iconBtn}
-                  onClick={(e) => handleDeleteStory(e, story.id)}
-                  title="Delete story"
-                >✕</button>
-              </div>
-            </div>
-          ))}
-        </div>
 
-        {/* Chats */}
-        {selectedStoryId && (
-          <div class={s.section}>
-            <div class={s.sectionHeader}>
-              <span class={s.sectionLabel}>Chats</span>
-              <button class={s.addBtn} onClick={() => setShowNewChat(true)} title="New chat">+</button>
-            </div>
-            {storyChats.length === 0 && <div class={s.empty}>No chats yet</div>}
-            {storyChats.map((chat) => (
-              <div
-                key={chat.id}
-                class={`${s.item} ${s.subItem}`}
-                data-active={chat.id === activeChatId ? 'true' : undefined}
-                onClick={() => handleChatClick(chat)}
-              >
-                <span class={s.itemIcon}>{chat.mode === 'storyteller' ? '📝' : '💬'}</span>
-                <span class={s.itemLabel} title={chat.title || `Chat ${chat.id.slice(0, 6)}`}>
-                  {chat.title || `Chat ${chat.id.slice(0, 6)}`}
-                </span>
-                <span class={s.modeTag} data-mode={chat.mode}>{chat.mode === 'interactive' ? 'RP' : 'Story'}</span>
+          <div class="flex-1 overflow-y-auto overflow-x-hidden">
+            {/* Chats */}
+            <div class={sectionCls}>
+              <div class={sectionHeaderCls}>
+                <span class={sectionLabelCls}>Chats</span>
+                <button class={addBtnCls} onClick={() => setShowNewChat(true)} title="New chat">+</button>
               </div>
-            ))}
-          </div>
-        )}
-
-        {/* Player Personas */}
-        {selectedStoryId && (
-          <div class={s.section}>
-            <div class={s.sectionHeader}>
-              <span class={s.sectionLabel}>Your Persona</span>
-              <button class={s.addBtn} onClick={() => setEditingChar('new-persona')} title="New persona">+</button>
-            </div>
-            {characters.filter((c) => c.isUserPersona).length === 0 && (
-              <div class={s.empty}>No persona yet — add one to define your character</div>
-            )}
-            {characters.filter((c) => c.isUserPersona).map((char) => (
-              <div key={char.id} class={`${s.item} ${s.subItem}`}>
-                <span class={s.itemIcon}>🧑</span>
-                <span class={s.itemLabel} title={char.name}>{char.name}</span>
-                {char.role && <span class={s.roleTag}>{char.role}</span>}
-                <div class={s.itemActions}>
-                  <button class={s.iconBtn} onClick={(e) => { e.stopPropagation(); setEditingChar(char) }} title="Edit persona">✎</button>
-                  <button class={s.iconBtn} onClick={(e) => handleDeleteChar(e, char.id)} title="Delete persona">✕</button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* AI Characters */}
-        {selectedStoryId && (
-          <div class={s.section}>
-            <div class={s.sectionHeader}>
-              <span class={s.sectionLabel}>Characters</span>
-              <button class={s.addBtn} onClick={() => setEditingChar('new')} title="New character">+</button>
-            </div>
-            {characters.filter((c) => !c.isUserPersona).length === 0 && (
-              <div class={s.empty}>No characters yet</div>
-            )}
-            {characters.filter((c) => !c.isUserPersona).map((char) => (
-              <div key={char.id}>
-                <div class={`${s.item} ${s.subItem}`}>
-                  <span class={s.itemIcon}>🎭</span>
-                  <span class={s.itemLabel} title={char.name}>{char.name}</span>
-                  {char.role && <span class={s.roleTag}>{char.role}</span>}
-                  <div class={s.itemActions}>
+              {storyChats.length === 0 && <div class={emptyCls}>No chats yet</div>}
+              {storyChats.map((chat) => (
+                <div
+                  key={chat.id}
+                  class={itemCls}
+                  data-active={chat.id === activeChatId ? 'true' : undefined}
+                  onClick={() => handleChatClick(chat)}
+                >
+                  <span class="text-[12px] shrink-0 opacity-70">{chat.mode === 'storyteller' ? '📝' : '💬'}</span>
+                  <span class="flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap" title={chat.title || `Chat ${chat.id.slice(0, 6)}`}>
+                    {chat.title || `Chat ${chat.id.slice(0, 6)}`}
+                  </span>
+                  <ModeTag mode={chat.mode} />
+                  <div class={itemActionsCls}>
                     <button
-                      type="button"
-                      class={s.iconBtn}
-                      data-active={expandedTimeline === char.id ? 'true' : undefined}
-                      onClick={(e) => { e.stopPropagation(); handleToggleTimeline(char.id) }}
-                      title="Character timeline"
-                    >⏱</button>
-                    <button type="button" class={s.iconBtn} onClick={(e) => { e.stopPropagation(); setEditingChar(char) }} title="Edit character">✎</button>
-                    <button type="button" class={s.iconBtn} onClick={(e) => handleDeleteChar(e, char.id)} title="Delete character">✕</button>
+                      class={iconBtnCls}
+                      onClick={(e) => handleDeleteChat(e, chat.id)}
+                      title="Delete chat"
+                    >✕</button>
                   </div>
                 </div>
-                {expandedTimeline === char.id && (
-                  <div class={s.timeline}>
-                    {!char.genesisMemoryId && (
-                      <button type="button" class={s.timelineInitBtn} onClick={(e) => handleInitGenesis(e, char.id)}>
-                        Initialize timeline from traits
-                      </button>
-                    )}
-                    {(characterMemories[char.id] ?? []).length === 0 && char.genesisMemoryId && (
-                      <div class={s.empty}>No memories yet</div>
-                    )}
-                    {[...(characterMemories[char.id] ?? [])]
-                      .sort((a, b) => a.relation.createdAt.localeCompare(b.relation.createdAt))
-                      .map(({ relation, memory: mem }) => {
-                        const locName = mem.locationId
-                          ? locations.find((l) => l.id === mem.locationId)?.name
-                          : undefined
-                        return (
-                          <div key={mem.id} class={s.timelineEntry}>
-                            <span class={s.timelineDot} title={mem.importance >= 0.8 ? 'High importance' : 'Normal'}>
-                              {mem.importance >= 0.8 ? '●' : '○'}
-                            </span>
-                            <span class={s.timelineSummary} title={mem.summary}>
-                              {mem.summary.length > 72 ? `${mem.summary.slice(0, 69)}…` : mem.summary}
-                            </span>
-                            {locName && (
-                              <span class={s.roleTag} title={`Location: ${locName}`}>📍{locName}</span>
-                            )}
-                            <button
-                              type="button"
-                              class={s.branchBtn}
-                              onClick={() => handleBranchFromMemory(char.id, relation.id)}
-                              title="Start a new chat from this point in the timeline"
-                            >
-                              Branch
-                            </button>
-                          </div>
-                        )
-                      })}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Locations */}
-        {selectedStoryId && (
-          <div class={s.section}>
-            <div class={s.sectionHeader}>
-              <span class={s.sectionLabel}>Locations</span>
-              <button class={s.addBtn} onClick={() => setEditingLocation('new')} title="New location">+</button>
+              ))}
             </div>
-            {locations.length === 0 && (
-              <div class={s.empty}>No locations yet</div>
-            )}
-            {locations.map((loc) => (
-              <div key={loc.id} class={`${s.item} ${s.subItem}`}>
-                <span class={s.itemIcon}>📍</span>
-                <span class={s.itemLabel} title={loc.name}>{loc.name}</span>
-                <div class={s.itemActions}>
-                  <button class={s.iconBtn} onClick={(e) => { e.stopPropagation(); setEditingLocation(loc) }} title="Edit location">✎</button>
-                  <button class={s.iconBtn} onClick={(e) => handleDeleteLocation(e, loc.id)} title="Delete location">✕</button>
-                </div>
+
+            {/* Player Personas */}
+            <div class={sectionCls}>
+              <div class={sectionHeaderCls}>
+                <span class={sectionLabelCls}>Your Persona</span>
+                <button class={addBtnCls} onClick={() => setEditingChar('new-persona')} title="New persona">+</button>
               </div>
-            ))}
+              {characters.filter((c) => c.isUserPersona).length === 0 && (
+                <div class={emptyCls}>No persona yet — add one to define your character</div>
+              )}
+              {characters.filter((c) => c.isUserPersona).map((char) => (
+                <div key={char.id} class={itemCls}>
+                  <span class="text-[12px] shrink-0 opacity-70">🧑</span>
+                  <span class="flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap" title={char.name}>{char.name}</span>
+                  {char.role && <span class="text-[9px] text-text-muted whitespace-nowrap overflow-hidden text-ellipsis max-w-[60px] shrink-0">{char.role}</span>}
+                  <div class={itemActionsCls}>
+                    <button class={iconBtnCls} onClick={(e) => { e.stopPropagation(); setEditingChar(char) }} title="Edit persona">✎</button>
+                    <button class={iconBtnCls} onClick={(e) => handleDeleteChar(e, char.id)} title="Delete persona">✕</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* AI Characters */}
+            <div class={sectionCls}>
+              <div class={sectionHeaderCls}>
+                <span class={sectionLabelCls}>Characters</span>
+                <button class={addBtnCls} onClick={() => setEditingChar('new')} title="New character">+</button>
+              </div>
+              {characters.filter((c) => !c.isUserPersona).length === 0 && (
+                <div class={emptyCls}>No characters yet</div>
+              )}
+              {characters.filter((c) => !c.isUserPersona).map((char) => (
+                <div key={char.id}>
+                  <div class={itemCls}>
+                    <span class="text-[12px] shrink-0 opacity-70">🎭</span>
+                    <span class="flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap" title={char.name}>{char.name}</span>
+                    {char.role && <span class="text-[9px] text-text-muted whitespace-nowrap overflow-hidden text-ellipsis max-w-[60px] shrink-0">{char.role}</span>}
+                    <div class={itemActionsCls}>
+                      <button
+                        type="button"
+                        class={iconBtnCls}
+                        data-active={expandedTimeline === char.id ? 'true' : undefined}
+                        onClick={(e) => { e.stopPropagation(); handleToggleTimeline(char.id) }}
+                        title="Character timeline"
+                      >⏱</button>
+                      <button type="button" class={iconBtnCls} onClick={(e) => { e.stopPropagation(); setEditingChar(char) }} title="Edit character">✎</button>
+                      <button type="button" class={iconBtnCls} onClick={(e) => handleDeleteChar(e, char.id)} title="Delete character">✕</button>
+                    </div>
+                  </div>
+                  {expandedTimeline === char.id && (
+                    <div class="mx-3 mb-1.5 ml-8 border-l-2 border-border pl-2 flex flex-col gap-1">
+                      {!char.genesisMemoryId && (
+                        <button
+                          type="button"
+                          class="text-[11px] px-2 py-1 rounded-sm text-text-muted border border-dashed border-border w-full text-left transition-colors duration-100 hover:text-accent hover:border-accent"
+                          onClick={(e) => handleInitGenesis(e, char.id)}
+                        >
+                          Initialize timeline from traits
+                        </button>
+                      )}
+                      {(characterMemories[char.id] ?? []).length === 0 && char.genesisMemoryId && (
+                        <div class={emptyCls}>No memories yet</div>
+                      )}
+                      {[...(characterMemories[char.id] ?? [])]
+                        .sort((a, b) => a.relation.createdAt.localeCompare(b.relation.createdAt))
+                        .map(({ relation, memory: mem }) => {
+                          const locName = mem.locationId
+                            ? locations.find((l) => l.id === mem.locationId)?.name
+                            : undefined
+                          return (
+                            <div key={mem.id} class="flex items-start gap-[5px] text-[11px] text-text-secondary">
+                              <span class="shrink-0 text-[9px] text-text-muted mt-px" title={mem.importance >= 0.8 ? 'High importance' : 'Normal'}>
+                                {mem.importance >= 0.8 ? '●' : '○'}
+                              </span>
+                              <span class="flex-1 min-w-0 leading-[1.4]" title={mem.summary}>
+                                {mem.summary.length > 72 ? `${mem.summary.slice(0, 69)}…` : mem.summary}
+                              </span>
+                              {locName && (
+                                <span class="text-[9px] text-text-muted whitespace-nowrap overflow-hidden text-ellipsis max-w-[60px] shrink-0" title={`Location: ${locName}`}>📍{locName}</span>
+                              )}
+                              <button
+                                type="button"
+                                class="shrink-0 text-[10px] px-1.5 py-px rounded-sm bg-accent-dim text-accent transition-colors duration-100 whitespace-nowrap hover:bg-accent hover:text-text-on-accent"
+                                onClick={() => handleBranchFromMemory(char.id, relation.id)}
+                                title="Start a new chat from this point in the timeline"
+                              >
+                                Branch
+                              </button>
+                            </div>
+                          )
+                        })}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Locations */}
+            <div class={sectionCls}>
+              <div class={sectionHeaderCls}>
+                <span class={sectionLabelCls}>Locations</span>
+                <button class={addBtnCls} onClick={() => setEditingLocation('new')} title="New location">+</button>
+              </div>
+              {locations.length === 0 && (
+                <div class={emptyCls}>No locations yet</div>
+              )}
+              {locations.map((loc) => (
+                <div key={loc.id} class={itemCls}>
+                  <span class="text-[12px] shrink-0 opacity-70">📍</span>
+                  <span class="flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap" title={loc.name}>{loc.name}</span>
+                  <div class={itemActionsCls}>
+                    <button class={iconBtnCls} onClick={(e) => { e.stopPropagation(); setEditingLocation(loc) }} title="Edit location">✎</button>
+                    <button class={iconBtnCls} onClick={(e) => handleDeleteLocation(e, loc.id)} title="Delete location">✕</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Story-level actions */}
+            <div class={sectionCls}>
+              <div class={sectionHeaderCls}>
+                <span class={sectionLabelCls}>Story</span>
+                <button class={iconBtnCls} onClick={() => setEditingStory(selectedStoryId)} title="Edit story settings">✎</button>
+              </div>
+              <button
+                class="flex items-center gap-2 w-full px-3 py-1.5 text-[12px] text-text-muted rounded-none transition-colors duration-100 text-left hover:bg-bg-hover hover:text-gold"
+                onClick={() => setShowTimeline(true)}
+              >
+                <span>⏱</span>
+                <span>Canon Timeline</span>
+              </button>
+            </div>
           </div>
-        )}
-      </div>
 
-      {/* Footer */}
-      <div class={s.footer}>
-        <button class={s.settingsBtn} onClick={() => setShowSettings(true)}>⚙ Settings</button>
-      </div>
+          <div class="shrink-0 border-t border-border px-2.5 py-2">
+            <button
+              class="w-full text-left px-2 py-1.5 text-[12px] text-text-muted rounded-sm transition-colors duration-100 hover:bg-bg-hover hover:text-text-primary"
+              onClick={() => setShowSettings(true)}
+            >⚙ Settings</button>
+          </div>
+        </>
+      ) : (
+        /* ── Stories list view ── */
+        <>
+          <div class="flex items-center justify-between px-3 pt-3.5 pb-2.5 border-b border-border shrink-0">
+            <span class="font-display text-[13px] font-semibold text-gold tracking-[0.1em]">✦ SimpleChat</span>
+            <OllamaStatus healthy={ollamaHealthy} />
+          </div>
 
-      {/* Modals — rendered via portal to escape overflow:hidden on the left panel */}
+          <div class="flex-1 overflow-y-auto overflow-x-hidden">
+            <div class={sectionCls}>
+              <div class={sectionHeaderCls}>
+                <span class={sectionLabelCls}>Stories</span>
+                <button class={addBtnCls} onClick={() => setShowCreateStory(true)} title="New story">+</button>
+              </div>
+              {storiesLoading && <div class={emptyCls} style={{ fontStyle: 'normal' }}>Loading…</div>}
+              {storiesError && !storiesLoading && <div class={emptyCls} style={{ color: 'var(--error)', fontStyle: 'normal' }}>{storiesError}</div>}
+              {!storiesLoading && stories.length === 0 && !storiesError && <div class={emptyCls}>No stories yet</div>}
+              {stories.map((story) => (
+                <div
+                  key={story.id}
+                  class={itemCls}
+                  onClick={() => handleStoryClick(story.id)}
+                >
+                  <span class="text-[12px] shrink-0 opacity-70">📖</span>
+                  <span class="flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap" title={story.title}>{story.title}</span>
+                  <div class={itemActionsCls}>
+                    <button
+                      class={iconBtnCls}
+                      onClick={(e) => { e.stopPropagation(); selectStory(story.id).then(() => setEditingStory(story.id)) }}
+                      title="Edit story"
+                    >✎</button>
+                    <button
+                      class={iconBtnCls}
+                      onClick={(e) => handleDeleteStory(e, story.id)}
+                      title="Delete story"
+                    >✕</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div class="shrink-0 border-t border-border px-2.5 py-2">
+            <button
+              class="w-full text-left px-2 py-1.5 text-[12px] text-text-muted rounded-sm transition-colors duration-100 hover:bg-bg-hover hover:text-text-primary"
+              onClick={() => setShowSettings(true)}
+            >⚙ Settings</button>
+          </div>
+        </>
+      )}
+
+      {/* Modals */}
       {showCreateStory && createPortal(
         <StoryCreateModal
           onClose={() => setShowCreateStory(false)}
@@ -373,6 +434,14 @@ export function LeftPanel() {
           onClose={() => setShowTimeline(false)}
         />,
         document.body
+      )}
+
+      {pendingConfirm && (
+        <ConfirmDialog
+          message={pendingConfirm.message}
+          onConfirm={() => { pendingConfirm.onConfirm(); setPendingConfirm(null) }}
+          onCancel={() => setPendingConfirm(null)}
+        />
       )}
     </div>
   )
