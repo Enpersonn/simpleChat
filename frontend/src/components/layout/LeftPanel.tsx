@@ -9,6 +9,7 @@ import { useChatsStore } from '../../store/chats.js';
 import { useSettingsStore } from '../../store/settings.js';
 import { useStoriesStore } from '../../store/stories.js';
 import { NewChatModal } from '../chat/NewChatModal.js';
+import { Button } from '../shared/Button.js';
 import { ConfirmDialog } from '../shared/ConfirmDialog.js';
 import { ModeTag } from '../shared/ModeTag.js';
 import { OllamaStatus } from '../shared/OllamaStatus.js';
@@ -655,35 +656,24 @@ export function LeftPanel() {
 									<div class={emptyCls}>No stories yet</div>
 								)}
 							{stories.map((story) => (
-								<div
-									key={story.id}
-									type="button"
-									class={itemCls}
-									onClick={() => handleStoryClick(story.id)}
-								>
-									<span class="shrink-0 text-[12px] opacity-70">
-										📖
-									</span>
-									<span
-										class="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap"
-										title={story.title}
+								<div key={story.id} class={itemCls}>
+									<Button
+										variant="ghost"
+										onClick={() =>
+											handleStoryClick(story.id)
+										}
 									>
-										{story.title}
-									</span>
-									<div class={itemActionsCls}>
-										<button
-											type="button"
-											class={iconBtnCls}
-											onClick={(e) => {
-												e.stopPropagation();
-												selectStory(story.id).then(() =>
-													setEditingStory(story.id),
-												);
-											}}
-											title="Edit story"
+										<span class="shrink-0 text-[12px] opacity-70">
+											📖
+										</span>
+										<span
+											class="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap"
+											title={story.title}
 										>
-											✎
-										</button>
+											{story.title}
+										</span>
+									</Button>
+									<div class={itemActionsCls}>
 										<button
 											type="button"
 											class={iconBtnCls}

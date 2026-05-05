@@ -7,6 +7,7 @@ import {
 } from 'preact/compat';
 import { useContext, useState } from 'preact/hooks';
 import { cn } from '@/utils/classes';
+import { Button } from './Button';
 import { Slot } from './Slot';
 
 type DialogCtx = { open: boolean; onOpen: () => void; onClose: () => void };
@@ -105,16 +106,14 @@ export const DialogClose = ({
 }: PropsWithChildren<{ class?: string }>) => {
 	const { onClose } = useContext(DialogContext);
 	return (
-		<button
-			type="button"
-			class={cn(
-				'rounded-sm px-1.5 py-0.5 text-[18px] text-text-muted transition-colors duration-150 hover:bg-bg-hover hover:text-text-primary',
-				cls,
-			)}
+		<Button
+			class={cn(cls)}
+			size={children ? 'medium' : 'icon'}
 			onClick={onClose}
+			variant="secondary"
 		>
 			{children ? children : '✕'}
-		</button>
+		</Button>
 	);
 };
 

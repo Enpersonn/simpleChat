@@ -5,6 +5,7 @@ import {
 	DialogClose,
 	DialogContent,
 	DialogHeader,
+	DialogTitle,
 	DialogTrigger,
 } from '../../shared/Dialog.js';
 import { f } from '../../shared/formCls.js';
@@ -65,7 +66,7 @@ export function StoryCreateModal({ selectStory }: Props) {
 			</DialogTrigger>
 			<DialogContent>
 				<DialogHeader>
-					<DialogHeader class={f.title}>New Story</DialogHeader>
+					<DialogTitle>New Story</DialogTitle>
 					<DialogClose />
 				</DialogHeader>
 

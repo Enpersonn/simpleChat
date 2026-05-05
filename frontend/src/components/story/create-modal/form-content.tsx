@@ -2,15 +2,17 @@ import type { MemoryDeltaEffect } from '@simplechat/types';
 import { type Dispatch, type StateUpdater, useState } from 'preact/hooks';
 import { api } from '@/src/lib/api';
 import { useStoriesStore } from '@/src/store/stories';
+import { Badge } from '../../shared/Badge';
+import { Button } from '../../shared/Button';
 import { DialogClose } from '../../shared/Dialog';
 import { f } from '../../shared/formCls';
-import { emptyPreview } from '.';
 import {
 	DRAFT_STEPS,
 	GENRE_OPTIONS,
 	PARSE_STEPS,
 	TONE_OPTIONS,
-} from './constants';
+} from '../constants';
+import { emptyPreview } from '.';
 import { convertDeltasToEffects } from './conver-deltas-to-effect';
 import type { LivePreview } from './live-preview-panel';
 import type {
@@ -649,14 +651,13 @@ export const FormContent = ({
 						style={{ minHeight: '220px' }}
 					/>
 					<div class={f.aiBar}>
-						<button
-							type="button"
-							class={f.aiBtn}
+						<Button
+							variant="secondary"
 							onClick={handleParse}
 							disabled={generating || !importText.trim()}
 						>
 							{generating ? '✨ Parsing…' : '✨ Parse & Generate'}
-						</button>
+						</Button>
 					</div>
 					<div class="mt-1 text-[11px] text-text-muted">
 						The LLM will synthesise a clean premise and extract
@@ -696,9 +697,9 @@ export const FormContent = ({
 							style={{ minHeight: '120px' }}
 						/>
 						<div class={f.aiBar}>
-							<button
+							<Button
 								type="button"
-								class={f.aiBtn}
+								variant="secondary"
 								onClick={handleDraft}
 								disabled={generating || !premise.trim()}
 								title="Use the premise to generate genres, tone, rules, writing style, characters, locations and backstory"
@@ -706,7 +707,7 @@ export const FormContent = ({
 								{generating
 									? '✨ Drafting…'
 									: '✨ Draft all fields from premise'}
-							</button>
+							</Button>
 						</div>
 					</div>
 
@@ -761,9 +762,9 @@ export const FormContent = ({
 									}
 								}}
 							/>
-							<button
-								type="button"
-								class={f.tagAddBtn}
+							<Button
+								variant="secondary"
+								size="icon"
 								onClick={() =>
 									addCustomTag(
 										customGenre,
@@ -774,7 +775,7 @@ export const FormContent = ({
 								}
 							>
 								+
-							</button>
+							</Button>
 						</div>
 					</div>
 
@@ -782,29 +783,23 @@ export const FormContent = ({
 						<label class={f.label}>Tone</label>
 						<div class={f.tagGroup}>
 							{TONE_OPTIONS.map((t) => (
-								<button
-									type="button"
+								<Badge
 									key={t}
-									class={f.tag}
-									data-active={
-										tones.includes(t) ? 'true' : undefined
-									}
+									active={tones.includes(t)}
 									onClick={() => toggle(tones, t, setTones)}
 								>
 									{t}
-								</button>
+								</Badge>
 							))}
 							{customTones.map((t) => (
-								<button
-									type="button"
+								<Badge
 									key={t}
-									class={f.tag}
-									data-active="true"
+									active
 									onClick={() => toggle(tones, t, setTones)}
 								>
 									{t}
 									<span class={f.tagRemove}>×</span>
-								</button>
+								</Badge>
 							))}
 						</div>
 						<div class={f.tagAddRow}>
@@ -829,9 +824,9 @@ export const FormContent = ({
 									}
 								}}
 							/>
-							<button
-								type="button"
-								class={f.tagAddBtn}
+							<Button
+								variant="secondary"
+								size="icon"
 								onClick={() =>
 									addCustomTag(
 										customTone,
@@ -842,7 +837,7 @@ export const FormContent = ({
 								}
 							>
 								+
-							</button>
+							</Button>
 						</div>
 					</div>
 
@@ -905,22 +900,20 @@ export const FormContent = ({
 								Characters
 							</label>
 							<div class={f.charAddBtns}>
-								<button
-									type="button"
+								<Button
 									class={f.aiBtn}
 									onClick={() =>
 										setEditingChar('new-persona')
 									}
 								>
 									+ Persona
-								</button>
-								<button
-									type="button"
+								</Button>
+								<Button
 									class={f.aiBtn}
 									onClick={() => setEditingChar('new')}
 								>
 									+ Character
-								</button>
+								</Button>
 							</div>
 						</div>
 						{pendingChars.length === 0 && (
@@ -939,13 +932,12 @@ export const FormContent = ({
 									<span class={f.charRole}>{c.role}</span>
 								)}
 								<span class={f.charActions}>
-									<button
-										type="button"
+									<Button
 										class={f.iconActionBtn}
 										onClick={() => setEditingChar(c)}
 									>
 										✎
-									</button>
+									</Button>
 									<button
 										type="button"
 										class={f.iconActionBtn}
@@ -1039,23 +1031,19 @@ export const FormContent = ({
 			<div class={f.footer}>
 				<DialogClose>Cancel</DialogClose>
 				{tab === 'import' ? (
-					<button
-						type="button"
-						class={f.submitBtn}
+					<Button
 						onClick={() => setTab('write')}
 						disabled={generating}
 					>
 						{generating ? 'Parsing…' : 'Review fields →'}
-					</button>
+					</Button>
 				) : (
-					<button
-						class={f.submitBtn}
-						type="button"
+					<Button
 						onClick={handleSubmit}
 						disabled={submitting || !title.trim()}
 					>
 						{submitting ? 'Creating…' : 'Create Story'}
-					</button>
+					</Button>
 				)}
 			</div>
 		</>
