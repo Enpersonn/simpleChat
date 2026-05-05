@@ -1,6 +1,6 @@
-import { useState } from 'preact/hooks';
-import { marked } from 'marked';
 import type { Turn } from '@simplechat/types';
+import { marked } from 'marked';
+import { useState } from 'preact/hooks';
 import { useChatsStore } from '../../store/chats.js';
 import { useSettingsStore } from '../../store/settings.js';
 
@@ -29,14 +29,14 @@ export function ChatMessage({ turn, speakerName, isStreaming }: Props) {
 
 	const handleRegenerate = () => {
 		regenerate({
-			moodTags: generation.moodTags,
-			responseLength: generation.responseLength,
 			feelText: generation.feelText,
-			temperature: generation.temperature,
-			top_p: generation.top_p,
-			top_k: generation.top_k,
-			repeat_penalty: generation.repeat_penalty,
 			model: generation.model || undefined,
+			moodTags: generation.moodTags,
+			repeat_penalty: generation.repeat_penalty,
+			responseLength: generation.responseLength,
+			temperature: generation.temperature,
+			top_k: generation.top_k,
+			top_p: generation.top_p,
 		});
 	};
 
@@ -56,14 +56,14 @@ export function ChatMessage({ turn, speakerName, isStreaming }: Props) {
 		if (!editText.trim()) return;
 		setEditing(false);
 		await editAndResend(turn.id, editText.trim(), {
-			moodTags: generation.moodTags,
-			responseLength: generation.responseLength,
 			feelText: generation.feelText,
-			temperature: generation.temperature,
-			top_p: generation.top_p,
-			top_k: generation.top_k,
-			repeat_penalty: generation.repeat_penalty,
 			model: generation.model || undefined,
+			moodTags: generation.moodTags,
+			repeat_penalty: generation.repeat_penalty,
+			responseLength: generation.responseLength,
+			temperature: generation.temperature,
+			top_k: generation.top_k,
+			top_p: generation.top_p,
 		});
 	};
 
@@ -75,7 +75,7 @@ export function ChatMessage({ turn, speakerName, isStreaming }: Props) {
 	].join(' ');
 
 	const avatarCls = [
-		'w-5.5 h-5.5 rounded-full text-[10px] font-bold flex items-center justify-center shrink-0',
+		'w-5.5 h-5.5 rounded-full text-sm font-bold flex items-center justify-center shrink-0',
 		isUser
 			? 'bg-accent-dim text-accent'
 			: 'bg-bg-tertiary text-text-secondary',
@@ -96,16 +96,16 @@ export function ChatMessage({ turn, speakerName, isStreaming }: Props) {
 		<div class={rootCls} data-role={turn.role}>
 			<div class="flex items-center gap-1.5 px-1">
 				<div class={avatarCls}>{initial}</div>
-				<span class="text-[11px] font-semibold text-text-muted tracking-[0.02em]">
+				<span class="font-semibold text-[11px] text-text-muted tracking-[0.02em]">
 					{speakerName}
 				</span>
 			</div>
 
 			<div class={bubbleCls}>
 				{editing ? (
-					<div class="flex flex-col gap-1.5 w-full">
+					<div class="flex w-full flex-col gap-1.5">
 						<textarea
-							class="w-full p-2 text-[length:var(--bubble-font-size,16px)] font-ui border border-accent rounded-sm bg-bg-secondary text-text-primary resize-y leading-[1.6]"
+							class="w-full resize-y rounded-sm border border-accent bg-bg-secondary p-2 font-ui text-[length:var(--bubble-font-size,16px)] text-text-primary leading-[1.6]"
 							value={editText}
 							onInput={(e) =>
 								setEditText(
@@ -118,7 +118,7 @@ export function ChatMessage({ turn, speakerName, isStreaming }: Props) {
 							{isUser && (
 								<button
 									type="button"
-									class="text-[11px] py-[3px] px-2.5 rounded-sm border border-accent bg-accent text-text-on-accent font-semibold transition-opacity duration-150 hover:opacity-85"
+									class="rounded-sm border border-accent bg-accent px-2.5 py-[3px] font-semibold text-[11px] text-text-on-accent transition-opacity duration-150 hover:opacity-85"
 									onClick={saveAndResend}
 								>
 									Save & Resend
@@ -129,7 +129,7 @@ export function ChatMessage({ turn, speakerName, isStreaming }: Props) {
 								class={
 									isUser
 										? actionBtnCls
-										: 'text-[11px] py-[3px] px-2.5 rounded-sm border border-accent bg-accent text-text-on-accent font-semibold transition-opacity duration-150 hover:opacity-85'
+										: 'rounded-sm border border-accent bg-accent px-2.5 py-[3px] font-semibold text-[11px] text-text-on-accent transition-opacity duration-150 hover:opacity-85'
 								}
 								onClick={saveEdit}
 							>
@@ -152,12 +152,12 @@ export function ChatMessage({ turn, speakerName, isStreaming }: Props) {
 					/>
 				)}
 				{isStreaming && (
-					<span class="inline-block w-0.5 h-[1em] bg-accent ml-0.5 align-text-bottom animate-blink" />
+					<span class="ml-0.5 inline-block h-[1em] w-0.5 animate-blink bg-accent align-text-bottom" />
 				)}
 			</div>
 
 			{!isStreaming && !editing && (
-				<div class="flex gap-1 py-0.5 px-1 opacity-0 transition-opacity duration-150 group-hover/msg:opacity-100">
+				<div class="flex gap-1 px-1 py-0.5 opacity-0 transition-opacity duration-150 group-hover/msg:opacity-100">
 					{!isUser && (
 						<button
 							type="button"

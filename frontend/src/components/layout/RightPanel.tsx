@@ -1,7 +1,7 @@
-import { useState, useRef } from 'preact/hooks';
 import type { MoodTag, ResponseLength } from '@simplechat/types';
-import { useSettingsStore } from '../../store/settings.js';
+import { useRef, useState } from 'preact/hooks';
 import { useChatsStore } from '../../store/chats.js';
+import { useSettingsStore } from '../../store/settings.js';
 import { useStoriesStore } from '../../store/stories.js';
 import { DebugPanel } from '../debug/DebugPanel.js';
 import { OllamaStatus } from '../shared/OllamaStatus.js';
@@ -20,10 +20,10 @@ const MOOD_TAGS: MoodTag[] = [
 ];
 
 const LENGTHS: { value: ResponseLength; label: string }[] = [
-	{ value: 'short', label: 'Short' },
-	{ value: 'medium', label: 'Medium' },
-	{ value: 'long', label: 'Long' },
-	{ value: 'paragraph+', label: 'Extended' },
+	{ label: 'Short', value: 'short' },
+	{ label: 'Medium', value: 'medium' },
+	{ label: 'Long', value: 'long' },
+	{ label: 'Extended', value: 'paragraph+' },
 ];
 
 const label =
@@ -82,22 +82,22 @@ export function RightPanel() {
 		'w-full px-2 py-1.5 text-xs border border-border rounded-sm bg-bg-tertiary text-text-primary focus:border-accent focus:outline-none';
 
 	return (
-		<div class="p-3 flex flex-col gap-4">
+		<div class="flex flex-col gap-4 p-3">
 			{/* Model selector */}
 			<div class="flex flex-col gap-2">
-				<div class="flex items-center gap-1.5 mb-1">
+				<div class="mb-1 flex items-center gap-1.5">
 					<span class={label} style={{ margin: 0 }}>
 						Model
 					</span>
 					<OllamaStatus healthy={ollamaHealthy} />
 					{modelSwitched && (
-						<span class="text-[10px] text-success font-semibold ml-auto">
+						<span class="ml-auto font-semibold text-sm text-success">
 							✓ switched
 						</span>
 					)}
 					<button
 						type="button"
-						class={`text-[13px] text-text-muted px-1 py-0.5 rounded-sm border border-transparent bg-none transition-all duration-150 ml-auto disabled:opacity-40 disabled:cursor-default enabled:hover:text-accent enabled:hover:border-border ${modelSwitched ? 'ml-0' : 'ml-auto'}`}
+						class={`ml-auto rounded-sm border border-transparent bg-none px-1 py-0.5 text-[13px] text-text-muted transition-all duration-150 enabled:hover:border-border enabled:hover:text-accent disabled:cursor-default disabled:opacity-40 ${modelSwitched ? 'ml-0' : 'ml-auto'}`}
 						onClick={() => loadModels()}
 						disabled={modelsLoading}
 						title={
@@ -156,10 +156,10 @@ export function RightPanel() {
 			{/* Mode */}
 			<div class="flex flex-col gap-2">
 				<div class={label}>Mode</div>
-				<div class="flex bg-bg-tertiary border border-border rounded overflow-hidden">
+				<div class="flex overflow-hidden rounded border border-border bg-bg-tertiary">
 					<button
 						type="button"
-						class="flex-1 py-1.5 px-1 text-[11px] font-medium text-text-muted transition-colors duration-150 text-center hover:text-text-primary data-[active=true]:bg-accent data-[active=true]:text-text-on-accent"
+						class="flex-1 px-1 py-1.5 text-center font-medium text-[11px] text-text-muted transition-colors duration-150 hover:text-text-primary data-[active=true]:bg-accent data-[active=true]:text-text-on-accent"
 						data-active={
 							!activeChat || activeChat.mode === 'interactive'
 								? 'true'
@@ -176,7 +176,7 @@ export function RightPanel() {
 					</button>
 					<button
 						type="button"
-						class="flex-1 py-1.5 px-1 text-[11px] font-medium text-text-muted transition-colors duration-150 text-center hover:text-text-primary data-[active=true]:bg-accent data-[active=true]:text-text-on-accent"
+						class="flex-1 px-1 py-1.5 text-center font-medium text-[11px] text-text-muted transition-colors duration-150 hover:text-text-primary data-[active=true]:bg-accent data-[active=true]:text-text-on-accent"
 						data-active={
 							activeChat?.mode === 'storyteller'
 								? 'true'
@@ -203,13 +203,13 @@ export function RightPanel() {
 							char && (
 								<div
 									key={char.id}
-									class="flex items-center gap-1.5 py-[5px] px-2 border border-border rounded-sm bg-bg-tertiary text-xs text-text-secondary cursor-pointer transition-colors duration-150 hover:border-accent"
+									class="flex cursor-pointer items-center gap-1.5 rounded-sm border border-border bg-bg-tertiary px-2 py-[5px] text-text-secondary text-xs transition-colors duration-150 hover:border-accent"
 								>
-									<div class="w-5 h-5 rounded-full bg-accent-dim text-accent text-[10px] font-bold flex items-center justify-center shrink-0">
+									<div class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent-dim font-bold text-accent text-sm">
 										{char.name[0]?.toUpperCase()}
 									</div>
 									<span>{char.name}</span>
-									<span class="ml-auto text-[10px] text-text-muted">
+									<span class="ml-auto text-sm text-text-muted">
 										{char.role}
 									</span>
 								</div>
@@ -221,12 +221,12 @@ export function RightPanel() {
 			{/* Response length */}
 			<div class="flex flex-col gap-2">
 				<div class={label}>Response Length</div>
-				<div class="flex gap-1 flex-wrap">
+				<div class="flex flex-wrap gap-1">
 					{LENGTHS.map((l) => (
 						<button
 							key={l.value}
 							type="button"
-							class="flex-1 min-w-0 py-[5px] px-1 text-[11px] border border-border rounded-sm text-text-muted bg-bg-tertiary transition-all duration-150 text-center whitespace-nowrap hover:border-accent hover:text-text-primary data-[active=true]:border-accent data-[active=true]:bg-accent-dim data-[active=true]:text-accent"
+							class="min-w-0 flex-1 whitespace-nowrap rounded-sm border border-border bg-bg-tertiary px-1 py-[5px] text-center text-[11px] text-text-muted transition-all duration-150 hover:border-accent hover:text-text-primary data-[active=true]:border-accent data-[active=true]:bg-accent-dim data-[active=true]:text-accent"
 							data-active={
 								generation.responseLength === l.value
 									? 'true'
@@ -250,7 +250,7 @@ export function RightPanel() {
 						<button
 							key={tag}
 							type="button"
-							class="py-[3px] px-2 text-[11px] border border-border rounded-full text-text-muted bg-bg-tertiary transition-all duration-150 cursor-pointer hover:border-accent hover:text-text-primary data-[active=true]:border-accent data-[active=true]:bg-accent-dim data-[active=true]:text-accent"
+							class="cursor-pointer rounded-full border border-border bg-bg-tertiary px-2 py-[3px] text-[11px] text-text-muted transition-all duration-150 hover:border-accent hover:text-text-primary data-[active=true]:border-accent data-[active=true]:bg-accent-dim data-[active=true]:text-accent"
 							data-active={
 								generation.moodTags.includes(tag)
 									? 'true'
@@ -268,7 +268,7 @@ export function RightPanel() {
 			<div class="flex flex-col gap-2">
 				<div class={label}>Style Note</div>
 				<textarea
-					class="w-full py-[7px] px-[9px] text-xs rounded-sm border border-border bg-bg-tertiary text-text-primary resize-y min-h-14 leading-normal placeholder:text-text-muted focus:border-accent focus:outline-none"
+					class="min-h-14 w-full resize-y rounded-sm border border-border bg-bg-tertiary px-[9px] py-[7px] text-text-primary text-xs leading-normal placeholder:text-text-muted focus:border-accent focus:outline-none"
 					placeholder="e.g. sharp dialogue, minimal narration, tension through silence…"
 					value={generation.feelText}
 					onInput={(e) =>
@@ -283,7 +283,7 @@ export function RightPanel() {
 			<div>
 				<button
 					type="button"
-					class="flex items-center gap-1.5 text-[11px] text-text-muted cursor-pointer py-1 border-t border-border pt-[10px] w-full hover:text-text-secondary"
+					class="flex w-full cursor-pointer items-center gap-1.5 border-border border-t py-1 pt-[10px] text-[11px] text-text-muted hover:text-text-secondary"
 					onClick={() => setShowAdvanced((v) => !v)}
 				>
 					<span>Advanced Parameters</span>
@@ -295,7 +295,7 @@ export function RightPanel() {
 				</button>
 
 				{showAdvanced && (
-					<div class="flex flex-col gap-3 mt-[10px]">
+					<div class="mt-[10px] flex flex-col gap-3">
 						<SliderRow
 							label="Temperature"
 							value={generation.temperature}
@@ -338,7 +338,7 @@ export function RightPanel() {
 			<div>
 				<button
 					type="button"
-					class="flex items-center gap-1.5 text-[11px] text-text-muted cursor-pointer py-1 border-t border-border pt-[10px] w-full hover:text-text-secondary"
+					class="flex w-full cursor-pointer items-center gap-1.5 border-border border-t py-1 pt-[10px] text-[11px] text-text-muted hover:text-text-secondary"
 					onClick={() => setShowDebug((v) => !v)}
 				>
 					<span>Debug</span>

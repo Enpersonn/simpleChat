@@ -1,14 +1,14 @@
 import { useState } from 'preact/hooks';
 import type {
-	PipelineEvent,
-	PipelineStep,
+	ContextAssemblyData,
 	ContextSnapshot,
 	DataLoadData,
+	ExtractionData,
+	LlmCallData,
 	MemoryChainData,
 	MemoryRetrievalData,
-	ContextAssemblyData,
-	LlmCallData,
-	ExtractionData,
+	PipelineEvent,
+	PipelineStep,
 } from '../../lib/debug-types.js';
 
 const STEP_ORDER: PipelineStep[] = [
@@ -21,12 +21,12 @@ const STEP_ORDER: PipelineStep[] = [
 ];
 
 const STEP_LABELS: Record<PipelineStep, string> = {
+	context_assembly: 'Context Assembly',
 	data_load: 'Data Load',
+	extraction: 'Extraction',
+	llm_call: 'LLM Call',
 	memory_chain: 'Memory Chain',
 	memory_retrieval: 'Memory Retrieval',
-	context_assembly: 'Context Assembly',
-	llm_call: 'LLM Call',
-	extraction: 'Extraction',
 };
 
 interface Props {
@@ -39,7 +39,7 @@ export function FlowTimeline({ events, snapshot }: Props) {
 
 	if (events.length === 0) {
 		return (
-			<div class="text-[11px] text-text-muted text-center py-4">
+			<div class="py-4 text-center text-[11px] text-text-muted">
 				Send a message to see the pipeline flow
 			</div>
 		);
@@ -81,9 +81,9 @@ export function FlowTimeline({ events, snapshot }: Props) {
 				const canExpand = terminal?.status === 'complete' && hasData;
 
 				return (
-					<div key={step} class="rounded overflow-hidden">
+					<div key={step} class="overflow-hidden rounded">
 						<div
-							class={`flex items-center gap-1.5 px-1.5 py-[5px] bg-bg-secondary border border-border select-none hover:bg-bg-hover ${isOpen ? 'rounded-t border-b-transparent' : 'rounded'}`}
+							class={`flex select-none items-center gap-1.5 border border-border bg-bg-secondary px-1.5 py-[5px] hover:bg-bg-hover ${isOpen ? 'rounded-t border-b-transparent' : 'rounded'}`}
 							data-open={isOpen ? 'true' : undefined}
 							onClick={() => canExpand && toggle(step)}
 							style={{
@@ -92,35 +92,35 @@ export function FlowTimeline({ events, snapshot }: Props) {
 						>
 							{/* Status dot */}
 							{status === 'complete' && (
-								<span class="w-2 h-2 rounded-full shrink-0 bg-success" />
+								<span class="h-2 w-2 shrink-0 rounded-full bg-success" />
 							)}
 							{status === 'error' && (
-								<span class="w-2 h-2 rounded-full shrink-0 bg-error" />
+								<span class="h-2 w-2 shrink-0 rounded-full bg-error" />
 							)}
 							{status === 'running' && (
-								<span class="w-2 h-2 rounded-full shrink-0 bg-accent animate-pulse-dot" />
+								<span class="h-2 w-2 shrink-0 animate-pulse-dot rounded-full bg-accent" />
 							)}
 							{status === 'pending' && (
-								<span class="w-2 h-2 rounded-full shrink-0 bg-border" />
+								<span class="h-2 w-2 shrink-0 rounded-full bg-border" />
 							)}
-							<span class="flex-1 text-[11px] font-medium text-text-primary">
+							<span class="flex-1 font-medium text-[11px] text-text-primary">
 								{STEP_LABELS[step]}
 							</span>
 							{terminal?.durationMs !== undefined && (
-								<span class="text-[10px] text-text-muted tabular-nums">
+								<span class="text-sm text-text-muted tabular-nums">
 									{terminal.durationMs}ms
 								</span>
 							)}
 							{canExpand && (
 								<span
-									class={`text-[10px] text-text-muted shrink-0 transition-transform duration-150 ${isOpen ? 'rotate-180' : ''}`}
+									class={`shrink-0 text-sm text-text-muted transition-transform duration-150 ${isOpen ? 'rotate-180' : ''}`}
 								>
 									▾
 								</span>
 							)}
 						</div>
 						{isOpen && terminal?.data && (
-							<div class="bg-bg-tertiary border border-border border-t-0 rounded-b px-2 py-2 text-[10px] text-text-secondary leading-[1.5]">
+							<div class="rounded-b border border-border border-t-0 bg-bg-tertiary px-2 py-2 text-sm text-text-secondary leading-[1.5]">
 								<StepData
 									step={step}
 									data={terminal.data}
@@ -149,7 +149,7 @@ function StepData({
 		return (
 			<div class="flex gap-3">
 				<div class="flex flex-col items-center">
-					<span class="text-[14px] font-semibold text-text-primary">
+					<span class="font-semibold text-[14px] text-text-primary">
 						{d.characterCount}
 					</span>
 					<span class="text-[9px] text-text-muted uppercase tracking-[0.04em]">
@@ -157,7 +157,7 @@ function StepData({
 					</span>
 				</div>
 				<div class="flex flex-col items-center">
-					<span class="text-[14px] font-semibold text-text-primary">
+					<span class="font-semibold text-[14px] text-text-primary">
 						{d.locationCount}
 					</span>
 					<span class="text-[9px] text-text-muted uppercase tracking-[0.04em]">
@@ -165,7 +165,7 @@ function StepData({
 					</span>
 				</div>
 				<div class="flex flex-col items-center">
-					<span class="text-[14px] font-semibold text-text-primary">
+					<span class="font-semibold text-[14px] text-text-primary">
 						{d.turnCount}
 					</span>
 					<span class="text-[9px] text-text-muted uppercase tracking-[0.04em]">
@@ -211,13 +211,13 @@ function StepData({
 
 						return (
 							<tr key={c.characterId}>
-								<td class="py-0.5 px-1 align-top font-medium text-text-primary whitespace-nowrap">
+								<td class="whitespace-nowrap px-1 py-0.5 align-top font-medium text-text-primary">
 									{c.characterName}
 								</td>
-								<td class="py-0.5 px-1 align-top text-text-muted whitespace-nowrap">
+								<td class="whitespace-nowrap px-1 py-0.5 align-top text-text-muted">
 									{c.chainLength} mem
 								</td>
-								<td class="py-0.5 px-1 align-top text-text-secondary text-[9px]">
+								<td class="px-1 py-0.5 align-top text-[9px] text-text-secondary">
 									{hasDiff ? (
 										diffParts.map((p, i) => (
 											<span
@@ -257,7 +257,7 @@ function StepData({
 		);
 		return (
 			<div>
-				<div class="mb-1 text-text-muted text-[9px]">
+				<div class="mb-1 text-[9px] text-text-muted">
 					{d.results.length} of {d.accessibleCount} accessible
 					memories injected
 				</div>
@@ -266,7 +266,7 @@ function StepData({
 						No memories retrieved
 					</span>
 				) : (
-					<div class="flex flex-wrap gap-1 mt-1">
+					<div class="mt-1 flex flex-wrap gap-1">
 						{d.results.map((r) => {
 							const summary = memMap.get(r.memoryId) ?? r.summary;
 							const reasonLabel =
@@ -297,15 +297,15 @@ function StepData({
 							return (
 								<div
 									key={r.memoryId}
-									class="flex flex-col gap-0.5 px-1.5 py-[3px] rounded-[3px] text-[9px] max-w-[160px]"
+									class="flex max-w-[160px] flex-col gap-0.5 rounded-[3px] px-1.5 py-[3px] text-[9px]"
 									style={pillStyle}
 									title={summary}
 								>
-									<span class="text-text-primary font-medium overflow-hidden text-ellipsis whitespace-nowrap">
+									<span class="overflow-hidden text-ellipsis whitespace-nowrap font-medium text-text-primary">
 										{summary.slice(0, 40)}
 										{summary.length > 40 ? '…' : ''}
 									</span>
-									<span class="text-text-muted text-[8px]">
+									<span class="text-[8px] text-text-muted">
 										{reasonLabel}
 									</span>
 								</div>
@@ -315,7 +315,7 @@ function StepData({
 				)}
 				{d.llmFallbackFired && (
 					<div
-						class="mt-1.5 px-1.5 py-[3px] rounded-[3px] text-[9px] text-warning"
+						class="mt-1.5 rounded-[3px] px-1.5 py-[3px] text-[9px] text-warning"
 						style={{
 							background:
 								'color-mix(in srgb, #fbbf24 15%, transparent)',
@@ -336,25 +336,25 @@ function StepData({
 			<div class="flex flex-col gap-[3px]">
 				<div class="flex justify-between gap-2">
 					<span class="text-text-muted">Prompt length</span>
-					<span class="text-text-primary font-medium text-right">
+					<span class="text-right font-medium text-text-primary">
 						{d.systemPromptLength.toLocaleString()} chars
 					</span>
 				</div>
 				<div class="flex justify-between gap-2">
 					<span class="text-text-muted">Memories injected</span>
-					<span class="text-text-primary font-medium text-right">
+					<span class="text-right font-medium text-text-primary">
 						{d.injectedMemoryIds.length}
 					</span>
 				</div>
 				<div class="flex justify-between gap-2">
 					<span class="text-text-muted">Location</span>
-					<span class="text-text-primary font-medium text-right">
+					<span class="text-right font-medium text-text-primary">
 						{locLabel}
 					</span>
 				</div>
 				<div class="flex justify-between gap-2">
 					<span class="text-text-muted">Mood tags</span>
-					<span class="text-text-primary font-medium text-right">
+					<span class="text-right font-medium text-text-primary">
 						{d.moodTagCount}
 					</span>
 				</div>
@@ -368,19 +368,19 @@ function StepData({
 			<div class="flex flex-col gap-[3px]">
 				<div class="flex justify-between gap-2">
 					<span class="text-text-muted">Model</span>
-					<span class="text-text-primary font-medium text-right">
+					<span class="text-right font-medium text-text-primary">
 						{d.model}
 					</span>
 				</div>
 				<div class="flex justify-between gap-2">
 					<span class="text-text-muted">~Tokens out</span>
-					<span class="text-text-primary font-medium text-right">
+					<span class="text-right font-medium text-text-primary">
 						{d.tokenCount.toLocaleString()}
 					</span>
 				</div>
 				<div class="flex justify-between gap-2">
 					<span class="text-text-muted">Duration</span>
-					<span class="text-text-primary font-medium text-right">
+					<span class="text-right font-medium text-text-primary">
 						{d.durationMs.toLocaleString()}ms
 					</span>
 				</div>
@@ -395,7 +395,7 @@ function StepData({
 				<div class="flex justify-between gap-2">
 					<span class="text-text-muted">Location changed</span>
 					<span
-						class={`inline-block px-[5px] py-[1px] rounded-[3px] text-[9px] font-medium ${d.locationChanged ? 'text-success' : 'text-text-muted bg-bg-hover'}`}
+						class={`inline-block rounded-[3px] px-[5px] py-[1px] font-medium text-[9px] ${d.locationChanged ? 'text-success' : 'bg-bg-hover text-text-muted'}`}
 						style={
 							d.locationChanged
 								? {
@@ -411,7 +411,7 @@ function StepData({
 				{d.newLocationCreated && (
 					<div class="flex justify-between gap-2">
 						<span class="text-text-muted">New location</span>
-						<span class="text-text-primary font-medium text-right">
+						<span class="text-right font-medium text-text-primary">
 							{d.newLocationName ?? '?'}
 						</span>
 					</div>
@@ -419,7 +419,7 @@ function StepData({
 				<div class="flex justify-between gap-2">
 					<span class="text-text-muted">Overrides changed</span>
 					<span
-						class={`inline-block px-[5px] py-[1px] rounded-[3px] text-[9px] font-medium ${d.overridesChanged ? 'text-success' : 'text-text-muted bg-bg-hover'}`}
+						class={`inline-block rounded-[3px] px-[5px] py-[1px] font-medium text-[9px] ${d.overridesChanged ? 'text-success' : 'bg-bg-hover text-text-muted'}`}
 						style={
 							d.overridesChanged
 								? {
@@ -436,7 +436,7 @@ function StepData({
 					d.newLocationId && (
 						<div class="flex justify-between gap-2">
 							<span class="text-text-muted">New location ID</span>
-							<span class="text-text-primary font-medium text-right text-[9px]">
+							<span class="text-right font-medium text-[9px] text-text-primary">
 								{d.newLocationId}
 							</span>
 						</div>

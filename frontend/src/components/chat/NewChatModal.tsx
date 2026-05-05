@@ -226,16 +226,16 @@ export function NewChatModal({
 								return (
 									<div
 										key={char.id}
-										class="flex flex-col gap-1 px-2 py-1.5 border border-border rounded-sm bg-bg-tertiary"
+										class="flex flex-col gap-1 rounded-sm border border-border bg-bg-tertiary px-2 py-1.5"
 									>
-										<div class="flex items-center gap-1.5 flex-wrap">
-											<span class="text-[12px] font-medium text-text-primary flex-1 min-w-0">
+										<div class="flex flex-wrap items-center gap-1.5">
+											<span class="min-w-0 flex-1 font-medium text-[12px] text-text-primary">
 												{char.name}
 											</span>
-											<div class="flex gap-1 shrink-0">
+											<div class="flex shrink-0 gap-1">
 												<button
 													type="button"
-													class="text-[11px] px-2 py-0.5 border border-border rounded-full text-text-muted bg-bg-secondary transition-all duration-150 hover:border-accent hover:text-text-primary data-[active=true]:border-accent data-[active=true]:bg-accent-dim data-[active=true]:text-accent"
+													class="rounded-full border border-border bg-bg-secondary px-2 py-0.5 text-[11px] text-text-muted transition-all duration-150 hover:border-accent hover:text-text-primary data-[active=true]:border-accent data-[active=true]:bg-accent-dim data-[active=true]:text-accent"
 													data-active={
 														anchor === null
 															? 'true'
@@ -253,7 +253,7 @@ export function NewChatModal({
 												</button>
 												<button
 													type="button"
-													class="text-[11px] px-2 py-0.5 border border-border rounded-full text-text-muted bg-bg-secondary transition-all duration-150 hover:border-accent hover:text-text-primary data-[active=true]:border-accent data-[active=true]:bg-accent-dim data-[active=true]:text-accent"
+													class="rounded-full border border-border bg-bg-secondary px-2 py-0.5 text-[11px] text-text-muted transition-all duration-150 hover:border-accent hover:text-text-primary data-[active=true]:border-accent data-[active=true]:bg-accent-dim data-[active=true]:text-accent"
 													data-active={
 														isExpanded
 															? 'true'
@@ -272,7 +272,7 @@ export function NewChatModal({
 											</div>
 											{anchorMem && (
 												<span
-													class="text-[10px] text-accent opacity-80 max-w-[160px] overflow-hidden text-ellipsis whitespace-nowrap"
+													class="max-w-[160px] overflow-hidden text-ellipsis whitespace-nowrap text-accent text-sm opacity-80"
 													title={anchorMem.summary}
 												>
 													⚓{' '}
@@ -288,14 +288,14 @@ export function NewChatModal({
 											)}
 										</div>
 										{isExpanded && (
-											<div class="flex flex-col gap-0.5 max-h-[160px] overflow-y-auto mt-1">
+											<div class="mt-1 flex max-h-[160px] flex-col gap-0.5 overflow-y-auto">
 												{[...mems]
 													.reverse()
 													.map((m) => (
 														<button
 															type="button"
 															key={m.id}
-															class="flex flex-col gap-0.5 px-2 py-[5px] rounded-sm bg-bg-secondary border border-transparent text-left transition-all duration-100 hover:border-border hover:bg-bg-hover data-[active=true]:border-accent data-[active=true]:bg-accent-dim"
+															class="flex flex-col gap-0.5 rounded-sm border border-transparent bg-bg-secondary px-2 py-[5px] text-left transition-all duration-100 hover:border-border hover:bg-bg-hover data-[active=true]:border-accent data-[active=true]:bg-accent-dim"
 															data-active={
 																anchor === m.id
 																	? 'true'
@@ -316,7 +316,7 @@ export function NewChatModal({
 															</span>
 															{m.tags.length >
 																0 && (
-																<span class="text-[10px] text-text-muted">
+																<span class="text-sm text-text-muted">
 																	{m.tags
 																		.slice(
 																			0,

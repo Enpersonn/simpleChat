@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'preact/hooks';
 import type {
 	Character,
 	CharacterCreate,
@@ -8,8 +7,9 @@ import type {
 	MemoryDeltaEffect,
 	MemoryItem,
 } from '@simplechat/types';
-import { useStoriesStore } from '../../store/stories.js';
+import { useEffect, useState } from 'preact/hooks';
 import { api } from '../../lib/api.js';
+import { useStoriesStore } from '../../store/stories.js';
 import { f } from '../shared/formCls.js';
 
 type RelationEntry = {
@@ -43,11 +43,11 @@ interface MemoryFormState {
 }
 
 const emptyMemoryForm = (): MemoryFormState => ({
-	summary: '',
-	tags: '',
-	importance: 0.5,
 	branchLabel: '',
 	effects: [],
+	importance: 0.5,
+	summary: '',
+	tags: '',
 });
 
 // ─── EffectsEditor ────────────────────────────────────────────────────────────
@@ -82,11 +82,11 @@ function EffectsEditor({ effects, onChange, fieldDefs }: EffectsEditorProps) {
 		onChange([
 			...effects,
 			{
-				path: '',
+				entityType: 'character',
 				op: 'set' as const,
+				path: '',
 				value: '',
 				weight: 1,
-				entityType: 'character',
 			},
 		]);
 
@@ -113,8 +113,8 @@ function EffectsEditor({ effects, onChange, fieldDefs }: EffectsEditorProps) {
 			{effects.length === 0 && (
 				<div
 					style={{
-						fontSize: '12px',
 						color: 'var(--text-muted)',
+						fontSize: '12px',
 						padding: '4px 0 8px',
 					}}
 				>
@@ -144,7 +144,7 @@ function EffectsEditor({ effects, onChange, fieldDefs }: EffectsEditorProps) {
 						/>
 					</div>
 					<select
-						class="w-[110px] shrink-0 px-[10px] py-2 rounded-sm border border-border bg-bg-tertiary text-text-primary text-[13px] transition-colors duration-150 focus:border-accent focus:outline-none"
+						class="w-[110px] shrink-0 rounded-sm border border-border bg-bg-tertiary px-[10px] py-2 text-[13px] text-text-primary transition-colors duration-150 focus:border-accent focus:outline-none"
 						value={effect.op}
 						onChange={(e) =>
 							update(idx, {
@@ -375,29 +375,29 @@ export function CharacterModal({
 		setSubmitting(true);
 		setError('');
 		const data: CharacterCreate = {
-			name: name.trim(),
-			role: role.trim(),
 			isUserPersona,
 			modelOverride: modelOverride.trim(),
-			public: {
-				age: age.trim(),
-				gender: gender.trim(),
-				species: species.trim() || 'human',
-				clothing: clothing.trim(),
-				appearance: appearance.trim(),
-				personality: toArray(personality),
-				speechStyle: speechStyle.trim(),
-				reputation: initial?.public.reputation ?? '',
-				voiceNotes: initial?.public.voiceNotes ?? '',
-			},
+			name: name.trim(),
 			private: {
-				trueMotives: trueMotives.trim(),
 				fears: toArray(fears),
-				privateKnowledge: initial?.private.privateKnowledge ?? [],
-				moralLimits: initial?.private.moralLimits ?? '',
 				hiddenEmotionalState:
 					initial?.private.hiddenEmotionalState ?? '',
+				moralLimits: initial?.private.moralLimits ?? '',
+				privateKnowledge: initial?.private.privateKnowledge ?? [],
+				trueMotives: trueMotives.trim(),
 			},
+			public: {
+				age: age.trim(),
+				appearance: appearance.trim(),
+				clothing: clothing.trim(),
+				gender: gender.trim(),
+				personality: toArray(personality),
+				reputation: initial?.public.reputation ?? '',
+				species: species.trim() || 'human',
+				speechStyle: speechStyle.trim(),
+				voiceNotes: initial?.public.voiceNotes ?? '',
+			},
+			role: role.trim(),
 		};
 		try {
 			if (onSaveData) {
@@ -419,13 +419,13 @@ export function CharacterModal({
 
 	const openEditMemory = ({ relation, memory }: MemoryPair) => {
 		setMemoryForm({
+			branchLabel: relation.branchLabel ?? '',
+			effects: memory.deltas.effects,
 			id: memory.id,
+			importance: memory.importance,
 			relationId: relation.id,
 			summary: memory.summary,
 			tags: memory.tags.join(', '),
-			importance: memory.importance,
-			branchLabel: relation.branchLabel ?? '',
-			effects: memory.deltas.effects,
 		});
 	};
 
@@ -440,11 +440,11 @@ export function CharacterModal({
 					initial.id,
 					memoryForm.id,
 					{
-						summary: memoryForm.summary.trim(),
-						tags: toArray(memoryForm.tags),
-						importance: memoryForm.importance,
 						branchLabel: memoryForm.branchLabel.trim() || undefined,
 						deltas: { effects: memoryForm.effects },
+						importance: memoryForm.importance,
+						summary: memoryForm.summary.trim(),
+						tags: toArray(memoryForm.tags),
 					},
 				);
 			} else {
@@ -452,11 +452,11 @@ export function CharacterModal({
 					selectedStoryId,
 					initial.id,
 					{
-						summary: memoryForm.summary.trim(),
-						tags: toArray(memoryForm.tags),
-						importance: memoryForm.importance,
 						branchLabel: memoryForm.branchLabel.trim() || undefined,
 						deltas: { effects: memoryForm.effects },
+						importance: memoryForm.importance,
+						summary: memoryForm.summary.trim(),
+						tags: toArray(memoryForm.tags),
 					},
 				);
 			}
@@ -565,7 +565,7 @@ export function CharacterModal({
 												).value,
 											)
 										}
-										style={{ minHeight: '56px', flex: 1 }}
+										style={{ flex: 1, minHeight: '56px' }}
 									/>
 									<button
 										class={f.generateBtn}
@@ -616,12 +616,12 @@ export function CharacterModal({
 							<label
 								class={f.label}
 								style={{
-									display: 'flex',
 									alignItems: 'center',
-									gap: '8px',
-									textTransform: 'none',
+									display: 'flex',
 									fontSize: '13px',
+									gap: '8px',
 									letterSpacing: 0,
+									textTransform: 'none',
 								}}
 							>
 								<input
@@ -827,7 +827,7 @@ export function CharacterModal({
 				)}
 
 				{activeTab === 'locations' && (
-					<div class="flex flex-col gap-2 max-h-[400px] overflow-y-auto">
+					<div class="flex max-h-[400px] flex-col gap-2 overflow-y-auto">
 						{locations.length === 0 ? (
 							<p class={f.hint}>
 								No locations in this story yet.
@@ -857,11 +857,11 @@ export function CharacterModal({
 												};
 											} else {
 												next.push({
-													locationId: loc.id,
 													comfort: 5,
-													tension: 0,
 													emotion: '',
+													locationId: loc.id,
 													notes: '',
+													tension: 0,
 													...patch,
 												});
 											}
@@ -871,13 +871,13 @@ export function CharacterModal({
 									return (
 										<div
 											key={loc.id}
-											class="py-2.5 px-3 border border-border rounded-sm bg-bg-tertiary flex flex-col gap-[5px] group/memcard"
+											class="group/memcard flex flex-col gap-[5px] rounded-sm border border-border bg-bg-tertiary px-3 py-2.5"
 										>
 											<div class="flex items-center gap-1.5">
 												<span
 													style={{
-														fontWeight: 600,
 														fontSize: '13px',
+														fontWeight: 600,
 													}}
 												>
 													{loc.name}
@@ -900,7 +900,7 @@ export function CharacterModal({
 														onInput={(e) =>
 															updateFeeling({
 																comfort:
-																	parseInt(
+																	Number.parseInt(
 																		(
 																			e.target as HTMLInputElement
 																		).value,
@@ -926,7 +926,7 @@ export function CharacterModal({
 														onInput={(e) =>
 															updateFeeling({
 																tension:
-																	parseInt(
+																	Number.parseInt(
 																		(
 																			e.target as HTMLInputElement
 																		).value,
@@ -1025,7 +1025,7 @@ export function CharacterModal({
 				)}
 
 				{activeTab === 'relations' && (
-					<div class="flex flex-col gap-2 max-h-[400px] overflow-y-auto">
+					<div class="flex max-h-[400px] flex-col gap-2 overflow-y-auto">
 						{relations.length === 0 ? (
 							<p class={f.hint}>
 								No relations yet. Add memories with relationship
@@ -1041,37 +1041,37 @@ export function CharacterModal({
 								return (
 									<div
 										key={r.charId}
-										class="py-2.5 px-3 border border-border rounded-sm bg-bg-tertiary flex flex-col gap-[5px] group/memcard"
+										class="group/memcard flex flex-col gap-[5px] rounded-sm border border-border bg-bg-tertiary px-3 py-2.5"
 									>
 										<div class="flex items-center gap-1.5">
 											<span
 												style={{
-													fontWeight: 600,
 													fontSize: '13px',
+													fontWeight: 600,
 												}}
 											>
 												{r.otherCharName}
 											</span>
 											{r.emotion && (
-												<span class="text-[10px] text-text-muted italic flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
+												<span class="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-sm text-text-muted italic">
 													{r.emotion}
 												</span>
 											)}
 											<span
-												class="text-[10px] font-semibold py-[1px] px-1.5 rounded-full bg-bg-secondary text-text-muted shrink-0"
+												class="shrink-0 rounded-full bg-bg-secondary px-1.5 py-[1px] font-semibold text-sm text-text-muted"
 												style={{ marginLeft: 'auto' }}
 											>
 												{r.trustLevel}/10
 											</span>
 										</div>
 										{r.publicAttitude && (
-											<div class="text-xs text-text-primary leading-normal">
+											<div class="text-text-primary text-xs leading-normal">
 												{r.publicAttitude}
 											</div>
 										)}
 										{r.privateAttitude && (
 											<div
-												class="text-xs text-text-primary leading-normal"
+												class="text-text-primary text-xs leading-normal"
 												style={{
 													color: 'var(--text-muted)',
 													fontStyle: 'italic',
@@ -1083,8 +1083,8 @@ export function CharacterModal({
 										{sourceMem && (
 											<div
 												style={{
-													fontSize: '11px',
 													color: 'var(--text-muted)',
+													fontSize: '11px',
 													marginTop: '4px',
 												}}
 											>
@@ -1107,7 +1107,7 @@ export function CharacterModal({
 						{memoryForm === null ? (
 							<>
 								<div class="flex items-center justify-between">
-									<span class="text-xs text-text-muted">
+									<span class="text-text-muted text-xs">
 										{pairs.length}{' '}
 										{pairs.length === 1
 											? 'memory'
@@ -1129,15 +1129,15 @@ export function CharacterModal({
 									</p>
 								)}
 
-								<div class="flex flex-col gap-2 max-h-[400px] overflow-y-auto">
+								<div class="flex max-h-[400px] flex-col gap-2 overflow-y-auto">
 									{pairs.map(({ relation, memory: m }) => (
 										<div
 											key={m.id}
-											class="py-2.5 px-3 border border-border rounded-sm bg-bg-tertiary flex flex-col gap-[5px] group/memcard"
+											class="group/memcard flex flex-col gap-[5px] rounded-sm border border-border bg-bg-tertiary px-3 py-2.5"
 										>
 											<div class="flex items-center gap-1.5">
 												<span
-													class="text-[10px] font-semibold py-[1px] px-1.5 rounded-full bg-bg-secondary text-text-muted shrink-0 data-[high=true]:bg-accent-dim data-[high=true]:text-accent"
+													class="shrink-0 rounded-full bg-bg-secondary px-1.5 py-[1px] font-semibold text-sm text-text-muted data-[high=true]:bg-accent-dim data-[high=true]:text-accent"
 													data-high={
 														m.importance >= 0.8
 															? 'true'
@@ -1150,17 +1150,17 @@ export function CharacterModal({
 													%
 												</span>
 												{relation.branchLabel && (
-													<span class="text-[10px] text-text-muted italic flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
+													<span class="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-sm text-text-muted italic">
 														{relation.branchLabel}
 													</span>
 												)}
-												<div class="hidden gap-0.5 shrink-0 group-hover/memcard:flex">
+												<div class="hidden shrink-0 gap-0.5 group-hover/memcard:flex">
 													<button
 														class={f.iconActionBtn}
 														onClick={() =>
 															openEditMemory({
-																relation,
 																memory: m,
+																relation,
 															})
 														}
 													>
@@ -1178,7 +1178,7 @@ export function CharacterModal({
 													</button>
 												</div>
 											</div>
-											<div class="text-xs text-text-primary leading-normal">
+											<div class="text-text-primary text-xs leading-normal">
 												{m.summary}
 											</div>
 											{m.tags.length > 0 && (
@@ -1186,7 +1186,7 @@ export function CharacterModal({
 													{m.tags.map((t) => (
 														<span
 															key={t}
-															class="text-[10px] py-[1px] px-1.5 rounded-full bg-bg-secondary text-text-muted border border-border"
+															class="rounded-full border border-border bg-bg-secondary px-1.5 py-[1px] text-sm text-text-muted"
 														>
 															{t}
 														</span>
@@ -1194,8 +1194,8 @@ export function CharacterModal({
 												</div>
 											)}
 											{m.deltas.effects.length > 0 && (
-												<div class="flex flex-wrap gap-1 mt-0.5">
-													<span class="text-[10px] py-[1px] px-1.5 rounded-full bg-success-dim text-success">
+												<div class="mt-0.5 flex flex-wrap gap-1">
+													<span class="rounded-full bg-success-dim px-1.5 py-[1px] text-sm text-success">
 														{
 															m.deltas.effects
 																.length
@@ -1270,7 +1270,7 @@ export function CharacterModal({
 										value={memoryForm.importance}
 										onInput={(e) =>
 											setMF({
-												importance: parseFloat(
+												importance: Number.parseFloat(
 													(
 														e.target as HTMLInputElement
 													).value,
@@ -1281,10 +1281,10 @@ export function CharacterModal({
 									/>
 									<div
 										style={{
-											display: 'flex',
-											justifyContent: 'space-between',
-											fontSize: '10px',
 											color: 'var(--text-muted)',
+											display: 'flex',
+											fontSize: '10px',
+											justifyContent: 'space-between',
 										}}
 									>
 										<span>Low</span>

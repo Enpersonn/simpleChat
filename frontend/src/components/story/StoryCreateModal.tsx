@@ -1,14 +1,14 @@
-import { useState } from 'preact/hooks';
 import type {
-	Story,
 	CharacterCreate,
 	LocationCreate,
 	MemoryDeltaEffect,
+	Story,
 } from '@simplechat/types';
-import { useStoriesStore } from '../../store/stories.js';
+import { useState } from 'preact/hooks';
 import { api } from '../../lib/api.js';
-import { CharacterModal } from './CharacterModal.js';
+import { useStoriesStore } from '../../store/stories.js';
 import { f } from '../shared/formCls.js';
+import { CharacterModal } from './CharacterModal.js';
 
 const GENRE_OPTIONS = [
 	'Fantasy',
@@ -84,19 +84,19 @@ function convertDeltasToEffects(
 			| undefined;
 		for (const v of group?.add ?? [])
 			effects.push({
-				path,
+				entityType: 'character',
 				op: 'add',
+				path,
 				value: v,
 				weight: 1,
-				entityType: 'character',
 			});
 		for (const v of group?.remove ?? [])
 			effects.push({
-				path,
+				entityType: 'character',
 				op: 'remove',
+				path,
 				value: v,
 				weight: 1,
-				entityType: 'character',
 			});
 	}
 	for (const [field, path] of [
@@ -110,11 +110,11 @@ function convertDeltasToEffects(
 	] as const) {
 		if (typeof deltas[field] === 'string')
 			effects.push({
-				path,
+				entityType: 'character',
 				op: 'set',
+				path,
 				value: deltas[field] as string,
 				weight: 1,
-				entityType: 'character',
 			});
 	}
 	return effects;
@@ -134,12 +134,12 @@ interface LivePreview {
 }
 
 const emptyPreview = (): LivePreview => ({
-	title: '',
-	genres: [],
-	tone: [],
 	characters: [],
+	genres: [],
 	locations: [],
 	memories: [],
+	title: '',
+	tone: [],
 });
 
 interface Props {
@@ -242,44 +242,44 @@ export function StoryCreateModal({ onClose, onCreated }: Props) {
 		if (result.characters?.length) {
 			const newChars: PendingChar[] = result.characters.map((c, i) => ({
 				_localId: `draft-${Date.now()}-${i}`,
-				name: c.name,
-				role: c.role,
-				isUserPersona: c.isUserPersona,
-				public: {
-					age: c.age,
-					gender: c.gender,
-					species: c.species || 'human',
-					clothing: c.clothing,
-					appearance: c.appearance,
-					personality: c.personality,
-					speechStyle: c.speechStyle,
-					reputation: '',
-					voiceNotes: '',
-				},
-				private: {
-					trueMotives: c.trueMotives,
-					fears: c.fears,
-					privateKnowledge: [],
-					moralLimits: '',
-					hiddenEmotionalState: '',
-				},
 				_rawRelationships: c.relationships?.length
 					? c.relationships
 					: undefined,
+				isUserPersona: c.isUserPersona,
+				name: c.name,
+				private: {
+					fears: c.fears,
+					hiddenEmotionalState: '',
+					moralLimits: '',
+					privateKnowledge: [],
+					trueMotives: c.trueMotives,
+				},
+				public: {
+					age: c.age,
+					appearance: c.appearance,
+					clothing: c.clothing,
+					gender: c.gender,
+					personality: c.personality,
+					reputation: '',
+					species: c.species || 'human',
+					speechStyle: c.speechStyle,
+					voiceNotes: '',
+				},
+				role: c.role,
 			}));
 			setPendingChars((prev) => [...prev, ...newChars]);
 		}
 		if (result.locations?.length) {
 			const newLocs: PendingLocation[] = result.locations.map((l, i) => ({
 				_localId: `loc-${Date.now()}-${i}`,
-				name: l.name,
+				atmosphere: l.atmosphere,
 				description: l.description,
 				layout: l.layout,
 				lighting: l.lighting,
-				atmosphere: l.atmosphere,
-				soundscape: l.soundscape,
-				smells: l.smells,
+				name: l.name,
 				notes: l.notes,
+				smells: l.smells,
+				soundscape: l.soundscape,
 				tags: l.tags,
 			}));
 			setPendingLocations((prev) => [...prev, ...newLocs]);
@@ -304,8 +304,8 @@ export function StoryCreateModal({ onClose, onCreated }: Props) {
 			applyGeneratedFields({ ...core, characters: [] });
 			setLivePreview((p) => ({
 				...p,
-				title: core.title ?? title,
 				genres: core.genres,
+				title: core.title ?? title,
 				tone: core.tone,
 			}));
 			setGenStep(2);
@@ -342,18 +342,18 @@ export function StoryCreateModal({ onClose, onCreated }: Props) {
 				}>;
 			}>('story-characters', premise.trim(), { styleContext });
 			applyGeneratedFields({
-				genres: [],
-				tone: [],
-				rules: [],
-				writingStyle: '',
 				characters,
+				genres: [],
+				rules: [],
+				tone: [],
+				writingStyle: '',
 			});
 			setLivePreview((p) => ({
 				...p,
 				characters: characters.map((c) => ({
+					isUserPersona: c.isUserPersona,
 					name: c.name,
 					role: c.role,
-					isUserPersona: c.isUserPersona,
 				})),
 			}));
 			setGenStep(3);
@@ -371,18 +371,18 @@ export function StoryCreateModal({ onClose, onCreated }: Props) {
 				}>;
 			}>('story-locations', premise.trim(), { styleContext });
 			applyGeneratedFields({
-				genres: [],
-				tone: [],
-				rules: [],
-				writingStyle: '',
 				characters: [],
+				genres: [],
 				locations,
+				rules: [],
+				tone: [],
+				writingStyle: '',
 			});
 			setLivePreview((p) => ({
 				...p,
 				locations: locations.map((l) => ({
-					name: l.name,
 					description: l.description,
+					name: l.name,
 				})),
 			}));
 			setGenStep(4);
@@ -402,26 +402,26 @@ export function StoryCreateModal({ onClose, onCreated }: Props) {
 					}>;
 				}>;
 			}>('story-memories', premise.trim(), {
-				premise: premise.trim(),
 				characterNames: characters.map((c) => c.name),
+				premise: premise.trim(),
 			});
 			if (memories.length > 0) {
 				const newMems: PendingMemory[] = memories.map((m, i) => ({
 					_localId: `mem-${Date.now()}-${i}`,
 					characterName: m.characterName,
+					deltas: m.deltas,
+					importance: m.importance,
+					relationshipEffects: m.relationshipEffects,
 					summary: m.summary,
 					tags: m.tags,
-					importance: m.importance,
-					deltas: m.deltas,
-					relationshipEffects: m.relationshipEffects,
 				}));
 				setPendingMemories((prev) => [...prev, ...newMems]);
 				setLivePreview((p) => ({
 					...p,
 					memories: memories.map((m) => ({
 						characterName: m.characterName,
-						summary: m.summary,
 						importance: m.importance,
+						summary: m.summary,
 					})),
 				}));
 			}
@@ -449,8 +449,8 @@ export function StoryCreateModal({ onClose, onCreated }: Props) {
 			applyGeneratedFields({ ...core, characters: [], locations: [] });
 			setLivePreview((p) => ({
 				...p,
-				title: core.title,
 				genres: core.genres,
+				title: core.title,
 				tone: core.tone,
 			}));
 			setGenStep(2);
@@ -480,19 +480,19 @@ export function StoryCreateModal({ onClose, onCreated }: Props) {
 				premise: core.premise,
 			});
 			applyGeneratedFields({
-				genres: [],
-				tone: [],
-				rules: [],
-				writingStyle: '',
 				characters,
+				genres: [],
 				locations: [],
+				rules: [],
+				tone: [],
+				writingStyle: '',
 			});
 			setLivePreview((p) => ({
 				...p,
 				characters: characters.map((c) => ({
+					isUserPersona: c.isUserPersona,
 					name: c.name,
 					role: c.role,
-					isUserPersona: c.isUserPersona,
 				})),
 			}));
 			setGenStep(3);
@@ -510,18 +510,18 @@ export function StoryCreateModal({ onClose, onCreated }: Props) {
 				}>;
 			}>('story-locations', importText.trim(), { premise: core.premise });
 			applyGeneratedFields({
-				genres: [],
-				tone: [],
-				rules: [],
-				writingStyle: '',
 				characters: [],
+				genres: [],
 				locations,
+				rules: [],
+				tone: [],
+				writingStyle: '',
 			});
 			setLivePreview((p) => ({
 				...p,
 				locations: locations.map((l) => ({
-					name: l.name,
 					description: l.description,
+					name: l.name,
 				})),
 			}));
 			setGenStep(4);
@@ -541,26 +541,26 @@ export function StoryCreateModal({ onClose, onCreated }: Props) {
 					}>;
 				}>;
 			}>('story-memories', importText.trim(), {
-				premise: core.premise,
 				characterNames: characters.map((c) => c.name),
+				premise: core.premise,
 			});
 			if (memories.length > 0) {
 				const newMems: PendingMemory[] = memories.map((m, i) => ({
 					_localId: `mem-${Date.now()}-${i}`,
 					characterName: m.characterName,
+					deltas: m.deltas,
+					importance: m.importance,
+					relationshipEffects: m.relationshipEffects,
 					summary: m.summary,
 					tags: m.tags,
-					importance: m.importance,
-					deltas: m.deltas,
-					relationshipEffects: m.relationshipEffects,
 				}));
 				setPendingMemories((prev) => [...prev, ...newMems]);
 				setLivePreview((p) => ({
 					...p,
 					memories: memories.map((m) => ({
 						characterName: m.characterName,
-						summary: m.summary,
 						importance: m.importance,
+						summary: m.summary,
 					})),
 				}));
 			}
@@ -581,26 +581,26 @@ export function StoryCreateModal({ onClose, onCreated }: Props) {
 		setError('');
 		try {
 			const story = await createStory({
-				title: title.trim(),
-				premise: premise.trim(),
 				genres,
-				tone: tones,
+				openingMessage: openingMessage.trim(),
+				premise: premise.trim(),
 				rules: {
+					characterRules: [],
+					storyRules: [],
 					worldRules: rules
 						.split('\n')
 						.map((r) => r.trim())
 						.filter(Boolean),
-					storyRules: [],
-					characterRules: [],
 				},
+				title: title.trim(),
+				tone: tones,
 				writingStyle: {
-					prose: writingStyle.trim(),
-					interiority: '',
 					dialogue: '',
+					interiority: '',
 					pacing: '',
+					prose: writingStyle.trim(),
 					sensory: '',
 				},
-				openingMessage: openingMessage.trim(),
 			});
 
 			const createdChars: Array<{ id: string; name: string }> = [];
@@ -629,10 +629,10 @@ export function StoryCreateModal({ onClose, onCreated }: Props) {
 						return {
 							charId: other.id,
 							emotion: r.emotion,
-							publicAttitude: r.publicAttitude,
-							privateAttitude: r.privateAttitude,
-							trustLevel: r.trustLevel,
 							history: '',
+							privateAttitude: r.privateAttitude,
+							publicAttitude: r.publicAttitude,
+							trustLevel: r.trustLevel,
 							visibility: 'public' as const,
 						};
 					})
@@ -666,8 +666,8 @@ export function StoryCreateModal({ onClose, onCreated }: Props) {
 						return {
 							charId: other.id,
 							emotion: r.emotion || undefined,
-							publicAttitude: r.publicAttitude || undefined,
 							privateAttitude: r.privateAttitude || undefined,
+							publicAttitude: r.publicAttitude || undefined,
 							trustLevel: r.trustLevel,
 						};
 					})
@@ -677,14 +677,14 @@ export function StoryCreateModal({ onClose, onCreated }: Props) {
 					...(resolvedRelDelta.length
 						? [
 								{
-									path: 'relationships',
+									entityType: 'character',
 									op: 'set' as const,
+									path: 'relationships',
 									value: resolvedRelDelta as Record<
 										string,
 										unknown
 									>[],
 									weight: 1,
-									entityType: 'character',
 								},
 							]
 						: []),
@@ -693,16 +693,16 @@ export function StoryCreateModal({ onClose, onCreated }: Props) {
 					story.id,
 					char.id,
 					{
+						deltas: { effects },
+						importance,
 						summary,
 						tags,
-						importance,
-						deltas: { effects },
 					},
 				);
 				await api.canonTimeline.addEntry(story.id, {
 					characterId: char.id,
-					memoryId: memory.id,
 					label: summary.slice(0, 60),
+					memoryId: memory.id,
 				});
 			}
 
@@ -781,7 +781,7 @@ export function StoryCreateModal({ onClose, onCreated }: Props) {
 							{generating ? '✨ Parsing…' : '✨ Parse & Generate'}
 						</button>
 					</div>
-					<div class="text-[11px] text-text-muted mt-1">
+					<div class="mt-1 text-[11px] text-text-muted">
 						The LLM will synthesise a clean premise and extract
 						characters, locations, and canon memories. Review all
 						fields before creating.
@@ -1038,7 +1038,7 @@ export function StoryCreateModal({ onClose, onCreated }: Props) {
 							</div>
 						</div>
 						{pendingChars.length === 0 && (
-							<div class="text-xs text-text-muted">
+							<div class="text-text-muted text-xs">
 								No characters yet — draft from premise or add
 								manually.
 							</div>
@@ -1137,7 +1137,7 @@ export function StoryCreateModal({ onClose, onCreated }: Props) {
 									</span>
 								</div>
 							))}
-							<div class="text-[11px] text-text-muted mt-1">
+							<div class="mt-1 text-[11px] text-text-muted">
 								These will be added to the canon timeline on
 								story creation. Remove any you don't want.
 							</div>
@@ -1188,8 +1188,8 @@ export function StoryCreateModal({ onClose, onCreated }: Props) {
 					</div>
 
 					{showPreview ? (
-						<div class="flex flex-row flex-1 min-h-0 -mx-6">
-							<div class="w-[520px] shrink-0 overflow-y-auto px-6 pt-1 pb-6 flex flex-col gap-4.5">
+						<div class="-mx-6 flex min-h-0 flex-1 flex-row">
+							<div class="flex w-[520px] shrink-0 flex-col gap-4.5 overflow-y-auto px-6 pt-1 pb-6">
 								<div class={f.tabs}>
 									<button
 										type="button"
@@ -1216,7 +1216,7 @@ export function StoryCreateModal({ onClose, onCreated }: Props) {
 								</div>
 								{formContent}
 							</div>
-							<div class="flex-1 min-w-[260px] overflow-y-auto px-6 pt-1 pb-6 border-l border-border bg-bg-primary">
+							<div class="min-w-[260px] flex-1 overflow-y-auto border-border border-l bg-bg-primary px-6 pt-1 pb-6">
 								<StoryPreviewPanel
 									preview={livePreview}
 									genStep={genStep}
@@ -1300,7 +1300,7 @@ function StoryPreviewPanel({ preview, genStep, tab }: PreviewPanelProps) {
 
 	return (
 		<div class={f.previewPanel}>
-			<div class="text-[10px] tracking-[0.1em] uppercase text-text-muted mb-4">
+			<div class="mb-4 text-sm text-text-muted uppercase tracking-[0.1em]">
 				{isDone
 					? 'Story Preview'
 					: tab === 'import'
@@ -1311,7 +1311,7 @@ function StoryPreviewPanel({ preview, genStep, tab }: PreviewPanelProps) {
 			{/* Title + pills */}
 			{preview.title ? (
 				<div class={f.previewFadeIn}>
-					<div class="text-[20px] font-bold text-text-primary leading-[1.3] mb-[10px]">
+					<div class="mb-[10px] font-bold text-[20px] text-text-primary leading-[1.3]">
 						{preview.title}
 					</div>
 					{(preview.genres.length > 0 || preview.tone.length > 0) && (
@@ -1319,7 +1319,7 @@ function StoryPreviewPanel({ preview, genStep, tab }: PreviewPanelProps) {
 							{preview.genres.map((g) => (
 								<span
 									key={g}
-									class="py-[2px] px-2 text-[10px] rounded-full bg-accent-dim text-accent border border-accent font-medium"
+									class="rounded-full border border-accent bg-accent-dim px-2 py-[2px] font-medium text-accent text-sm"
 								>
 									{g}
 								</span>
@@ -1327,7 +1327,7 @@ function StoryPreviewPanel({ preview, genStep, tab }: PreviewPanelProps) {
 							{preview.tone.map((t) => (
 								<span
 									key={t}
-									class="py-[2px] px-2 text-[10px] rounded-full bg-bg-tertiary text-text-muted border border-border"
+									class="rounded-full border border-border bg-bg-tertiary px-2 py-[2px] text-sm text-text-muted"
 								>
 									{t}
 								</span>
@@ -1343,7 +1343,7 @@ function StoryPreviewPanel({ preview, genStep, tab }: PreviewPanelProps) {
 			{(preview.characters.length > 0 ||
 				activeSection === 'characters') && (
 				<div class="mt-5">
-					<div class="text-[10px] font-semibold tracking-[0.06em] uppercase text-text-muted mb-2">
+					<div class="mb-2 font-semibold text-sm text-text-muted uppercase tracking-[0.06em]">
 						Characters
 					</div>
 					{preview.characters.map((c) => (
@@ -1362,7 +1362,7 @@ function StoryPreviewPanel({ preview, genStep, tab }: PreviewPanelProps) {
 			{(preview.locations.length > 0 ||
 				activeSection === 'locations') && (
 				<div class="mt-5">
-					<div class="text-[10px] font-semibold tracking-[0.06em] uppercase text-text-muted mb-2">
+					<div class="mb-2 font-semibold text-sm text-text-muted uppercase tracking-[0.06em]">
 						Locations
 					</div>
 					{preview.locations.map((l) => (
@@ -1383,7 +1383,7 @@ function StoryPreviewPanel({ preview, genStep, tab }: PreviewPanelProps) {
 			{/* Memories / Backstory */}
 			{(preview.memories.length > 0 || activeSection === 'memories') && (
 				<div class="mt-5">
-					<div class="text-[10px] font-semibold tracking-[0.06em] uppercase text-text-muted mb-2">
+					<div class="mb-2 font-semibold text-sm text-text-muted uppercase tracking-[0.06em]">
 						{tab === 'import' ? 'Canon Events' : 'Backstory'}
 					</div>
 					{preview.memories.map((m, i) => (
@@ -1418,19 +1418,19 @@ function PreviewCard({
 }) {
 	return (
 		<div class={f.previewCard}>
-			<span class="text-[14px] shrink-0">{icon}</span>
-			<div class="flex-1 min-w-0">
-				<div class="text-xs font-medium text-text-primary overflow-hidden text-ellipsis whitespace-nowrap">
+			<span class="shrink-0 text-[14px]">{icon}</span>
+			<div class="min-w-0 flex-1">
+				<div class="overflow-hidden text-ellipsis whitespace-nowrap font-medium text-text-primary text-xs">
 					{name}
 				</div>
 				{sub && (
-					<div class="text-[11px] text-text-muted mt-[1px] leading-[1.4]">
+					<div class="mt-[1px] text-[11px] text-text-muted leading-[1.4]">
 						{sub}
 					</div>
 				)}
 			</div>
 			{importance !== undefined && (
-				<div class="w-7 h-[3px] rounded-full bg-bg-hover shrink-0 self-center">
+				<div class="h-[3px] w-7 shrink-0 self-center rounded-full bg-bg-hover">
 					<div
 						class={
 							importance >= 0.8
@@ -1453,8 +1453,8 @@ function SkeletonBlock({ lines }: { lines: number }) {
 					key={i}
 					class={f.previewSkeleton}
 					style={{
-						height: i === 0 ? '20px' : '12px',
 						borderRadius: '4px',
+						height: i === 0 ? '20px' : '12px',
 						width: i === 0 ? '70%' : '45%',
 					}}
 				/>
@@ -1467,7 +1467,7 @@ function SkeletonCard() {
 	return (
 		<div
 			class={f.previewSkeleton}
-			style={{ height: '38px', borderRadius: '4px', marginTop: '6px' }}
+			style={{ borderRadius: '4px', height: '38px', marginTop: '6px' }}
 		/>
 	);
 }

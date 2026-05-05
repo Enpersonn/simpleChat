@@ -1,23 +1,23 @@
-import { useEffect, useState } from 'preact/hooks';
-import { createPortal } from 'preact/compat';
 import type {
-	Chat,
 	Character,
+	Chat,
 	StoryLocation as Location,
 } from '@simplechat/types';
-import { useStoriesStore } from '../../store/stories.js';
+import { createPortal } from 'preact/compat';
+import { useEffect, useState } from 'preact/hooks';
 import { useChatsStore } from '../../store/chats.js';
 import { useSettingsStore } from '../../store/settings.js';
-import { StoryCreateModal } from '../story/StoryCreateModal.js';
-import { EditStoryModal } from '../story/EditStoryModal.js';
-import { CharacterModal } from '../story/CharacterModal.js';
-import { LocationModal } from '../story/LocationModal.js';
+import { useStoriesStore } from '../../store/stories.js';
 import { NewChatModal } from '../chat/NewChatModal.js';
-import { SettingsModal } from '../story/SettingsModal.js';
-import { CanonTimelineModal } from '../story/CanonTimelineModal.js';
-import { OllamaStatus } from '../shared/OllamaStatus.js';
 import { ConfirmDialog } from '../shared/ConfirmDialog.js';
 import { ModeTag } from '../shared/ModeTag.js';
+import { OllamaStatus } from '../shared/OllamaStatus.js';
+import { CanonTimelineModal } from '../story/CanonTimelineModal.js';
+import { CharacterModal } from '../story/CharacterModal.js';
+import { EditStoryModal } from '../story/EditStoryModal.js';
+import { LocationModal } from '../story/LocationModal.js';
+import { SettingsModal } from '../story/SettingsModal.js';
+import { StoryCreateModal } from '../story/StoryCreateModal.js';
 
 export function LeftPanel() {
 	const {
@@ -167,26 +167,27 @@ export function LeftPanel() {
 	const sectionCls = 'py-2 pb-1';
 	const sectionHeaderCls = 'flex items-center justify-between px-3 py-1';
 	const sectionLabelCls =
-		'text-[10px] font-semibold tracking-[0.08em] uppercase text-gold-label';
+		'text-sm font-semibold tracking-[0.08em] uppercase text-gold-label';
 	const addBtnCls =
 		'text-[18px] leading-none text-text-muted px-0.5 rounded-sm transition-colors duration-150 hover:text-accent';
 	const emptyCls = 'px-3 py-2 text-[12px] text-text-muted italic';
 
 	return (
-		<div class="flex flex-col h-full overflow-hidden">
+		<div class="flex h-full flex-col overflow-hidden">
 			{selectedStoryId && selectedStory ? (
 				/* ── Story detail view ── */
 				<>
-					<div class="flex items-center gap-1.5 px-3 py-2.5 border-b border-border shrink-0 min-h-[44px]">
+					<div class="flex min-h-[44px] shrink-0 items-center gap-1.5 border-border border-b px-3 py-2.5">
 						<button
-							class="text-[16px] text-text-muted px-1.5 py-0.5 rounded-sm shrink-0 transition-colors duration-150 hover:text-gold hover:bg-gold-dim"
+							type="button"
+							class="shrink-0 rounded-sm px-1.5 py-0.5 text-[16px] text-text-muted transition-colors duration-150 hover:bg-gold-dim hover:text-gold"
 							onClick={handleBack}
 							title="Back to stories"
 						>
 							←
 						</button>
 						<span
-							class="font-display text-[12px] font-semibold text-gold tracking-[0.06em] flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap"
+							class="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap font-display font-semibold text-[12px] text-gold tracking-[0.06em]"
 							title={selectedStory.title}
 						>
 							{selectedStory.title}
@@ -200,6 +201,7 @@ export function LeftPanel() {
 							<div class={sectionHeaderCls}>
 								<span class={sectionLabelCls}>Chats</span>
 								<button
+									type="button"
 									class={addBtnCls}
 									onClick={() => setShowNewChat(true)}
 									title="New chat"
@@ -211,7 +213,8 @@ export function LeftPanel() {
 								<div class={emptyCls}>No chats yet</div>
 							)}
 							{storyChats.map((chat) => (
-								<div
+								<button
+									type="button"
 									key={chat.id}
 									class={itemCls}
 									data-active={
@@ -221,13 +224,13 @@ export function LeftPanel() {
 									}
 									onClick={() => handleChatClick(chat)}
 								>
-									<span class="text-[12px] shrink-0 opacity-70">
+									<span class="shrink-0 text-[12px] opacity-70">
 										{chat.mode === 'storyteller'
 											? '📝'
 											: '💬'}
 									</span>
 									<span
-										class="flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap"
+										class="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap"
 										title={
 											chat.title ||
 											`Chat ${chat.id.slice(0, 6)}`
@@ -239,6 +242,7 @@ export function LeftPanel() {
 									<ModeTag mode={chat.mode} />
 									<div class={itemActionsCls}>
 										<button
+											type="button"
 											class={iconBtnCls}
 											onClick={(e) =>
 												handleDeleteChat(e, chat.id)
@@ -248,7 +252,7 @@ export function LeftPanel() {
 											✕
 										</button>
 									</div>
-								</div>
+								</button>
 							))}
 						</div>
 
@@ -259,6 +263,7 @@ export function LeftPanel() {
 									Your Persona
 								</span>
 								<button
+									type="button"
 									class={addBtnCls}
 									onClick={() =>
 										setEditingChar('new-persona')
@@ -279,22 +284,23 @@ export function LeftPanel() {
 								.filter((c) => c.isUserPersona)
 								.map((char) => (
 									<div key={char.id} class={itemCls}>
-										<span class="text-[12px] shrink-0 opacity-70">
+										<span class="shrink-0 text-[12px] opacity-70">
 											🧑
 										</span>
 										<span
-											class="flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap"
+											class="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap"
 											title={char.name}
 										>
 											{char.name}
 										</span>
 										{char.role && (
-											<span class="text-[9px] text-text-muted whitespace-nowrap overflow-hidden text-ellipsis max-w-[60px] shrink-0">
+											<span class="max-w-[60px] shrink-0 overflow-hidden text-ellipsis whitespace-nowrap text-[9px] text-text-muted">
 												{char.role}
 											</span>
 										)}
 										<div class={itemActionsCls}>
 											<button
+												type="button"
 												class={iconBtnCls}
 												onClick={(e) => {
 													e.stopPropagation();
@@ -305,6 +311,7 @@ export function LeftPanel() {
 												✎
 											</button>
 											<button
+												type="button"
 												class={iconBtnCls}
 												onClick={(e) =>
 													handleDeleteChar(e, char.id)
@@ -323,6 +330,7 @@ export function LeftPanel() {
 							<div class={sectionHeaderCls}>
 								<span class={sectionLabelCls}>Characters</span>
 								<button
+									type="button"
 									class={addBtnCls}
 									onClick={() => setEditingChar('new')}
 									title="New character"
@@ -339,17 +347,17 @@ export function LeftPanel() {
 								.map((char) => (
 									<div key={char.id}>
 										<div class={itemCls}>
-											<span class="text-[12px] shrink-0 opacity-70">
+											<span class="shrink-0 text-[12px] opacity-70">
 												🎭
 											</span>
 											<span
-												class="flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap"
+												class="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap"
 												title={char.name}
 											>
 												{char.name}
 											</span>
 											{char.role && (
-												<span class="text-[9px] text-text-muted whitespace-nowrap overflow-hidden text-ellipsis max-w-[60px] shrink-0">
+												<span class="max-w-[60px] shrink-0 overflow-hidden text-ellipsis whitespace-nowrap text-[9px] text-text-muted">
 													{char.role}
 												</span>
 											)}
@@ -400,11 +408,11 @@ export function LeftPanel() {
 											</div>
 										</div>
 										{expandedTimeline === char.id && (
-											<div class="mx-3 mb-1.5 ml-8 border-l-2 border-border pl-2 flex flex-col gap-1">
+											<div class="mx-3 mb-1.5 ml-8 flex flex-col gap-1 border-border border-l-2 pl-2">
 												{!char.genesisMemoryId && (
 													<button
 														type="button"
-														class="text-[11px] px-2 py-1 rounded-sm text-text-muted border border-dashed border-border w-full text-left transition-colors duration-100 hover:text-accent hover:border-accent"
+														class="w-full rounded-sm border border-border border-dashed px-2 py-1 text-left text-[11px] text-text-muted transition-colors duration-100 hover:border-accent hover:text-accent"
 														onClick={(e) =>
 															handleInitGenesis(
 																e,
@@ -458,7 +466,7 @@ export function LeftPanel() {
 																	class="flex items-start gap-[5px] text-[11px] text-text-secondary"
 																>
 																	<span
-																		class="shrink-0 text-[9px] text-text-muted mt-px"
+																		class="mt-px shrink-0 text-[9px] text-text-muted"
 																		title={
 																			mem.importance >=
 																			0.8
@@ -472,7 +480,7 @@ export function LeftPanel() {
 																			: '○'}
 																	</span>
 																	<span
-																		class="flex-1 min-w-0 leading-[1.4]"
+																		class="min-w-0 flex-1 leading-[1.4]"
 																		title={
 																			mem.summary
 																		}
@@ -486,7 +494,7 @@ export function LeftPanel() {
 																	</span>
 																	{locName && (
 																		<span
-																			class="text-[9px] text-text-muted whitespace-nowrap overflow-hidden text-ellipsis max-w-[60px] shrink-0"
+																			class="max-w-[60px] shrink-0 overflow-hidden text-ellipsis whitespace-nowrap text-[9px] text-text-muted"
 																			title={`Location: ${locName}`}
 																		>
 																			📍
@@ -497,7 +505,7 @@ export function LeftPanel() {
 																	)}
 																	<button
 																		type="button"
-																		class="shrink-0 text-[10px] px-1.5 py-px rounded-sm bg-accent-dim text-accent transition-colors duration-100 whitespace-nowrap hover:bg-accent hover:text-text-on-accent"
+																		class="shrink-0 whitespace-nowrap rounded-sm bg-accent-dim px-1.5 py-px text-accent text-sm transition-colors duration-100 hover:bg-accent hover:text-text-on-accent"
 																		onClick={() =>
 																			handleBranchFromMemory(
 																				char.id,
@@ -523,6 +531,7 @@ export function LeftPanel() {
 							<div class={sectionHeaderCls}>
 								<span class={sectionLabelCls}>Locations</span>
 								<button
+									type="button"
 									class={addBtnCls}
 									onClick={() => setEditingLocation('new')}
 									title="New location"
@@ -535,17 +544,18 @@ export function LeftPanel() {
 							)}
 							{locations.map((loc) => (
 								<div key={loc.id} class={itemCls}>
-									<span class="text-[12px] shrink-0 opacity-70">
+									<span class="shrink-0 text-[12px] opacity-70">
 										📍
 									</span>
 									<span
-										class="flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap"
+										class="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap"
 										title={loc.name}
 									>
 										{loc.name}
 									</span>
 									<div class={itemActionsCls}>
 										<button
+											type="button"
 											class={iconBtnCls}
 											onClick={(e) => {
 												e.stopPropagation();
@@ -556,6 +566,7 @@ export function LeftPanel() {
 											✎
 										</button>
 										<button
+											type="button"
 											class={iconBtnCls}
 											onClick={(e) =>
 												handleDeleteLocation(e, loc.id)
@@ -574,6 +585,7 @@ export function LeftPanel() {
 							<div class={sectionHeaderCls}>
 								<span class={sectionLabelCls}>Story</span>
 								<button
+									type="button"
 									class={iconBtnCls}
 									onClick={() =>
 										setEditingStory(selectedStoryId)
@@ -584,7 +596,8 @@ export function LeftPanel() {
 								</button>
 							</div>
 							<button
-								class="flex items-center gap-2 w-full px-3 py-1.5 text-[12px] text-text-muted rounded-none transition-colors duration-100 text-left hover:bg-bg-hover hover:text-gold"
+								type="button"
+								class="flex w-full items-center gap-2 rounded-none px-3 py-1.5 text-left text-[12px] text-text-muted transition-colors duration-100 hover:bg-bg-hover hover:text-gold"
 								onClick={() => setShowTimeline(true)}
 							>
 								<span>⏱</span>
@@ -593,9 +606,10 @@ export function LeftPanel() {
 						</div>
 					</div>
 
-					<div class="shrink-0 border-t border-border px-2.5 py-2">
+					<div class="shrink-0 border-border border-t px-2.5 py-2">
 						<button
-							class="w-full text-left px-2 py-1.5 text-[12px] text-text-muted rounded-sm transition-colors duration-100 hover:bg-bg-hover hover:text-text-primary"
+							class="w-full rounded-sm px-2 py-1.5 text-left text-[12px] text-text-muted transition-colors duration-100 hover:bg-bg-hover hover:text-text-primary"
+							type="button"
 							onClick={() => setShowSettings(true)}
 						>
 							⚙ Settings
@@ -605,8 +619,8 @@ export function LeftPanel() {
 			) : (
 				/* ── Stories list view ── */
 				<>
-					<div class="flex items-center justify-between px-3 pt-3.5 pb-2.5 border-b border-border shrink-0">
-						<span class="font-display text-[13px] font-semibold text-gold tracking-[0.1em]">
+					<div class="flex shrink-0 items-center justify-between border-border border-b px-3 pt-3.5 pb-2.5">
+						<span class="font-display font-semibold text-[13px] text-gold tracking-[0.1em]">
 							✦ SimpleChat
 						</span>
 						<OllamaStatus healthy={ollamaHealthy} />
@@ -617,6 +631,7 @@ export function LeftPanel() {
 							<div class={sectionHeaderCls}>
 								<span class={sectionLabelCls}>Stories</span>
 								<button
+									type="button"
 									class={addBtnCls}
 									onClick={() => setShowCreateStory(true)}
 									title="New story"
@@ -651,20 +666,22 @@ export function LeftPanel() {
 							{stories.map((story) => (
 								<div
 									key={story.id}
+									type="button"
 									class={itemCls}
 									onClick={() => handleStoryClick(story.id)}
 								>
-									<span class="text-[12px] shrink-0 opacity-70">
+									<span class="shrink-0 text-[12px] opacity-70">
 										📖
 									</span>
 									<span
-										class="flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap"
+										class="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap"
 										title={story.title}
 									>
 										{story.title}
 									</span>
 									<div class={itemActionsCls}>
 										<button
+											type="button"
 											class={iconBtnCls}
 											onClick={(e) => {
 												e.stopPropagation();
@@ -677,6 +694,7 @@ export function LeftPanel() {
 											✎
 										</button>
 										<button
+											type="button"
 											class={iconBtnCls}
 											onClick={(e) =>
 												handleDeleteStory(e, story.id)
@@ -691,12 +709,13 @@ export function LeftPanel() {
 						</div>
 					</div>
 
-					<div class="shrink-0 border-t border-border px-2.5 py-2">
+					<div class="shrink-0 border-border border-t px-2.5 py-2">
 						<button
-							class="w-full text-left px-2 py-1.5 text-[12px] text-text-muted rounded-sm transition-colors duration-100 hover:bg-bg-hover hover:text-text-primary"
+							type="button"
+							class="w-full rounded-sm px-2 py-1.5 text-left text-[12px] text-text-muted transition-colors duration-100 hover:bg-bg-hover hover:text-text-primary"
 							onClick={() => setShowSettings(true)}
 						>
-							⚙ Settings
+							Settings
 						</button>
 					</div>
 				</>

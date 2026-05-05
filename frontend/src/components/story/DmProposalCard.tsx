@@ -54,14 +54,14 @@ export function DmProposalCard({
 	const preview = getPreviewLines(proposal);
 
 	return (
-		<div class="bg-bg-tertiary border border-accent rounded p-3.5 flex flex-col gap-1.5">
+		<div class="flex flex-col gap-1.5 rounded border border-accent bg-bg-tertiary p-3.5">
 			<div class="flex items-center gap-2">
 				<span
-					class={`text-[10px] font-bold tracking-[0.08em] uppercase py-[2px] px-[7px] rounded-full shrink-0 ${BADGE_CLS[proposal.type]}`}
+					class={`shrink-0 rounded-full px-[7px] py-[2px] font-bold text-sm uppercase tracking-[0.08em] ${BADGE_CLS[proposal.type]}`}
 				>
 					{TYPE_LABEL[proposal.type]}
 				</span>
-				<span class="text-[13px] font-semibold text-text-primary overflow-hidden text-ellipsis whitespace-nowrap">
+				<span class="overflow-hidden text-ellipsis whitespace-nowrap font-semibold text-[13px] text-text-primary">
 					{typeof proposal.entityData.name === 'string'
 						? proposal.entityData.name
 						: TYPE_LABEL[proposal.type]}
@@ -72,7 +72,7 @@ export function DmProposalCard({
 					{preview.slice(1).map((line, i) => (
 						<div
 							key={i}
-							class="text-xs text-text-secondary overflow-hidden text-ellipsis whitespace-nowrap"
+							class="overflow-hidden text-ellipsis whitespace-nowrap text-text-secondary text-xs"
 						>
 							{line}
 						</div>
@@ -84,16 +84,16 @@ export function DmProposalCard({
 					{proposal.rationale}
 				</div>
 			)}
-			<div class="flex gap-2 mt-1">
+			<div class="mt-1 flex gap-2">
 				<button
-					class="flex-1 py-[5px] px-2.5 text-xs font-semibold rounded-sm bg-accent text-white transition-opacity duration-150 hover:enabled:opacity-85 disabled:opacity-50 disabled:cursor-not-allowed"
+					class="flex-1 rounded-sm bg-accent px-2.5 py-[5px] font-semibold text-white text-xs transition-opacity duration-150 hover:enabled:opacity-85 disabled:cursor-not-allowed disabled:opacity-50"
 					onClick={onAccept}
 					disabled={isAccepting}
 				>
 					{isAccepting ? 'Adding…' : 'Accept'}
 				</button>
 				<button
-					class="py-[5px] px-3 text-xs rounded-sm bg-transparent text-text-muted border border-border-light transition-all duration-150 hover:enabled:text-text-primary hover:enabled:bg-bg-hover disabled:opacity-50 disabled:cursor-not-allowed"
+					class="rounded-sm border border-border-light bg-transparent px-3 py-[5px] text-text-muted text-xs transition-all duration-150 hover:enabled:bg-bg-hover hover:enabled:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
 					onClick={onDecline}
 					disabled={isAccepting}
 				>

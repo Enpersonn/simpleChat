@@ -134,9 +134,12 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
 				</div>
 
 				<div class={f.field}>
-					<label class={f.label}>Active Model (default)</label>
+					<label class={f.label} htmlFor="activeModel">
+						Active Model (default)
+					</label>
 					<div class="flex items-center gap-[6px]">
 						<input
+							id="activeModel"
 							class={f.input}
 							style={{ flex: 1 }}
 							value={model}
@@ -146,6 +149,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
 							placeholder="e.g. llama3:8b"
 						/>
 						<button
+							type="button"
 							class="shrink-0 rounded-sm border border-border bg-bg-tertiary px-[10px] py-[7px] text-[15px] text-text-muted transition-all duration-150 hover:enabled:border-accent hover:enabled:text-accent disabled:cursor-default disabled:opacity-50"
 							onClick={handleLoadModels}
 							disabled={modelsLoading}
@@ -168,9 +172,10 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
 						</button>
 					</div>
 					{availableModels.length > 0 && (
-						<div class="flex max-h-[160px] flex-col gap-[2px] overflow-y-auto rounded-sm border border-border bg-bg-tertiary p-[4px]">
+						<div class="flex max-h-40 flex-col gap-0.5 overflow-y-auto rounded-sm border border-border bg-bg-tertiary p-[4px]">
 							{availableModels.map((m) => (
 								<button
+									type="button"
 									key={m}
 									class="flex items-center justify-between overflow-hidden text-ellipsis whitespace-nowrap rounded-sm px-[8px] py-[5px] text-left text-[12px] text-text-secondary hover:bg-bg-hover hover:text-text-primary data-[active=true]:bg-accent-dim data-[active=true]:font-medium data-[active=true]:text-accent"
 									data-active={
@@ -235,7 +240,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
 				</div>
 
 				<div class={f.field}>
-					<label class={f.label}>
+					<label id="global-note-text-area" class={f.label}>
 						Global Note{' '}
 						<span class={f.labelHint}>
 							(appended to every system prompt)

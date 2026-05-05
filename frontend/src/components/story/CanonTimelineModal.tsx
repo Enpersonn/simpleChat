@@ -1,14 +1,14 @@
-import { useState, useEffect, useRef } from 'preact/hooks';
 import type {
 	CanonEntry,
-	CharacterMemory,
 	Character,
+	CharacterMemory,
 	Chat,
 } from '@simplechat/types';
-import { useStoriesStore } from '../../store/stories.js';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { api } from '../../lib/api.js';
-import { NewChatModal } from '../chat/NewChatModal.js';
 import { useChatsStore } from '../../store/chats.js';
+import { useStoriesStore } from '../../store/stories.js';
+import { NewChatModal } from '../chat/NewChatModal.js';
 
 interface Props {
 	storyId: string;
@@ -149,16 +149,16 @@ export function CanonTimelineModal({ storyId, onClose }: Props) {
 	return (
 		<>
 			<div
-				class="fixed inset-0 bg-black/70 flex items-stretch justify-center z-100 backdrop-blur-sm"
+				class="fixed inset-0 z-100 flex items-stretch justify-center bg-black/70 backdrop-blur-sm"
 				onClick={(e) => {
 					if (e.target === e.currentTarget) onClose();
 				}}
 			>
-				<div class="bg-bg-primary border-x border-border-light w-[680px] max-w-full flex flex-col overflow-hidden">
+				<div class="flex w-[680px] max-w-full flex-col overflow-hidden border-border-light border-x bg-bg-primary">
 					{/* Header */}
-					<div class="flex items-center justify-between py-[18px] px-6 pb-[14px] border-b border-border shrink-0 bg-bg-secondary">
+					<div class="flex shrink-0 items-center justify-between border-border border-b bg-bg-secondary px-6 py-[18px] pb-[14px]">
 						<div class="flex flex-col gap-[2px]">
-							<span class="text-base font-semibold text-text-primary">
+							<span class="font-semibold text-base text-text-primary">
 								Canon Timeline
 							</span>
 							{story && (
@@ -168,7 +168,7 @@ export function CanonTimelineModal({ storyId, onClose }: Props) {
 							)}
 						</div>
 						<button
-							class="text-text-muted text-[18px] py-1 px-2 rounded-sm shrink-0 transition-colors duration-150 hover:text-text-primary hover:bg-bg-hover"
+							class="shrink-0 rounded-sm px-2 py-1 text-[18px] text-text-muted transition-colors duration-150 hover:bg-bg-hover hover:text-text-primary"
 							onClick={onClose}
 						>
 							✕
@@ -177,12 +177,12 @@ export function CanonTimelineModal({ storyId, onClose }: Props) {
 
 					{/* Toolbar */}
 					{charsInTimeline.length > 0 && (
-						<div class="flex items-center gap-2 py-2.5 px-6 border-b border-border shrink-0 bg-bg-secondary flex-wrap">
-							<span class="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-muted shrink-0">
+						<div class="flex shrink-0 flex-wrap items-center gap-2 border-border border-b bg-bg-secondary px-6 py-2.5">
+							<span class="shrink-0 font-semibold text-[11px] text-text-muted uppercase tracking-[0.06em]">
 								Filter
 							</span>
 							<button
-								class={`text-[11px] py-[3px] px-2.5 rounded-xl border transition-all duration-150 whitespace-nowrap cursor-pointer ${activeCharFilter === null ? 'bg-accent-dim border-accent text-accent' : 'border-border-light text-text-secondary bg-transparent hover:border-accent hover:text-text-primary'}`}
+								class={`cursor-pointer whitespace-nowrap rounded-xl border px-2.5 py-[3px] text-[11px] transition-all duration-150 ${activeCharFilter === null ? 'border-accent bg-accent-dim text-accent' : 'border-border-light bg-transparent text-text-secondary hover:border-accent hover:text-text-primary'}`}
 								onClick={() => setActiveCharFilter(null)}
 							>
 								All
@@ -190,7 +190,7 @@ export function CanonTimelineModal({ storyId, onClose }: Props) {
 							{charsInTimeline.map((char) => (
 								<button
 									key={char.id}
-									class={`text-[11px] py-[3px] px-2.5 rounded-xl border transition-all duration-150 whitespace-nowrap cursor-pointer ${activeCharFilter === char.id ? 'bg-accent-dim border-accent text-accent' : 'border-border-light text-text-secondary bg-transparent hover:border-accent hover:text-text-primary'}`}
+									class={`cursor-pointer whitespace-nowrap rounded-xl border px-2.5 py-[3px] text-[11px] transition-all duration-150 ${activeCharFilter === char.id ? 'border-accent bg-accent-dim text-accent' : 'border-border-light bg-transparent text-text-secondary hover:border-accent hover:text-text-primary'}`}
 									onClick={() =>
 										setActiveCharFilter(
 											activeCharFilter === char.id
@@ -206,9 +206,9 @@ export function CanonTimelineModal({ storyId, onClose }: Props) {
 					)}
 
 					{/* Body */}
-					<div class="flex-1 overflow-y-auto px-6 py-6 flex flex-col gap-0">
+					<div class="flex flex-1 flex-col gap-0 overflow-y-auto px-6 py-6">
 						{visibleEntries.length === 0 && (
-							<div class="flex flex-col items-center justify-center gap-2.5 py-[60px] px-6 text-text-muted text-center">
+							<div class="flex flex-col items-center justify-center gap-2.5 px-6 py-[60px] text-center text-text-muted">
 								<span class="text-[32px] opacity-40">⏱</span>
 								<span class="text-sm italic">
 									{entries.length === 0
@@ -220,10 +220,10 @@ export function CanonTimelineModal({ storyId, onClose }: Props) {
 
 						{visibleEntries.length > 0 && (
 							<>
-								<div class="flex items-center gap-2.5 py-2 text-text-muted text-[11px] font-semibold tracking-[0.08em] uppercase">
-									<span class="flex-1 h-px bg-border-light" />
+								<div class="flex items-center gap-2.5 py-2 font-semibold text-[11px] text-text-muted uppercase tracking-[0.08em]">
+									<span class="h-px flex-1 bg-border-light" />
 									<span>Start of Story</span>
-									<span class="flex-1 h-px bg-border-light" />
+									<span class="h-px flex-1 bg-border-light" />
 								</div>
 
 								{visibleEntries.map((entry, idx) => {
@@ -249,11 +249,11 @@ export function CanonTimelineModal({ storyId, onClose }: Props) {
 											}
 										>
 											<div
-												class={`w-[2px] shrink-0 bg-border-light transition-all duration-100 ${isDropTarget ? 'h-7 !bg-accent rounded-[2px]' : 'h-3'}`}
+												class={`w-[2px] shrink-0 bg-border-light transition-all duration-100 ${isDropTarget ? '!bg-accent h-7 rounded-[2px]' : 'h-3'}`}
 											/>
 
 											<div
-												class={`w-full bg-bg-secondary border border-border-light rounded-lg py-3.5 px-4 flex gap-3 items-start cursor-grab transition-all duration-150 relative hover:border-border hover:shadow-lg ${isDragging ? 'opacity-40' : ''}`}
+												class={`relative flex w-full cursor-grab items-start gap-3 rounded-lg border border-border-light bg-bg-secondary px-4 py-3.5 transition-all duration-150 hover:border-border hover:shadow-lg ${isDragging ? 'opacity-40' : ''}`}
 												draggable
 												onDragStart={(e) =>
 													handleDragStart(
@@ -263,23 +263,23 @@ export function CanonTimelineModal({ storyId, onClose }: Props) {
 												}
 												onDragEnd={handleDragEnd}
 											>
-												<span class="text-base text-text-muted cursor-grab shrink-0 leading-[1.4] select-none pt-[2px] group-hover:text-text-secondary">
+												<span class="shrink-0 cursor-grab select-none pt-[2px] text-base text-text-muted leading-[1.4] group-hover:text-text-secondary">
 													⠿
 												</span>
 
-												<div class="flex-1 min-w-0 flex flex-col gap-1.5">
-													<div class="flex items-center gap-2 flex-wrap">
-														<span class="text-[13px] opacity-80 shrink-0">
+												<div class="flex min-w-0 flex-1 flex-col gap-1.5">
+													<div class="flex flex-wrap items-center gap-2">
+														<span class="shrink-0 text-[13px] opacity-80">
 															{char?.isUserPersona
 																? '🧑'
 																: '🎭'}
 														</span>
-														<span class="text-xs font-semibold text-accent shrink-0">
+														<span class="shrink-0 font-semibold text-accent text-xs">
 															{char?.name ??
 																'Unknown'}
 														</span>
 														{entry.label && (
-															<span class="text-[11px] text-text-muted italic overflow-hidden text-ellipsis whitespace-nowrap">
+															<span class="overflow-hidden text-ellipsis whitespace-nowrap text-[11px] text-text-muted italic">
 																{entry.label}
 															</span>
 														)}
@@ -290,7 +290,7 @@ export function CanonTimelineModal({ storyId, onClose }: Props) {
 															<div class="text-[13px] text-text-primary leading-[1.45]">
 																{memory.summary}
 															</div>
-															<div class="flex items-center gap-1.5 flex-wrap">
+															<div class="flex flex-wrap items-center gap-1.5">
 																{memory.tags
 																	.slice(0, 4)
 																	.map(
@@ -301,7 +301,7 @@ export function CanonTimelineModal({ storyId, onClose }: Props) {
 																				key={
 																					tag
 																				}
-																				class="text-[10px] py-[2px] px-[7px] rounded-[9px] bg-bg-active text-text-muted whitespace-nowrap"
+																				class="whitespace-nowrap rounded-[9px] bg-bg-active px-[7px] py-[2px] text-sm text-text-muted"
 																			>
 																				{
 																					tag
@@ -310,7 +310,7 @@ export function CanonTimelineModal({ storyId, onClose }: Props) {
 																		),
 																	)}
 																<div
-																	class="h-[3px] rounded-[2px] bg-border-light w-12 relative overflow-hidden shrink-0"
+																	class="relative h-[3px] w-12 shrink-0 overflow-hidden rounded-[2px] bg-border-light"
 																	title={`Importance: ${memory.importance.toFixed(1)}`}
 																>
 																	<div
@@ -320,7 +320,7 @@ export function CanonTimelineModal({ storyId, onClose }: Props) {
 																		}}
 																	/>
 																</div>
-																<span class="text-[10px] text-text-muted">
+																<span class="text-sm text-text-muted">
 																	{memory.importance.toFixed(
 																		1,
 																	)}
@@ -342,9 +342,9 @@ export function CanonTimelineModal({ storyId, onClose }: Props) {
 													)}
 												</div>
 
-												<div class="flex flex-col items-end gap-1.5 shrink-0">
+												<div class="flex shrink-0 flex-col items-end gap-1.5">
 													<button
-														class="text-[11px] font-semibold py-[5px] px-2.5 rounded-sm bg-accent-dim text-accent border border-transparent whitespace-nowrap transition-all duration-150 hover:bg-accent hover:text-white hover:border-accent"
+														class="whitespace-nowrap rounded-sm border border-transparent bg-accent-dim px-2.5 py-[5px] font-semibold text-[11px] text-accent transition-all duration-150 hover:border-accent hover:bg-accent hover:text-white"
 														onClick={() =>
 															handleStartChat(
 																entry,
@@ -355,7 +355,7 @@ export function CanonTimelineModal({ storyId, onClose }: Props) {
 														▶ Start here
 													</button>
 													<button
-														class="text-[11px] py-1 px-1.5 rounded-sm text-text-muted transition-all duration-150 leading-none hover:text-error hover:bg-[rgba(239,68,68,0.1)]"
+														class="rounded-sm px-1.5 py-1 text-[11px] text-text-muted leading-none transition-all duration-150 hover:bg-[rgba(239,68,68,0.1)] hover:text-error"
 														onClick={() =>
 															handleDelete(
 																entry.id,
@@ -387,14 +387,14 @@ export function CanonTimelineModal({ storyId, onClose }: Props) {
 									}
 								>
 									<div
-										class={`w-[2px] shrink-0 bg-border-light transition-all duration-100 ${dropTargetIdx === visibleEntries.length ? 'h-7 !bg-accent rounded-[2px]' : 'h-3'}`}
+										class={`w-[2px] shrink-0 bg-border-light transition-all duration-100 ${dropTargetIdx === visibleEntries.length ? '!bg-accent h-7 rounded-[2px]' : 'h-3'}`}
 									/>
 								</div>
 
-								<div class="flex items-center gap-2.5 py-2 text-text-muted text-[11px] font-semibold tracking-[0.08em] uppercase">
-									<span class="flex-1 h-px bg-border-light" />
+								<div class="flex items-center gap-2.5 py-2 font-semibold text-[11px] text-text-muted uppercase tracking-[0.08em]">
+									<span class="h-px flex-1 bg-border-light" />
 									<span>End of Canon</span>
-									<span class="flex-1 h-px bg-border-light" />
+									<span class="h-px flex-1 bg-border-light" />
 								</div>
 							</>
 						)}

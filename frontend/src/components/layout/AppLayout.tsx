@@ -12,7 +12,7 @@ const RIGHT_MAX = 460;
 
 function readInt(key: string, fallback: number): number {
 	const v = localStorage.getItem(key);
-	return v ? parseInt(v, 10) : fallback;
+	return v ? Number.parseInt(v, 10) : fallback;
 }
 
 export function AppLayout() {
@@ -33,7 +33,7 @@ export function AppLayout() {
 	const [rightCollapsed, setRightCollapsed] = useState(false);
 
 	const dragging = useRef<'left' | 'right' | null>(null);
-	const dragStart = useRef<{ x: number; width: number }>({ x: 0, width: 0 });
+	const dragStart = useRef<{ x: number; width: number }>({ width: 0, x: 0 });
 
 	useEffect(() => {
 		loadSettings().then(() => {
@@ -64,13 +64,13 @@ export function AppLayout() {
 
 	const startLeftDrag = (e: MouseEvent) => {
 		dragging.current = 'left';
-		dragStart.current = { x: e.clientX, width: leftWidth };
+		dragStart.current = { width: leftWidth, x: e.clientX };
 		e.preventDefault();
 	};
 
 	const startRightDrag = (e: MouseEvent) => {
 		dragging.current = 'right';
-		dragStart.current = { x: e.clientX, width: rightWidth };
+		dragStart.current = { width: rightWidth, x: e.clientX };
 		e.preventDefault();
 	};
 
@@ -106,10 +106,10 @@ export function AppLayout() {
 	}, []);
 
 	return (
-		<div class="flex h-screen overflow-hidden bg-bg-primary select-none">
+		<div class="flex h-screen select-none overflow-hidden bg-bg-primary">
 			{/* Left sidebar */}
 			<div
-				class="shrink-0 flex flex-col bg-bg-secondary overflow-hidden transition-[width] duration-200 min-w-0"
+				class="flex min-w-0 shrink-0 flex-col overflow-hidden bg-bg-secondary transition-[width] duration-200"
 				style={{ width: leftCollapsed ? 0 : leftWidth }}
 				data-collapsed={leftCollapsed ? 'true' : undefined}
 			>
@@ -117,17 +117,17 @@ export function AppLayout() {
 			</div>
 
 			{/* Left drag + collapse handle */}
-			<div class="relative w-3 shrink-0 flex flex-col items-center z-10">
+			<div class="relative z-10 flex w-3 shrink-0 flex-col items-center">
 				{!leftCollapsed && (
 					<div
-						class="absolute top-0 bottom-0 w-1 left-[1px] cursor-col-resize bg-transparent transition-colors duration-150 hover:bg-gold-border"
+						class="absolute top-0 bottom-0 left-[1px] w-1 cursor-col-resize bg-transparent transition-colors duration-150 hover:bg-gold-border"
 						onMouseDown={startLeftDrag}
 						title="Drag to resize"
 					/>
 				)}
 				<button
 					type="button"
-					class="absolute top-1/2 -translate-y-1/2 w-[14px] h-8 text-[10px] text-text-muted bg-bg-tertiary border border-border rounded flex items-center justify-center cursor-pointer transition-colors duration-150 p-0 leading-none hover:text-gold hover:border-gold-border hover:bg-bg-hover"
+					class="absolute top-1/2 flex h-8 w-[14px] -translate-y-1/2 cursor-pointer items-center justify-center rounded border border-border bg-bg-tertiary p-0 text-sm text-text-muted leading-none transition-colors duration-150 hover:border-gold-border hover:bg-bg-hover hover:text-gold"
 					data-side="left"
 					onClick={() => setLeftCollapsed((v) => !v)}
 					title={
@@ -139,18 +139,18 @@ export function AppLayout() {
 			</div>
 
 			{/* Main content */}
-			<div class="flex-1 flex flex-col overflow-hidden min-w-0 select-text">
+			<div class="flex min-w-0 flex-1 select-text flex-col overflow-hidden">
 				{activeChatId ? (
 					<ChatWindow />
 				) : (
-					<div class="flex-1 flex flex-col items-center justify-center gap-[10px] text-text-muted select-none">
-						<div class="text-[12px] tracking-[8px] text-gold-border mb-1">
+					<div class="flex flex-1 select-none flex-col items-center justify-center gap-[10px] text-text-muted">
+						<div class="mb-1 text-[12px] text-gold-border tracking-[8px]">
 							✦ ✦ ✦
 						</div>
-						<h2 class="font-display text-[22px] font-normal text-text-secondary tracking-[0.08em]">
+						<h2 class="font-display font-normal text-[22px] text-text-secondary tracking-[0.08em]">
 							SimpleChat
 						</h2>
-						<p class="text-[13px] text-center max-w-[260px] leading-[1.7] text-text-muted">
+						<p class="max-w-[260px] text-center text-[13px] text-text-muted leading-[1.7]">
 							Select a story and open a chat to begin your
 							session.
 						</p>
@@ -159,17 +159,17 @@ export function AppLayout() {
 			</div>
 
 			{/* Right drag + collapse handle */}
-			<div class="relative w-3 shrink-0 flex flex-col items-center z-10">
+			<div class="relative z-10 flex w-3 shrink-0 flex-col items-center">
 				{!rightCollapsed && (
 					<div
-						class="absolute top-0 bottom-0 w-1 right-[1px] cursor-col-resize bg-transparent transition-colors duration-150 hover:bg-gold-border"
+						class="absolute top-0 right-[1px] bottom-0 w-1 cursor-col-resize bg-transparent transition-colors duration-150 hover:bg-gold-border"
 						onMouseDown={startRightDrag}
 						title="Drag to resize"
 					/>
 				)}
 				<button
 					type="button"
-					class="absolute top-1/2 -translate-y-1/2 w-[14px] h-8 text-[10px] text-text-muted bg-bg-tertiary border border-border rounded flex items-center justify-center cursor-pointer transition-colors duration-150 p-0 leading-none hover:text-gold hover:border-gold-border hover:bg-bg-hover"
+					class="absolute top-1/2 flex h-8 w-[14px] -translate-y-1/2 cursor-pointer items-center justify-center rounded border border-border bg-bg-tertiary p-0 text-sm text-text-muted leading-none transition-colors duration-150 hover:border-gold-border hover:bg-bg-hover hover:text-gold"
 					data-side="right"
 					onClick={() => setRightCollapsed((v) => !v)}
 					title={rightCollapsed ? 'Expand panel' : 'Collapse panel'}
@@ -180,7 +180,7 @@ export function AppLayout() {
 
 			{/* Right sidebar */}
 			<div
-				class="shrink-0 flex flex-col bg-bg-secondary overflow-y-auto overflow-x-hidden transition-[width] duration-200 min-w-0"
+				class="flex min-w-0 shrink-0 flex-col overflow-y-auto overflow-x-hidden bg-bg-secondary transition-[width] duration-200"
 				style={{ width: rightCollapsed ? 0 : rightWidth }}
 				data-collapsed={rightCollapsed ? 'true' : undefined}
 			>
