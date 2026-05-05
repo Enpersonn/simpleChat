@@ -56,9 +56,6 @@ export function LeftPanel() {
 	const [editingChar, setEditingChar] = useState<
 		Character | null | 'new' | 'new-persona'
 	>(null);
-	const [editingLocation, setEditingLocation] = useState<
-		Location | null | 'new'
-	>(null);
 	const [showSettings, setShowSettings] = useState(false);
 	const [showTimeline, setShowTimeline] = useState(false);
 	const [expandedTimeline, setExpandedTimeline] = useState<string | null>(
@@ -675,56 +672,47 @@ export function LeftPanel() {
 					</div>
 				</>
 			)}
-			{(editingChar === 'new' || editingChar === 'new-persona') &&
-				createPortal(
-					<CharacterModal
-						defaultIsPersona={editingChar === 'new-persona'}
-						onClose={() => setEditingChar(null)}
-						onSaved={() => setEditingChar(null)}
-					/>,
-					document.body,
-				)}
+			{(editingChar === 'new' || editingChar === 'new-persona') && (
+				<CharacterModal
+					defaultIsPersona={editingChar === 'new-persona'}
+					onClose={() => setEditingChar(null)}
+					onSaved={() => setEditingChar(null)}
+				/>
+			)}
 
 			{editingChar &&
 				editingChar !== 'new' &&
-				editingChar !== 'new-persona' &&
-				createPortal(
+				editingChar !== 'new-persona' && (
 					<CharacterModal
 						initial={editingChar}
 						onClose={() => setEditingChar(null)}
 						onSaved={() => setEditingChar(null)}
-					/>,
-					document.body,
+					/>
 				)}
 
-			{showNewChat &&
-				selectedStoryId &&
-				createPortal(
-					<NewChatModal
-						storyId={selectedStoryId}
-						initialAnchors={branchAnchors ?? undefined}
-						onClose={() => {
-							setShowNewChat(false);
-							setBranchAnchors(null);
-						}}
-						onCreated={(chat, openingMode) => {
-							setShowNewChat(false);
-							setBranchAnchors(null);
-							openChat(selectedStoryId, chat.id).then(() => {
-								if (openingMode === 'auto')
-									generateOpener(selectedStoryId, chat.id);
-							});
-							loadChats(selectedStoryId);
-						}}
-					/>,
-					document.body,
-				)}
+			{showNewChat && selectedStoryId && (
+				<NewChatModal
+					storyId={selectedStoryId}
+					initialAnchors={branchAnchors ?? undefined}
+					onClose={() => {
+						setShowNewChat(false);
+						setBranchAnchors(null);
+					}}
+					onCreated={(chat, openingMode) => {
+						setShowNewChat(false);
+						setBranchAnchors(null);
+						openChat(selectedStoryId, chat.id).then(() => {
+							if (openingMode === 'auto')
+								generateOpener(selectedStoryId, chat.id);
+						});
+						loadChats(selectedStoryId);
+					}}
+				/>
+			)}
 
-			{showSettings &&
-				createPortal(
-					<SettingsModal onClose={() => setShowSettings(false)} />,
-					document.body,
-				)}
+			{showSettings && (
+				<SettingsModal onClose={() => setShowSettings(false)} />
+			)}
 
 			{showTimeline &&
 				selectedStoryId &&
