@@ -59,7 +59,7 @@ export const getAllTools = (): Tool<any, any>[] => [
 	{
 		name: 'timeline.addEntry',
 		description: 'Append a new entry to the canon timeline for a story',
-		schema: z.object({ storyId: z.string(), data: z.record(z.unknown()) }),
+		schema: z.object({ storyId: z.string(), data: z.record(z.string(), z.unknown()) }),
 		execute: ({
 			storyId,
 			data,

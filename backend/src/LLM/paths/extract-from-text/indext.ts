@@ -73,7 +73,6 @@ async function withRetry<T>(
 
 export const extractionPromptRunner = (tag: string, def: string) =>
 	createPromptRunner({
-		role: 'extractor',
 		instructions: `
 Extract all "${tag}" found in the text.
 An instance of "${tag}" is defined as: ${def}
@@ -86,14 +85,14 @@ Rules:
 - Skip generic, non-specific nouns — only extract named, specific instances (e.g. skip "the man", "a building", "the street", "home", "the room").
 - If none are found, return an empty array.
 `,
-		outputSchema: z.array(z.string()),
-		temperature: 0,
 		num_ctx: 8192,
+		outputSchema: z.array(z.string()),
+		role: 'extractor',
+		temperature: 0,
 	});
 
 const consolidationRunner = (tag: string, def: string) =>
 	createPromptRunner({
-		role: 'entity consolidator',
 		instructions: `
 You are cleaning a raw list of "${tag}" extracted across multiple passes of a long text.
 An instance of "${tag}" is defined as: ${def}
@@ -107,6 +106,7 @@ Rules:
 - Do not add anything not present in the input list.
 `,
 		outputSchema: z.array(z.string()),
+		role: 'entity consolidator',
 		temperature: 0,
 	});
 
@@ -160,8 +160,8 @@ export const extractFromText = async ({
 						existing.chunkIndices.add(chunkIndex);
 					} else {
 						collected[tag].set(key, {
-							value,
 							chunkIndices: new Set([chunkIndex]),
+							value,
 						});
 					}
 				}
@@ -174,8 +174,8 @@ export const extractFromText = async ({
 
 	const toExtractedValues = (tag: string): ExtractedValue[] =>
 		[...collected[tag].values()].map(({ value, chunkIndices }) => ({
-			value,
 			chunkIndices: [...chunkIndices].sort((a, b) => a - b),
+			value,
 		}));
 
 	const raw = Object.fromEntries(
@@ -213,8 +213,8 @@ export const extractFromText = async ({
 			);
 
 			const result: ExtractedValue[] = finalValues.map((v) => ({
-				value: v,
 				chunkIndices: resolveChunkIndices(v, lookup),
+				value: v,
 			}));
 
 			return [tag, result] as const;

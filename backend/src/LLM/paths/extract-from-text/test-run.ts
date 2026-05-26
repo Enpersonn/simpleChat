@@ -8,8 +8,6 @@ import {
 
 const STORIES = {
 	holmes: {
-		title: 'The Adventures of Sherlock Holmes',
-		url: 'https://www.gutenberg.org/cache/epub/1661/pg1661.txt',
 		groundTruth: {
 			characters: [
 				'Sherlock Holmes',
@@ -20,10 +18,10 @@ const STORIES = {
 			],
 			locations: ['Baker Street', 'London'],
 		},
+		title: 'The Adventures of Sherlock Holmes',
+		url: 'https://www.gutenberg.org/cache/epub/1661/pg1661.txt',
 	},
 	'monte-cristo': {
-		title: 'The Count of Monte Cristo',
-		url: 'https://www.gutenberg.org/cache/epub/1184/pg1184.txt',
 		groundTruth: {
 			characters: [
 				'Edmond Dantès',
@@ -34,14 +32,16 @@ const STORIES = {
 			],
 			locations: ['Marseilles', 'Elba'],
 		},
+		title: 'The Count of Monte Cristo',
+		url: 'https://www.gutenberg.org/cache/epub/1184/pg1184.txt',
 	},
 	'yellow-wallpaper': {
-		title: 'The Yellow Wallpaper',
-		url: 'https://www.gutenberg.org/cache/epub/1952/pg1952.txt',
 		groundTruth: {
 			characters: ['John', 'Jennie'],
 			locations: ['colonial mansion', 'nursery'],
 		},
+		title: 'The Yellow Wallpaper',
+		url: 'https://www.gutenberg.org/cache/epub/1952/pg1952.txt',
 	},
 } satisfies Record<
 	string,
@@ -93,9 +93,9 @@ function scoreRecall(found: string[], expected: string[]) {
 	const hits = expected.filter((e) => foundLower.has(e.toLowerCase()));
 	const missing = expected.filter((e) => !foundLower.has(e.toLowerCase()));
 	return {
-		recall: expected.length > 0 ? hits.length / expected.length : 1,
 		hits,
 		missing,
+		recall: expected.length > 0 ? hits.length / expected.length : 1,
 	};
 }
 

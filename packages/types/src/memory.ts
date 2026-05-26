@@ -6,8 +6,8 @@ export const DeltaValueSchema = z.union([
 	z.boolean(),
 	z.null(),
 	z.array(z.string()),
-	z.array(z.record(z.unknown())),
-	z.record(z.unknown()),
+	z.array(z.record(z.string(), z.unknown())),
+	z.record(z.string(), z.unknown()),
 ]);
 
 export const DeltaOperationSchema = z.enum([

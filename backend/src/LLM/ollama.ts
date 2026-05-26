@@ -56,23 +56,23 @@ export async function streamChat(opts: StreamOptions): Promise<string> {
 	const model = opts.model || (await activeModel());
 
 	const body = {
-		model,
 		messages: opts.messages,
-		stream: true,
+		model,
 		options: {
-			temperature: opts.temperature ?? 0.85,
-			top_p: opts.top_p ?? 0.9,
-			top_k: opts.top_k ?? 40,
 			repeat_penalty: opts.repeat_penalty ?? 1.1,
+			temperature: opts.temperature ?? 0.85,
+			top_k: opts.top_k ?? 40,
+			top_p: opts.top_p ?? 0.9,
 			...(opts.num_predict ? { num_predict: opts.num_predict } : {}),
 			...(opts.num_ctx ? { num_ctx: opts.num_ctx } : {}),
 		},
+		stream: true,
 	};
 
 	const res = await fetch(`${endpoint}/api/chat`, {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify(body),
+		headers: { 'Content-Type': 'application/json' },
+		method: 'POST',
 		signal: opts.signal,
 	});
 

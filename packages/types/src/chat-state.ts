@@ -13,7 +13,7 @@ export const ChatEntityStateSchema = z.object({
 	chatId: z.string(),
 	storyId: z.string(),
 	currentLocationId: z.string().nullable().default(null),
-	locationOverrides: z.record(LocationOverrideSchema).default({}),
+	locationOverrides: z.record(z.string(), LocationOverrideSchema).default({}),
 	updatedAt: z.string(),
 });
 export type ChatEntityState = z.infer<typeof ChatEntityStateSchema>;

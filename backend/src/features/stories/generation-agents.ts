@@ -28,7 +28,7 @@ export const dmProposalExtractorAgent = createPromptRunner({
 	outputSchema: z.object({
 		proposals: z.array(
 			z.object({
-				entityData: z.record(z.unknown()),
+				entityData: z.record(z.string(), z.unknown()),
 				id: z.string(),
 				rationale: z.string(),
 				type: z.enum(['character', 'location', 'memory']),

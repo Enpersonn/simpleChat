@@ -3,7 +3,8 @@ import { extractJson } from '../../utils.js';
 import { LLMParseError } from '../generate.js';
 import { streamChat } from '../ollama.js';
 
-function schemaToExample(schema: z.ZodTypeAny): unknown {
+// biome-ignore lint/suspicious/noExplicitAny: temporary; replaced by router's json() method
+function schemaToExample(schema: any): unknown {
 	if (schema instanceof z.ZodString) return 'example value';
 	if (schema instanceof z.ZodNumber) return 0;
 	if (schema instanceof z.ZodBoolean) return true;
@@ -22,11 +23,11 @@ function schemaToExample(schema: z.ZodTypeAny): unknown {
 	if (schema instanceof z.ZodNullable)
 		return schemaToExample(schema.unwrap());
 	if (schema instanceof z.ZodDefault)
-		return schemaToExample(schema._def.innerType as z.ZodTypeAny);
+		return schemaToExample(schema.removeDefault());
 	if (schema instanceof z.ZodObject) {
 		const result: Record<string, unknown> = {};
 		for (const [key, value] of Object.entries(
-			schema.shape as Record<string, z.ZodTypeAny>,
+			schema.shape as Record<string, z.ZodType>,
 		)) {
 			result[key] = schemaToExample(value);
 		}
@@ -35,19 +36,17 @@ function schemaToExample(schema: z.ZodTypeAny): unknown {
 	return null;
 }
 
-function rootSchemaKind(schema: z.ZodTypeAny): 'object' | 'array' | 'value' {
+function rootSchemaKind(schema: any): 'object' | 'array' | 'value' {
 	if (schema instanceof z.ZodObject) return 'object';
 	if (schema instanceof z.ZodArray) return 'array';
-	if (
-		schema instanceof z.ZodOptional ||
-		schema instanceof z.ZodNullable ||
-		schema instanceof z.ZodDefault
-	)
-		return rootSchemaKind(schema._def.innerType as z.ZodTypeAny);
+	if (schema instanceof z.ZodOptional || schema instanceof z.ZodNullable)
+		return rootSchemaKind(schema.unwrap());
+	if (schema instanceof z.ZodDefault)
+		return rootSchemaKind(schema.removeDefault());
 	return 'value';
 }
 
-export const createPromptRunner = <T extends z.ZodTypeAny>(config: {
+export const createPromptRunner = <T extends z.ZodType<any>>(config: {
 	role: string;
 	instructions: string;
 	outputSchema: T;

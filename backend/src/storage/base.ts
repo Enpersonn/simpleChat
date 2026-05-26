@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
-import { type ZodTypeAny, z } from 'zod';
+import { z } from 'zod';
 import { dataDir } from '../config';
 import type { Tool } from '../LLM/tools/register-tool';
 import { now, readJson, writeJson } from './helpers';
@@ -9,7 +9,7 @@ type Filter<T> = Partial<{
 	[K in keyof T]: T[K] | ((value: T[K], item: T) => boolean);
 }>;
 
-export class BaseStorageObject<TSchema extends ZodTypeAny> {
+export class BaseStorageObject<TSchema extends z.ZodType<any>> {
 	public dataType: string;
 	public dataSchema: TSchema;
 
@@ -84,8 +84,8 @@ export class BaseStorageObject<TSchema extends ZodTypeAny> {
 
 		const newItem = this.dataSchema.parse({
 			...body,
-			id: randomUUID(),
 			createdAt: now(),
+			id: randomUUID(),
 			updatedAt: now(),
 		});
 
@@ -113,45 +113,47 @@ export class BaseStorageObject<TSchema extends ZodTypeAny> {
 		const t = this.dataType;
 		return [
 			{
-				name: `${t}.get`,
 				description: `Get a single ${t} record by id`,
-				schema: z.object({ id: z.string() }),
 				execute: ({ id }: { id: string }) => this.get(id),
+				name: `${t}.get`,
+				schema: z.object({ id: z.string() }),
 			},
 			{
-				name: `${t}.list`,
 				description: `List all ${t} records, optionally filtered by field values`,
-				schema: z.object({ filters: z.record(z.unknown()).optional() }),
 				execute: ({ filters }: { filters?: Record<string, unknown> }) =>
 					this.list(filters as Filter<z.infer<TSchema>>),
+				name: `${t}.list`,
+				schema: z.object({
+					filters: z.record(z.string(), z.unknown()).optional(),
+				}),
 			},
 			{
-				name: `${t}.add`,
 				description: `Create a new ${t} record`,
-				schema: z.object({ body: z.record(z.unknown()) }),
 				execute: ({ body }: { body: Record<string, unknown> }) =>
 					this.add(body),
+				name: `${t}.add`,
+				schema: z.object({ body: z.record(z.string(), z.unknown()) }),
 			},
 			{
-				name: `${t}.update`,
 				description: `Update an existing ${t} record by id`,
-				schema: z.object({
-					id: z.string(),
-					body: z.record(z.unknown()),
-				}),
 				execute: ({
 					id,
 					body,
 				}: {
 					id: string;
 					body: Record<string, unknown>;
-				}) => this.update(id, body),
+				}) => this.update(id, body as Partial<z.infer<TSchema>>),
+				name: `${t}.update`,
+				schema: z.object({
+					body: z.record(z.string(), z.unknown()),
+					id: z.string(),
+				}),
 			},
 			{
-				name: `${t}.delete`,
 				description: `Delete a ${t} record by id`,
-				schema: z.object({ id: z.string() }),
 				execute: ({ id }: { id: string }) => this.delete(id),
+				name: `${t}.delete`,
+				schema: z.object({ id: z.string() }),
 			},
 		];
 	}

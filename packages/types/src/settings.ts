@@ -38,7 +38,7 @@ export const PromptProfileSchema = z.object({
 	moodTags: z.array(MoodTagSchema).default([]),
 	responseLength: ResponseLengthSchema.default('medium'),
 	feelText: z.string().default(''),
-	generationParams: GenerationParamsSchema.default({}),
+	generationParams: GenerationParamsSchema.default(() => ({ temperature: 0.85, top_p: 0.9, top_k: 40, repeat_penalty: 1.1 })),
 });
 export type PromptProfile = z.infer<typeof PromptProfileSchema>;
 

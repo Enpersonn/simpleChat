@@ -11,7 +11,7 @@ export const DmProposalSchema = z.object({
 	id: z.string(),
 	type: z.enum(['character', 'location', 'memory']),
 	rationale: z.string(),
-	entityData: z.record(z.unknown()),
+	entityData: z.record(z.string(), z.unknown()),
 });
 export type DmProposal = z.infer<typeof DmProposalSchema>;
 
@@ -29,7 +29,7 @@ export const TurnSchema = z.object({
 			mode: ChatModeSchema,
 			promptTokens: z.number().optional(),
 			completionTokens: z.number().optional(),
-			modelParams: z.record(z.unknown()).optional(),
+			modelParams: z.record(z.string(), z.unknown()).optional(),
 		})
 		.optional(),
 });

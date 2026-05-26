@@ -18,30 +18,30 @@ export async function createGenerationContext(
 	});
 	return {
 		...input,
-
-		stream,
-
-		story: data.story,
-		chat: data.chat,
-		characters: data.characters,
-		locations: data.locations,
-		chatState: data.chatState,
-
-		originalTurns: data.turns,
-		turns: [],
-
-		characterChains: [],
-		effectiveCharacters: [],
+		accessibleMemories: [],
 
 		activeSpeaker: '',
-		accessibleMemories: [],
-		relevantMemories: [],
+
+		assistantText: '',
+
+		characterChains: [],
+		characters: data.characters,
+		chat: data.chat,
+		chatState: data.chatState,
+		effectiveCharacters: [],
+		locations: data.locations,
 		memoryReasons: {},
 
 		messages: [],
-		systemPromptText: '',
+
+		originalTurns: data.turns,
+		relevantMemories: [],
 		resolvedModel: '',
 
-		assistantText: '',
+		story: data.story,
+
+		stream,
+		systemPromptText: '',
+		turns: [],
 	};
 }

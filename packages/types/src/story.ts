@@ -23,8 +23,8 @@ export const StorySchema = z.object({
 	genres: z.array(z.string()).default([]),
 	tone: z.array(z.string()).default([]),
 	themes: z.array(z.string()).default([]),
-	rules: StoryRulesSchema.default({}),
-	writingStyle: WritingStyleSchema.default({}),
+	rules: StoryRulesSchema.default(() => ({ worldRules: [], storyRules: [], characterRules: [] })),
+	writingStyle: WritingStyleSchema.default(() => ({ prose: '', interiority: '', dialogue: '', pacing: '', sensory: '' })),
 	systemPromptOverride: z.string().default(''),
 	openingMessage: z.string().default(''),
 	pov: z
