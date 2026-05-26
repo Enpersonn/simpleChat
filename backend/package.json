@@ -1,6 +1,11 @@
 {
 	"dependencies": {
 		"@fastify/cors": "^10.0.2",
+		"@llm-helpers/an-agent-runtime-handler": "1.0.0-dev.8775a76",
+		"@llm-helpers/an-llm-request-router": "1.0.0-dev.8775a76",
+		"@llm-helpers/core": "1.0.0-dev.8775a76",
+		"@llm-helpers/tools": "1.0.0-dev.8775a76",
+		"@llm-helpers/types": "1.0.0-dev.8775a76",
 		"@simplechat/types": "*",
 		"fastify": "^5.2.1",
 		"zod": "^4.4.3"

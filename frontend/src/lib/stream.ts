@@ -85,6 +85,8 @@ async function readStream(
 					pipelineEvent?: PipelineEvent;
 					contextSnapshot?: ContextSnapshot;
 					proposals?: DmProposal[];
+					toolCall?: { name: string; args: unknown };
+					toolResult?: { name: string; output: unknown };
 				};
 				if (msg.pipelineEvent) {
 					onPipelineEvent?.(msg.pipelineEvent);

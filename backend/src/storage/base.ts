@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
+import { defineTool, type FunctionTool } from '@llm-helpers/tools';
 import { z } from 'zod';
 import { dataDir } from '../config';
-import type { Tool } from '../LLM/tools/register-tool';
 import { now, readJson, writeJson } from './helpers';
 
 type Filter<T> = Partial<{
@@ -109,52 +109,46 @@ export class BaseStorageObject<TSchema extends z.ZodType<any>> {
 		return true;
 	}
 
-	public asTools(): Tool<any, any>[] {
+	public asTools(): FunctionTool[] {
 		const t = this.dataType;
 		return [
-			{
+			defineTool({
 				description: `Get a single ${t} record by id`,
-				execute: ({ id }: { id: string }) => this.get(id),
+				execute: ({ id }, _ctx) => this.get(id),
 				name: `${t}.get`,
-				schema: z.object({ id: z.string() }),
-			},
-			{
+				input: z.object({ id: z.string() }),
+			}),
+			defineTool({
 				description: `List all ${t} records, optionally filtered by field values`,
-				execute: ({ filters }: { filters?: Record<string, unknown> }) =>
+				execute: ({ filters }, _ctx) =>
 					this.list(filters as Filter<z.infer<TSchema>>),
 				name: `${t}.list`,
-				schema: z.object({
+				input: z.object({
 					filters: z.record(z.string(), z.unknown()).optional(),
 				}),
-			},
-			{
+			}),
+			defineTool({
 				description: `Create a new ${t} record`,
-				execute: ({ body }: { body: Record<string, unknown> }) =>
-					this.add(body),
+				execute: ({ body }, _ctx) => this.add(body),
 				name: `${t}.add`,
-				schema: z.object({ body: z.record(z.string(), z.unknown()) }),
-			},
-			{
+				input: z.object({ body: z.record(z.string(), z.unknown()) }),
+			}),
+			defineTool({
 				description: `Update an existing ${t} record by id`,
-				execute: ({
-					id,
-					body,
-				}: {
-					id: string;
-					body: Record<string, unknown>;
-				}) => this.update(id, body as Partial<z.infer<TSchema>>),
+				execute: ({ id, body }, _ctx) =>
+					this.update(id, body as Partial<z.infer<TSchema>>),
 				name: `${t}.update`,
-				schema: z.object({
+				input: z.object({
 					body: z.record(z.string(), z.unknown()),
 					id: z.string(),
 				}),
-			},
-			{
+			}),
+			defineTool({
 				description: `Delete a ${t} record by id`,
-				execute: ({ id }: { id: string }) => this.delete(id),
+				execute: ({ id }, _ctx) => this.delete(id),
 				name: `${t}.delete`,
-				schema: z.object({ id: z.string() }),
-			},
+				input: z.object({ id: z.string() }),
+			}),
 		];
 	}
 }

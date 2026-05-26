@@ -1,50 +1,5 @@
 import { z } from 'zod';
-import { extractJson } from '../../utils.js';
-import { LLMParseError } from '../generate.js';
-import { streamChat } from '../ollama.js';
-
-// biome-ignore lint/suspicious/noExplicitAny: temporary; replaced by router's json() method
-function schemaToExample(schema: any): unknown {
-	if (schema instanceof z.ZodString) return 'example value';
-	if (schema instanceof z.ZodNumber) return 0;
-	if (schema instanceof z.ZodBoolean) return true;
-	if (schema instanceof z.ZodNull) return null;
-	if (schema instanceof z.ZodUnknown) return null;
-	if (schema instanceof z.ZodEnum)
-		return (schema.options as unknown[])[0] ?? 'example value';
-	if (schema instanceof z.ZodArray)
-		return [
-			schemaToExample(schema.element),
-			schemaToExample(schema.element),
-		];
-	if (schema instanceof z.ZodRecord) return {};
-	if (schema instanceof z.ZodOptional)
-		return schemaToExample(schema.unwrap());
-	if (schema instanceof z.ZodNullable)
-		return schemaToExample(schema.unwrap());
-	if (schema instanceof z.ZodDefault)
-		return schemaToExample(schema.removeDefault());
-	if (schema instanceof z.ZodObject) {
-		const result: Record<string, unknown> = {};
-		for (const [key, value] of Object.entries(
-			schema.shape as Record<string, z.ZodType>,
-		)) {
-			result[key] = schemaToExample(value);
-		}
-		return result;
-	}
-	return null;
-}
-
-function rootSchemaKind(schema: any): 'object' | 'array' | 'value' {
-	if (schema instanceof z.ZodObject) return 'object';
-	if (schema instanceof z.ZodArray) return 'array';
-	if (schema instanceof z.ZodOptional || schema instanceof z.ZodNullable)
-		return rootSchemaKind(schema.unwrap());
-	if (schema instanceof z.ZodDefault)
-		return rootSchemaKind(schema.removeDefault());
-	return 'value';
-}
+import { getOllamaAdapter } from '../llm-client.js';
 
 export const createPromptRunner = <T extends z.ZodType<any>>(config: {
 	role: string;
@@ -53,47 +8,22 @@ export const createPromptRunner = <T extends z.ZodType<any>>(config: {
 	temperature: number;
 	num_ctx?: number;
 }) => {
-	const exampleJson = JSON.stringify(
-		schemaToExample(config.outputSchema),
-		null,
-		2,
-	);
-	const kind = rootSchemaKind(config.outputSchema);
-	const outputNoun = kind === 'array' ? 'JSON array' : 'JSON object';
-
-	const buildSystemPrompt = (): string => {
-		return [
-			`You are a ${config.role}. Your ONLY job is to output a single ${outputNoun} — nothing else.`,
-			'Do NOT write any analysis, explanation, commentary, or prose.',
-			'Do NOT use markdown or code fences.',
-			config.instructions,
-			`Output ONLY the raw ${outputNoun} below, with no text before or after it:`,
-			exampleJson,
-		].join('\n');
-	};
+	const systemPrompt = `You are a ${config.role}. ${config.instructions}`;
 
 	const run = async (
 		userContent: string,
 		overrides?: { temperature?: number; num_ctx?: number },
 	): Promise<z.infer<T>> => {
-		let raw = '';
-		await streamChat({
+		const adapter = await getOllamaAdapter(overrides?.num_ctx ?? config.num_ctx);
+		const { json } = await adapter.json({
 			messages: [
-				{ content: buildSystemPrompt(), role: 'system' },
-				{ content: userContent, role: 'user' },
+				{ role: 'system' as const, content: systemPrompt },
+				{ role: 'user' as const, content: userContent },
 			],
-			num_ctx: overrides?.num_ctx ?? config.num_ctx,
-			onChunk: (text) => {
-				raw += text;
-			},
+			schema: config.outputSchema,
 			temperature: overrides?.temperature ?? config.temperature,
 		});
-
-		try {
-			return config.outputSchema.parse(extractJson(raw)) as z.infer<T>;
-		} catch {
-			throw new LLMParseError('LLM did not return valid JSON', raw);
-		}
+		return json as z.infer<T>;
 	};
 
 	return { run };

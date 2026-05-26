@@ -37,6 +37,14 @@ export function createGenerationStream(
 			reply.raw.write(`${JSON.stringify({ content: chunk })}\n`);
 		},
 
+		toolCall(call: { name: string; args: unknown }) {
+			this.frame({ toolCall: call });
+		},
+
+		toolResult(result: { name: string; output: unknown }) {
+			this.frame({ toolResult: result });
+		},
+
 		done() {
 			emitFrame(reply.raw, { done: true });
 			reply.raw.end();
