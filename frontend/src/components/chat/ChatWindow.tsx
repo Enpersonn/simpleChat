@@ -15,6 +15,7 @@ export function ChatWindow() {
 		error,
 		chats,
 		lastStateUpdate,
+		agentActivities,
 		updateChat,
 		deleteChat,
 	} = useChatsStore();
@@ -38,9 +39,8 @@ export function ChatWindow() {
 
 	useEffect(() => {
 		if (!lastStateUpdate) return;
-		const name = lastStateUpdate.locationName;
-		if (name) {
-			setToastMsg(`Scene: ${name}`);
+		if (lastStateUpdate.locationChanged && lastStateUpdate.locationName) {
+			setToastMsg(`Scene: ${lastStateUpdate.locationName}`);
 			if (toastTimer.current) clearTimeout(toastTimer.current);
 			toastTimer.current = setTimeout(() => setToastMsg(null), 3000);
 		}
@@ -183,6 +183,7 @@ export function ChatWindow() {
 						turn={turn}
 						speakerName={getCharacterName(turn.speaker)}
 						isStreaming={turn.id === 'streaming'}
+						activities={turn.id === 'streaming' ? agentActivities : undefined}
 					/>
 				))}
 			</div>

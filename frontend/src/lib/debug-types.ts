@@ -4,11 +4,16 @@ export type PipelineStep =
 	| 'memory_retrieval'
 	| 'context_assembly'
 	| 'llm_call'
+	| 'persist_result'
 	| 'extraction';
 
 export type PipelineStatus = 'start' | 'complete' | 'error';
 
-export type MemoryReason = 'always_include' | 'tag_match' | 'llm_picked';
+export type MemoryReason =
+	| 'always_include'
+	| 'semantic'
+	| 'tag_match'
+	| 'llm_picked';
 
 // ── Step-specific data payloads ───────────────────────────────────────────────
 
@@ -63,6 +68,11 @@ export interface LlmCallData {
 	model: string;
 	tokenCount: number;
 	durationMs: number;
+	agentSteps?: number;
+}
+
+export interface PersistResultData {
+	turnId?: string;
 }
 
 export interface ExtractionData {
@@ -71,6 +81,10 @@ export interface ExtractionData {
 	newLocationId: string | null;
 	newLocationName: string | null;
 	overridesChanged: boolean;
+	canonFactsCreated?: number;
+	narrativePressure?: number;
+	relationshipUpdates?: number;
+	volatileUpdates?: number;
 }
 
 export type PipelineStepData =
@@ -79,6 +93,7 @@ export type PipelineStepData =
 	| MemoryRetrievalData
 	| ContextAssemblyData
 	| LlmCallData
+	| PersistResultData
 	| ExtractionData;
 
 // ── Top-level pipeline event ──────────────────────────────────────────────────

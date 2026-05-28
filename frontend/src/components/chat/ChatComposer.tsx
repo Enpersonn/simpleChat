@@ -1,12 +1,20 @@
 import { useRef, useState } from 'preact/hooks';
 import { useChatsStore } from '../../store/chats.js';
 import { useSettingsStore } from '../../store/settings.js';
+import { StreamingPhaseBar } from './StreamingPhaseBar.js';
 
 export function ChatComposer() {
 	const [text, setText] = useState('');
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
-	const { sendMessage, stopStream, isStreaming, chats, activeChatId } =
-		useChatsStore();
+	const {
+		sendMessage,
+		stopStream,
+		isStreaming,
+		chats,
+		activeChatId,
+		streamPhase,
+		agentActivities,
+	} = useChatsStore();
 	const generation = useSettingsStore((s) => s.generation);
 	const ollamaHealthy = useSettingsStore((s) => s.ollamaHealthy);
 
@@ -80,6 +88,11 @@ export function ChatComposer() {
 					▶ Continue story
 				</button>
 			)}
+			<StreamingPhaseBar
+				phase={streamPhase}
+				activities={agentActivities}
+				isStreaming={isStreaming}
+			/>
 			<div class="flex items-end gap-2">
 				<textarea
 					ref={textareaRef}

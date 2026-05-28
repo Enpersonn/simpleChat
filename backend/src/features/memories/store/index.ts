@@ -3,6 +3,7 @@ import {
 	type MemoryItem,
 	MemoryItemSchema,
 } from '@simplechat/types';
+import { embedText } from '../../../LLM/embedding/index.js';
 import { BaseStorageObject } from '../../../storage/base.js';
 import {
 	character_memory_relations_store,
@@ -13,10 +14,22 @@ import {
 
 export { character_memory_relations_store, getRelationChain, getRelationHeads };
 
-export const memories_store = new BaseStorageObject(
-	'memories',
-	MemoryItemSchema,
-);
+class MemoriesStore extends BaseStorageObject<typeof MemoryItemSchema> {
+	async add(body: Record<string, unknown>): Promise<MemoryItem> {
+		const summary = typeof body.summary === 'string' ? body.summary : '';
+		let embedding: number[] | undefined;
+		if (summary) {
+			try {
+				embedding = await embedText(summary);
+			} catch {
+				// embedding failure is non-fatal
+			}
+		}
+		return super.add({ ...body, embedding });
+	}
+}
+
+export const memories_store = new MemoriesStore('memories', MemoryItemSchema);
 
 export async function getMemoryChainForCharacter(
 	charId: string,
@@ -57,7 +70,8 @@ function getPath(obj: AnyState, path: string): unknown {
 
 function setPath(obj: AnyState, path: string, value: unknown): void {
 	const keys = path.split('.');
-	const last = keys.pop()!;
+	const last = keys.pop();
+	if (last === undefined) return;
 	let target = obj;
 	for (const key of keys) {
 		if (target[key] == null || typeof target[key] !== 'object') {

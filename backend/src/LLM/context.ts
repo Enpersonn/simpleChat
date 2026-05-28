@@ -7,6 +7,7 @@ import type {
 	Story,
 	StoryLocation,
 	Turn,
+	VolatileCharacterState,
 } from '@simplechat/types';
 
 const RESPONSE_LENGTH_MAP: Record<string, string> = {
@@ -362,46 +363,70 @@ function buildMoodBlock(moodTags: string[]): string {
 	return `\nMOOD GUIDANCE: ${instructions.join(' ')}`;
 }
 
+function buildVolatileStateBlock(state: VolatileCharacterState | undefined): string {
+	if (!state) return '';
+	const parts: string[] = [];
+	if (state.emotionalColor) parts.push(`emotionally: ${state.emotionalColor}`);
+	if (state.stress !== 5) parts.push(`stress: ${state.stress}/10`);
+	if (state.focus) parts.push(`preoccupied with: ${state.focus}`);
+	if (parts.length === 0) return '';
+	return `\nYOUR LIVE STATE: ${parts.join(' — ')}`;
+}
+
+function buildNarrativeHooksBlock(pressure: number, hooks: string[]): string {
+	if (pressure < 40 || hooks.length === 0) return '';
+	const lines = hooks.map((h) => `• ${h}`).join('\n');
+	const urgency =
+		pressure > 70 ? '\nThe scene is charged — something needs to surface or shift.' : '';
+	return `\nACTIVE TENSIONS:\n${lines}${urgency}`;
+}
+
 // ─── Assembly ────────────────────────────────────────────────────────────────
 
 export interface AssembleOptions {
-	story: Story;
-	characters: Character[];
 	activeSpeaker: string;
-	recentTurns: Turn[];
-	mode: ChatMode;
-	moodTags?: string[];
-	responseLength?: string;
+	activeHooks?: string[];
+	characters: Character[];
+	currentLocation?: StoryLocation;
 	feelText?: string;
 	globalNote?: string;
-	currentLocation?: StoryLocation;
 	locationOverrides?: LocationOverride;
 	locations?: StoryLocation[];
-	/** Memories relevant to the active speaker — shown as their lived history. */
-	speakerMemories?: MemoryItem[];
+	mode: ChatMode;
+	moodTags?: string[];
+	narrativePressure?: number;
 	/** Key memories per non-speaker character — appended as one-line context. */
 	otherCharMemories?: Map<string, MemoryItem[]>;
+	recentTurns: Turn[];
 	/** @deprecated Use speakerMemories instead. Kept for callers not yet updated. */
 	relevantMemories?: MemoryItem[];
+	responseLength?: string;
+	/** Memories relevant to the active speaker — shown as their lived history. */
+	speakerMemories?: MemoryItem[];
+	story: Story;
+	volatileSpeakerState?: VolatileCharacterState;
 }
 
 export function assembleContext(opts: AssembleOptions): OllamaMessage[] {
 	const {
-		story,
-		characters,
+		activeHooks = [],
 		activeSpeaker,
-		recentTurns,
-		mode,
-		moodTags = [],
-		responseLength = 'medium',
+		characters,
+		currentLocation,
 		feelText = '',
 		globalNote = '',
-		currentLocation,
 		locationOverrides,
 		locations,
-		speakerMemories,
+		mode,
+		moodTags = [],
+		narrativePressure = 0,
 		otherCharMemories,
+		recentTurns,
 		relevantMemories = [],
+		responseLength = 'medium',
+		speakerMemories,
+		story,
+		volatileSpeakerState,
 	} = opts;
 
 	const resolvedSpeakerMemories = speakerMemories ?? relevantMemories;
@@ -458,6 +483,12 @@ export function assembleContext(opts: AssembleOptions): OllamaMessage[] {
 			if (feelingBlock) systemParts.push(feelingBlock);
 		}
 	}
+
+	const volatileBlock = buildVolatileStateBlock(volatileSpeakerState);
+	if (volatileBlock) systemParts.push(volatileBlock);
+
+	const hooksBlock = buildNarrativeHooksBlock(narrativePressure, activeHooks);
+	if (hooksBlock) systemParts.push(hooksBlock);
 
 	const moodBlock = buildMoodBlock(moodTags);
 	if (moodBlock) systemParts.push(moodBlock);

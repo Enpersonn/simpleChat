@@ -1,6 +1,7 @@
 import type { Turn } from '@simplechat/types';
 import { marked } from 'marked';
 import { useState } from 'preact/hooks';
+import type { AgentActivity } from '../../lib/agent-stream.js';
 import { useChatsStore } from '../../store/chats.js';
 import { useSettingsStore } from '../../store/settings.js';
 
@@ -10,9 +11,10 @@ interface Props {
 	turn: Turn;
 	speakerName: string;
 	isStreaming: boolean;
+	activities?: AgentActivity[];
 }
 
-export function ChatMessage({ turn, speakerName, isStreaming }: Props) {
+export function ChatMessage({ turn, speakerName, isStreaming, activities }: Props) {
 	const deleteTurn = useChatsStore((st) => st.deleteTurn);
 	const editTurn = useChatsStore((st) => st.editTurn);
 	const editAndResend = useChatsStore((st) => st.editAndResend);
@@ -150,6 +152,23 @@ export function ChatMessage({ turn, speakerName, isStreaming }: Props) {
 						// biome-ignore lint/security/noDangerouslySetInnerHtml: markdown rendered locally
 						dangerouslySetInnerHTML={{ __html: htmlContent }}
 					/>
+				)}
+				{isStreaming && activities && activities.length > 0 && (
+					<div class="mt-2 flex flex-wrap gap-1">
+						{activities.map((a) => (
+							<span
+								key={a.id}
+								class={
+									a.status === 'pending'
+										? 'inline-flex items-center gap-1 rounded-sm border border-accent-border bg-accent-dim px-1.5 py-0.5 font-mono text-[10px] text-accent animate-pulse'
+										: 'inline-flex items-center gap-1 rounded-sm border border-border bg-bg-tertiary px-1.5 py-0.5 font-mono text-[10px] text-text-muted'
+								}
+								title={a.status === 'complete' ? 'Tool call complete' : 'Calling tool…'}
+							>
+								{a.status === 'pending' ? '⚙' : '✓'} {a.toolName}
+							</span>
+						))}
+					</div>
 				)}
 				{isStreaming && (
 					<span class="ml-0.5 inline-block h-[1em] w-0.5 animate-blink bg-accent align-text-bottom" />

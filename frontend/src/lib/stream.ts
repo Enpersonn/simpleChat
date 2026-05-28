@@ -7,9 +7,17 @@ export interface DebugInfo {
 }
 
 export interface StateUpdate {
+	activeHooks?: string[];
+	canonFactsCreated?: number;
 	currentLocationId: string | null;
+	locationChanged?: boolean;
 	locationName: string | null | undefined;
+	narrativePressure?: number;
 	newLocationCreated?: boolean;
+	volatileStateUpdates?: Record<
+		string,
+		{ emotionalColor: string; focus: string; stress: number }
+	>;
 }
 
 export interface StreamOptions {
@@ -24,6 +32,8 @@ export interface StreamOptions {
 	onPipelineEvent?: (event: PipelineEvent) => void;
 	onContextSnapshot?: (snapshot: ContextSnapshot) => void;
 	onProposals?: (proposals: DmProposal[]) => void;
+	onToolCall?: (call: { name: string; args: unknown }) => void;
+	onToolResult?: (result: { name: string; output: unknown }) => void;
 	signal?: AbortSignal;
 }
 
@@ -36,6 +46,9 @@ export interface PlanStreamOptions {
 	onDone: () => void;
 	onError: (msg: string) => void;
 	onProposals?: (proposals: DmProposal[]) => void;
+	onPipelineEvent?: (event: PipelineEvent) => void;
+	onToolCall?: (call: { name: string; args: unknown }) => void;
+	onToolResult?: (result: { name: string; output: unknown }) => void;
 	signal?: AbortSignal;
 }
 
@@ -49,6 +62,8 @@ async function readStream(
 	onPipelineEvent?: (event: PipelineEvent) => void,
 	onContextSnapshot?: (snapshot: ContextSnapshot) => void,
 	onProposals?: (proposals: DmProposal[]) => void,
+	onToolCall?: (call: { name: string; args: unknown }) => void,
+	onToolResult?: (result: { name: string; output: unknown }) => void,
 ): Promise<void> {
 	if (!res.body) {
 		onError(`Request failed: ${res.status}`);
@@ -108,6 +123,14 @@ async function readStream(
 					onProposals?.(msg.proposals);
 					continue;
 				}
+				if (msg.toolCall) {
+					onToolCall?.(msg.toolCall);
+					continue;
+				}
+				if (msg.toolResult) {
+					onToolResult?.(msg.toolResult);
+					continue;
+				}
 				if (msg.error) {
 					onError(msg.error);
 					return;
@@ -126,15 +149,15 @@ async function readStream(
 }
 
 export async function sendMessageStream(opts: StreamOptions): Promise<void> {
-	const { storyId, chatId, body, onChunk, onDone, onError, onDebug, signal } =
+	const { body, chatId, onChunk, onDone, onError, onDebug, signal, storyId } =
 		opts;
 
 	let res: Response;
 	try {
 		res = await fetch(`/stories/${storyId}/chats/${chatId}/message`, {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify(body),
+			headers: { 'Content-Type': 'application/json' },
+			method: 'POST',
 			signal,
 		});
 	} catch (err) {
@@ -157,6 +180,8 @@ export async function sendMessageStream(opts: StreamOptions): Promise<void> {
 		opts.onPipelineEvent,
 		opts.onContextSnapshot,
 		opts.onProposals,
+		opts.onToolCall,
+		opts.onToolResult,
 	);
 }
 
@@ -171,15 +196,17 @@ export async function openerStream(
 		| 'onDebug'
 		| 'onPipelineEvent'
 		| 'onContextSnapshot'
+		| 'onToolCall'
+		| 'onToolResult'
 		| 'signal'
 	>,
 ): Promise<void> {
 	let res: Response;
 	try {
 		res = await fetch(`/stories/${storyId}/chats/${chatId}/opener`, {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({}),
+			headers: { 'Content-Type': 'application/json' },
+			method: 'POST',
 			signal: handlers.signal,
 		});
 	} catch (err) {
@@ -200,19 +227,22 @@ export async function openerStream(
 		undefined,
 		handlers.onPipelineEvent,
 		handlers.onContextSnapshot,
+		undefined,
+		handlers.onToolCall,
+		handlers.onToolResult,
 	);
 }
 
 export async function regenerateStream(opts: StreamOptions): Promise<void> {
-	const { storyId, chatId, body, onChunk, onDone, onError, onDebug, signal } =
+	const { body, chatId, onChunk, onDone, onError, onDebug, signal, storyId } =
 		opts;
 
 	let res: Response;
 	try {
 		res = await fetch(`/stories/${storyId}/chats/${chatId}/regenerate`, {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify(body),
+			headers: { 'Content-Type': 'application/json' },
+			method: 'POST',
 			signal,
 		});
 	} catch (err) {
@@ -235,6 +265,8 @@ export async function regenerateStream(opts: StreamOptions): Promise<void> {
 		opts.onPipelineEvent,
 		opts.onContextSnapshot,
 		opts.onProposals,
+		opts.onToolCall,
+		opts.onToolResult,
 	);
 }
 
@@ -242,23 +274,23 @@ export async function planMessageStream(
 	opts: PlanStreamOptions,
 ): Promise<void> {
 	const {
-		storyId,
 		chatId,
-		text,
 		model,
 		onChunk,
 		onDone,
 		onError,
 		onProposals,
 		signal,
+		storyId,
+		text,
 	} = opts;
 
 	let res: Response;
 	try {
 		res = await fetch(`/stories/${storyId}/chats/${chatId}/plan-message`, {
-			method: 'POST',
+			body: JSON.stringify({ model, text }),
 			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ text, model }),
+			method: 'POST',
 			signal,
 		});
 	} catch (err) {
@@ -278,8 +310,10 @@ export async function planMessageStream(
 		onError,
 		undefined,
 		undefined,
-		undefined,
+		opts.onPipelineEvent,
 		undefined,
 		onProposals,
+		opts.onToolCall,
+		opts.onToolResult,
 	);
 }

@@ -7,6 +7,7 @@ import type {
 	LlmCallData,
 	MemoryChainData,
 	MemoryRetrievalData,
+	PersistResultData,
 	PipelineEvent,
 	PipelineStep,
 } from '../../lib/debug-types.js';
@@ -17,6 +18,7 @@ const STEP_ORDER: PipelineStep[] = [
 	'memory_retrieval',
 	'context_assembly',
 	'llm_call',
+	'persist_result',
 	'extraction',
 ];
 
@@ -27,6 +29,7 @@ const STEP_LABELS: Record<PipelineStep, string> = {
 	llm_call: 'LLM Call',
 	memory_chain: 'Memory Chain',
 	memory_retrieval: 'Memory Retrieval',
+	persist_result: 'Persist Result',
 };
 
 interface Props {
@@ -272,9 +275,11 @@ function StepData({
 							const reasonLabel =
 								r.reason === 'always_include'
 									? 'Always'
-									: r.reason === 'tag_match'
-										? `Tag (${r.score ?? 1})`
-										: 'LLM picked';
+									: r.reason === 'semantic'
+										? `Semantic (${r.score ? r.score.toFixed(2) : '~'})`
+										: r.reason === 'tag_match'
+											? `Tag (${r.score ?? 1})`
+											: 'LLM picked';
 							// color-mix() backgrounds kept as inline styles
 							const pillStyle =
 								r.reason === 'always_include'
@@ -283,17 +288,23 @@ function StepData({
 												'color-mix(in srgb, var(--accent) 20%, transparent)',
 											border: '1px solid color-mix(in srgb, var(--accent) 40%, transparent)',
 										}
-									: r.reason === 'tag_match'
+									: r.reason === 'semantic'
 										? {
 												background:
-													'color-mix(in srgb, #4ade80 15%, transparent)',
-												border: '1px solid color-mix(in srgb, #4ade80 35%, transparent)',
+													'color-mix(in srgb, #60a5fa 15%, transparent)',
+												border: '1px solid color-mix(in srgb, #60a5fa 35%, transparent)',
 											}
-										: {
-												background:
-													'color-mix(in srgb, #fbbf24 15%, transparent)',
-												border: '1px solid color-mix(in srgb, #fbbf24 35%, transparent)',
-											};
+										: r.reason === 'tag_match'
+											? {
+													background:
+														'color-mix(in srgb, #4ade80 15%, transparent)',
+													border: '1px solid color-mix(in srgb, #4ade80 35%, transparent)',
+												}
+											: {
+													background:
+														'color-mix(in srgb, #fbbf24 15%, transparent)',
+													border: '1px solid color-mix(in srgb, #fbbf24 35%, transparent)',
+												};
 							return (
 								<div
 									key={r.memoryId}
@@ -378,6 +389,14 @@ function StepData({
 						{d.tokenCount.toLocaleString()}
 					</span>
 				</div>
+				{d.agentSteps !== undefined && (
+					<div class="flex justify-between gap-2">
+						<span class="text-text-muted">Agent steps</span>
+						<span class="text-right font-medium text-text-primary">
+							{d.agentSteps}
+						</span>
+					</div>
+				)}
 				<div class="flex justify-between gap-2">
 					<span class="text-text-muted">Duration</span>
 					<span class="text-right font-medium text-text-primary">
@@ -385,6 +404,16 @@ function StepData({
 					</span>
 				</div>
 			</div>
+		);
+	}
+
+	if (step === 'persist_result') {
+		return (
+			<span class="text-[9px] text-text-muted italic">
+				{(data as PersistResultData).turnId
+					? `Turn ${(data as PersistResultData).turnId}`
+					: 'Turn saved'}
+			</span>
 		);
 	}
 
@@ -441,6 +470,39 @@ function StepData({
 							</span>
 						</div>
 					)}
+				{d.narrativePressure !== undefined && (
+					<div class="flex justify-between gap-2">
+						<span class="text-text-muted">Narrative pressure</span>
+						<span class="text-right font-medium text-text-primary">
+							{d.narrativePressure}/100
+						</span>
+					</div>
+				)}
+				{d.canonFactsCreated !== undefined && d.canonFactsCreated > 0 && (
+					<div class="flex justify-between gap-2">
+						<span class="text-text-muted">Canon facts</span>
+						<span class="text-right font-medium text-success">
+							+{d.canonFactsCreated}
+						</span>
+					</div>
+				)}
+				{d.relationshipUpdates !== undefined &&
+					d.relationshipUpdates > 0 && (
+						<div class="flex justify-between gap-2">
+							<span class="text-text-muted">Relationship updates</span>
+							<span class="text-right font-medium text-text-primary">
+								{d.relationshipUpdates}
+							</span>
+						</div>
+					)}
+				{d.volatileUpdates !== undefined && d.volatileUpdates > 0 && (
+					<div class="flex justify-between gap-2">
+						<span class="text-text-muted">Volatile state updates</span>
+						<span class="text-right font-medium text-text-primary">
+							{d.volatileUpdates}
+						</span>
+					</div>
+				)}
 			</div>
 		);
 	}

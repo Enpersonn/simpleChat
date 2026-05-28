@@ -1,10 +1,17 @@
 import type { DmProposal, Turn } from '@simplechat/types';
 import { marked } from 'marked';
 import { useEffect, useRef, useState } from 'preact/hooks';
+import {
+	type AgentActivity,
+	mergeToolResult,
+	resolveCurrentPhase,
+} from '../../lib/agent-stream.js';
 import { api } from '../../lib/api.js';
+import type { PipelineEvent } from '../../lib/debug-types.js';
 import { planMessageStream } from '../../lib/stream.js';
 import { useSettingsStore } from '../../store/settings.js';
 import { useStoriesStore } from '../../store/stories.js';
+import { StreamingPhaseBar } from '../chat/StreamingPhaseBar.js';
 import { DmProposalCard } from './DmProposalCard.js';
 
 marked.setOptions({ breaks: true });
@@ -23,6 +30,10 @@ export function DmChatTab({ storyId }: Props) {
 	const [error, setError] = useState<string | null>(null);
 	const [input, setInput] = useState('');
 	const [loading, setLoading] = useState(true);
+	const [pipelineEvents, setPipelineEvents] = useState<PipelineEvent[]>([]);
+	const [agentActivities, setAgentActivities] = useState<AgentActivity[]>([]);
+
+	const streamPhase = resolveCurrentPhase(pipelineEvents);
 
 	const abortRef = useRef<AbortController | null>(null);
 	const messagesRef = useRef<HTMLDivElement>(null);
@@ -102,6 +113,8 @@ export function DmChatTab({ storyId }: Props) {
 		setTurns((prev) => [...prev, tempUserTurn, streamingPlaceholder]);
 		setIsStreaming(true);
 		setStreamingText('');
+		setPipelineEvents([]);
+		setAgentActivities([]);
 
 		const ac = new AbortController();
 		abortRef.current = ac;
@@ -123,6 +136,8 @@ export function DmChatTab({ storyId }: Props) {
 				abortRef.current = null;
 				setIsStreaming(false);
 				setStreamingText('');
+				setPipelineEvents([]);
+				setAgentActivities([]);
 				try {
 					const fresh = await api.chats.history(storyId, chatId);
 					setTurns(fresh);
@@ -136,6 +151,8 @@ export function DmChatTab({ storyId }: Props) {
 				abortRef.current = null;
 				setIsStreaming(false);
 				setStreamingText('');
+				setPipelineEvents([]);
+				setAgentActivities([]);
 				setError(msg);
 				setTurns((prev) =>
 					prev.filter(
@@ -145,6 +162,26 @@ export function DmChatTab({ storyId }: Props) {
 			},
 			onProposals: (proposals) => {
 				setPendingProposals(proposals);
+			},
+			onPipelineEvent: (event) => {
+				setPipelineEvents((prev) => [...prev, event]);
+			},
+			onToolCall: (call) => {
+				setAgentActivities((prev) => [
+					...prev,
+					{
+						args: call.args,
+						id: `${call.name}-${Date.now()}`,
+						startedAt: Date.now(),
+						status: 'pending' as const,
+						toolName: call.name,
+					},
+				]);
+			},
+			onToolResult: (result) => {
+				setAgentActivities((prev) =>
+					mergeToolResult(prev, result.name, result.output),
+				);
 			},
 			signal: ac.signal,
 			storyId,
@@ -157,6 +194,8 @@ export function DmChatTab({ storyId }: Props) {
 		abortRef.current = null;
 		setIsStreaming(false);
 		setStreamingText('');
+		setPipelineEvents([]);
+		setAgentActivities([]);
 		setTurns((prev) => prev.filter((t) => t.id !== 'streaming'));
 	};
 
@@ -362,6 +401,11 @@ export function DmChatTab({ storyId }: Props) {
 			</div>
 
 			<div class="mt-2 flex shrink-0 flex-col gap-1.5 border-border-light border-t pt-2.5">
+				<StreamingPhaseBar
+					phase={streamPhase}
+					activities={agentActivities}
+					isStreaming={isStreaming}
+				/>
 				<textarea
 					ref={textareaRef}
 					class="box-border w-full resize-none rounded-sm border border-border-light bg-bg-primary px-3 py-[9px] font-[inherit] text-[13px] text-text-primary leading-[1.5] focus:border-accent focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"

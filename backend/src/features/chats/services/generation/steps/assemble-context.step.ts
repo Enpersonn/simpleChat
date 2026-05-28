@@ -27,21 +27,29 @@ export const assembleContextStep = async (ctx: GenerationContext) => {
 		}
 	}
 
+	const volatileSpeakerState =
+		ctx.activeSpeaker !== 'narrator'
+			? ctx.chatState.volatileState?.[ctx.activeSpeaker]
+			: undefined;
+
 	const messages = assembleContext({
-		story: ctx.story,
-		characters: ctx.effectiveCharacters,
+		activeHooks: ctx.chatState.activeHooks,
 		activeSpeaker: ctx.activeSpeaker,
-		recentTurns: ctx.turns,
-		mode: ctx.chat.mode,
-		moodTags: ctx.params?.moodTags,
-		responseLength: ctx.params?.responseLength,
+		characters: ctx.effectiveCharacters,
+		currentLocation,
 		feelText: ctx.params?.feelText,
 		globalNote: settings.globalNote,
-		currentLocation,
 		locationOverrides,
 		locations: ctx.locations,
-		speakerMemories: ctx.accessibleMemories,
+		mode: ctx.chat.mode,
+		moodTags: ctx.params?.moodTags,
+		narrativePressure: ctx.chatState.narrativePressure,
 		otherCharMemories: otherCharMemoriesRegen,
+		recentTurns: ctx.turns,
+		responseLength: ctx.params?.responseLength,
+		speakerMemories: ctx.accessibleMemories,
+		story: ctx.story,
+		volatileSpeakerState,
 	});
 
 	const systemPromptText = messages[0]?.content ?? '';
@@ -51,10 +59,10 @@ export const assembleContextStep = async (ctx: GenerationContext) => {
 	ctx.systemPromptText = systemPromptText;
 
 	return {
-		systemPromptLength: systemPromptText.length,
-		injectedMemoryIds: ctx.relevantMemories.map((m) => m.id),
 		activeSpeakerId: ctx.activeSpeaker,
 		currentLocationId: ctx.chatState.currentLocationId,
+		injectedMemoryIds: ctx.relevantMemories.map((m) => m.id),
 		moodTagCount: (ctx.params?.moodTags ?? []).length,
+		systemPromptLength: systemPromptText.length,
 	};
 };

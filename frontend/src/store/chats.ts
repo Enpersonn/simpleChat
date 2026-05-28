@@ -2,6 +2,12 @@ import { create } from 'zustand';
 import type { Chat, Turn, ChatMode } from '@simplechat/types';
 import { api } from '../lib/api.js';
 import {
+	type AgentActivity,
+	type StreamPhase,
+	mergeToolResult,
+	resolveCurrentPhase,
+} from '../lib/agent-stream.js';
+import {
 	sendMessageStream,
 	regenerateStream,
 	openerStream,
@@ -25,6 +31,8 @@ interface ChatsState extends StreamingState {
 	error: string | null;
 	debugInfo: DebugInfo | null;
 	lastStateUpdate: StateUpdate | null;
+	streamPhase: StreamPhase | null;
+	agentActivities: AgentActivity[];
 
 	loadChats: (storyId: string) => Promise<void>;
 	openChat: (storyId: string, chatId: string) => Promise<void>;
@@ -90,6 +98,8 @@ export const useChatsStore = create<ChatsState>((set, get) => {
 						isStreaming: false,
 						streamingText: '',
 						abortController: null,
+						streamPhase: null,
+						agentActivities: [],
 					}),
 				)
 				.catch((err) =>
@@ -101,6 +111,8 @@ export const useChatsStore = create<ChatsState>((set, get) => {
 						isStreaming: false,
 						streamingText: '',
 						abortController: null,
+						streamPhase: null,
+						agentActivities: [],
 					}),
 				);
 		} else {
@@ -108,6 +120,8 @@ export const useChatsStore = create<ChatsState>((set, get) => {
 				isStreaming: false,
 				streamingText: '',
 				abortController: null,
+				streamPhase: null,
+				agentActivities: [],
 			});
 		}
 	};
@@ -123,6 +137,8 @@ export const useChatsStore = create<ChatsState>((set, get) => {
 		error: null,
 		debugInfo: null,
 		lastStateUpdate: null,
+		streamPhase: null,
+		agentActivities: [],
 
 		loadChats: async (storyId: string) => {
 			const chats = await api.chats.list(storyId);
@@ -212,6 +228,8 @@ export const useChatsStore = create<ChatsState>((set, get) => {
 				isStreaming: true,
 				streamingText: '',
 				error: null,
+				streamPhase: null,
+				agentActivities: [],
 			}));
 
 			const ac = new AbortController();
@@ -223,8 +241,11 @@ export const useChatsStore = create<ChatsState>((set, get) => {
 				body: params,
 				signal: ac.signal,
 				onDebug: (info) => set({ debugInfo: info }),
-				onPipelineEvent: (event) =>
-					useDebugStore.getState().addEvent(event),
+				onPipelineEvent: (event) => {
+					useDebugStore.getState().addEvent(event);
+					const allEvents = useDebugStore.getState().events;
+					set({ streamPhase: resolveCurrentPhase(allEvents) });
+				},
 				onContextSnapshot: (snapshot) =>
 					useDebugStore.getState().setSnapshot(snapshot),
 				onStateUpdate: (update) => {
@@ -234,6 +255,27 @@ export const useChatsStore = create<ChatsState>((set, get) => {
 							useStoriesStore.getState();
 						if (selectedStoryId) reloadLocations();
 					}
+				},
+				onToolCall: (call) => {
+					const activity: AgentActivity = {
+						id: `${Date.now()}-${Math.random()}`,
+						toolName: call.name,
+						args: call.args,
+						status: 'pending',
+						startedAt: Date.now(),
+					};
+					set((s) => ({
+						agentActivities: [...s.agentActivities, activity],
+					}));
+				},
+				onToolResult: (result) => {
+					set((s) => ({
+						agentActivities: mergeToolResult(
+							s.agentActivities,
+							result.name,
+							result.output,
+						),
+					}));
 				},
 				onChunk: (text) => {
 					set((s) => ({
@@ -251,6 +293,8 @@ export const useChatsStore = create<ChatsState>((set, get) => {
 						isStreaming: false,
 						streamingText: '',
 						abortController: null,
+						streamPhase: null,
+						agentActivities: [],
 						error: msg,
 						turns: s.turns.filter(
 							(t) => t.id !== 'streaming' && t.id !== userTurn.id,
@@ -288,6 +332,8 @@ export const useChatsStore = create<ChatsState>((set, get) => {
 				isStreaming: true,
 				streamingText: '',
 				error: null,
+				streamPhase: null,
+				agentActivities: [],
 			}));
 
 			const ac = new AbortController();
@@ -299,10 +345,34 @@ export const useChatsStore = create<ChatsState>((set, get) => {
 				body: params,
 				signal: ac.signal,
 				onDebug: (info) => set({ debugInfo: info }),
-				onPipelineEvent: (event) =>
-					useDebugStore.getState().addEvent(event),
+				onPipelineEvent: (event) => {
+					useDebugStore.getState().addEvent(event);
+					const allEvents = useDebugStore.getState().events;
+					set({ streamPhase: resolveCurrentPhase(allEvents) });
+				},
 				onContextSnapshot: (snapshot) =>
 					useDebugStore.getState().setSnapshot(snapshot),
+				onToolCall: (call) => {
+					const activity: AgentActivity = {
+						id: `${Date.now()}-${Math.random()}`,
+						toolName: call.name,
+						args: call.args,
+						status: 'pending',
+						startedAt: Date.now(),
+					};
+					set((s) => ({
+						agentActivities: [...s.agentActivities, activity],
+					}));
+				},
+				onToolResult: (result) => {
+					set((s) => ({
+						agentActivities: mergeToolResult(
+							s.agentActivities,
+							result.name,
+							result.output,
+						),
+					}));
+				},
 				onChunk: (text) => {
 					set((s) => ({
 						streamingText: s.streamingText + text,
@@ -319,6 +389,8 @@ export const useChatsStore = create<ChatsState>((set, get) => {
 						isStreaming: false,
 						streamingText: '',
 						abortController: null,
+						streamPhase: null,
+						agentActivities: [],
 						error: msg,
 					});
 				},
@@ -371,6 +443,8 @@ export const useChatsStore = create<ChatsState>((set, get) => {
 					streamingText: '',
 					error: null,
 					abortController: ac,
+					streamPhase: null,
+					agentActivities: [],
 				});
 
 				await regenerateStream({
@@ -379,10 +453,34 @@ export const useChatsStore = create<ChatsState>((set, get) => {
 					body: params,
 					signal: ac.signal,
 					onDebug: (info) => set({ debugInfo: info }),
-					onPipelineEvent: (event) =>
-						useDebugStore.getState().addEvent(event),
+					onPipelineEvent: (event) => {
+						useDebugStore.getState().addEvent(event);
+						const allEvents = useDebugStore.getState().events;
+						set({ streamPhase: resolveCurrentPhase(allEvents) });
+					},
 					onContextSnapshot: (snapshot) =>
 						useDebugStore.getState().setSnapshot(snapshot),
+					onToolCall: (call) => {
+						const activity: AgentActivity = {
+							id: `${Date.now()}-${Math.random()}`,
+							toolName: call.name,
+							args: call.args,
+							status: 'pending',
+							startedAt: Date.now(),
+						};
+						set((s) => ({
+							agentActivities: [...s.agentActivities, activity],
+						}));
+					},
+					onToolResult: (result) => {
+						set((s) => ({
+							agentActivities: mergeToolResult(
+								s.agentActivities,
+								result.name,
+								result.output,
+							),
+						}));
+					},
 					onChunk: (chunk) => {
 						set((s) => ({
 							streamingText: s.streamingText + chunk,
@@ -399,6 +497,8 @@ export const useChatsStore = create<ChatsState>((set, get) => {
 							isStreaming: false,
 							streamingText: '',
 							abortController: null,
+							streamPhase: null,
+							agentActivities: [],
 							error: msg,
 						});
 					},
@@ -432,15 +532,41 @@ export const useChatsStore = create<ChatsState>((set, get) => {
 				streamingText: '',
 				error: null,
 				abortController: ac,
+				streamPhase: null,
+				agentActivities: [],
 			});
 
 			await openerStream(storyId, chatId, {
 				signal: ac.signal,
 				onDebug: (info) => set({ debugInfo: info }),
-				onPipelineEvent: (event) =>
-					useDebugStore.getState().addEvent(event),
+				onPipelineEvent: (event) => {
+					useDebugStore.getState().addEvent(event);
+					const allEvents = useDebugStore.getState().events;
+					set({ streamPhase: resolveCurrentPhase(allEvents) });
+				},
 				onContextSnapshot: (snapshot) =>
 					useDebugStore.getState().setSnapshot(snapshot),
+				onToolCall: (call) => {
+					const activity: AgentActivity = {
+						id: `${Date.now()}-${Math.random()}`,
+						toolName: call.name,
+						args: call.args,
+						status: 'pending',
+						startedAt: Date.now(),
+					};
+					set((s) => ({
+						agentActivities: [...s.agentActivities, activity],
+					}));
+				},
+				onToolResult: (result) => {
+					set((s) => ({
+						agentActivities: mergeToolResult(
+							s.agentActivities,
+							result.name,
+							result.output,
+						),
+					}));
+				},
 				onChunk: (text) => {
 					set((s) => ({
 						streamingText: s.streamingText + text,
@@ -457,6 +583,8 @@ export const useChatsStore = create<ChatsState>((set, get) => {
 						isStreaming: false,
 						streamingText: '',
 						abortController: null,
+						streamPhase: null,
+						agentActivities: [],
 						error: msg,
 						turns: s.turns.filter((t) => t.id !== 'streaming'),
 					}));
@@ -470,6 +598,8 @@ export const useChatsStore = create<ChatsState>((set, get) => {
 			set((s) => ({
 				isStreaming: false,
 				abortController: null,
+				streamPhase: null,
+				agentActivities: [],
 				turns: s.turns.filter((t) => t.id !== 'streaming'),
 			}));
 		},

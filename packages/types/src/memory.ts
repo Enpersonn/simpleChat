@@ -20,12 +20,12 @@ export const DeltaOperationSchema = z.enum([
 ]);
 
 export const MemoryDeltaEffectSchema = z.object({
-	path: z.string().min(1),
+	entityType: z.string().min(1).default('character'),
 	op: DeltaOperationSchema,
+	path: z.string().min(1),
+	targetId: z.string().optional(),
 	value: DeltaValueSchema.optional(),
 	weight: z.number().min(0).max(1).default(1),
-	entityType: z.string().min(1).default('character'),
-	targetId: z.string().optional(),
 });
 
 export const MemoryDeltaSchema = z.object({
@@ -36,57 +36,54 @@ export type MemoryDelta = z.infer<typeof MemoryDeltaSchema>;
 export type MemoryDeltaEffect = z.infer<typeof MemoryDeltaEffectSchema>;
 
 export const MemoryItemSchema = z.object({
+	createdAt: z.string(),
+	deltas: MemoryDeltaSchema.default({ effects: [] }),
+	embedding: z.array(z.number()).optional(),
 	id: z.string(),
-	storyId: z.string(),
-	summary: z.string().min(1),
-	tags: z.array(z.string()).default([]),
 	importance: z.number().min(0).max(1).default(0.5),
-
+	isGenesis: z.boolean().default(false),
 	locationId: z.string().optional(),
+	sceneId: z.string().nullable().default(null),
 	sourceChatId: z.string().optional(),
 	sourceTurnId: z.string().optional(),
-
-	sceneId: z.string().nullable().default(null),
+	storyId: z.string(),
 	storyOrder: z.number().int().default(0),
-	isGenesis: z.boolean().default(false),
-
-	deltas: MemoryDeltaSchema.default({ effects: [] }),
-
-	createdAt: z.string(),
+	summary: z.string().min(1),
+	tags: z.array(z.string()).default([]),
 	updatedAt: z.string(),
 });
 
 export const MemoryItemCreateSchema = MemoryItemSchema.omit({
+	createdAt: true,
 	id: true,
 	storyId: true,
-	createdAt: true,
 	updatedAt: true,
 }).partial({
+	isGenesis: true,
 	sceneId: true,
 	storyOrder: true,
-	isGenesis: true,
 });
 
 // ─── CharacterMemoryRelation (join table) ────────────────────────────────────
 
 export const CharacterMemoryRelationSchema = z.object({
-	id: z.string(),
-	storyId: z.string(),
+	branchLabel: z.string().optional(),
 	characterId: z.string(),
+	createdAt: z.string(),
+	id: z.string(),
 	memoryId: z.string(),
 	previousRelationId: z.string().optional(),
-	branchLabel: z.string().optional(),
-	createdAt: z.string(),
+	storyId: z.string(),
 });
 
 export const CharacterMemoryRelationCreateSchema =
-	CharacterMemoryRelationSchema.omit({ id: true, createdAt: true });
+	CharacterMemoryRelationSchema.omit({ createdAt: true, id: true });
 
 // Combined payload for POST /memories — content + relation fields bundled
 export const CharacterMemoryWithRelationCreateSchema =
 	MemoryItemCreateSchema.extend({
-		previousRelationId: z.string().optional(),
 		branchLabel: z.string().optional(),
+		previousRelationId: z.string().optional(),
 	});
 
 export const CharacterMemoryUpdateSchema =
