@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { allowedOrigins } from '../config.js';
 import { handleLLMError } from '../error-handlers.js';
 import {
 	type GenerateContext,
@@ -6,6 +7,7 @@ import {
 	generateList,
 	generateSingle,
 } from '../LLM/generation/service.js';
+import { parseStoryMultiPass } from '../LLM/parsing/pipeline.js';
 import {
 	type ParseContext,
 	type ParseType,
@@ -57,5 +59,62 @@ export async function aiRoutes(app: FastifyInstance): Promise<void> {
 		} catch (err) {
 			return handleLLMError(err, reply);
 		}
+	});
+
+	app.post('/ai/parse-stream', async (req, reply) => {
+		const { text, context } = req.body as {
+			text?: string;
+			context?: ParseContext;
+		};
+
+		if (!text?.trim()) {
+			return reply.status(400).send({ error: 'text is required' });
+		}
+
+		const origin = (req.headers.origin as string) ?? '';
+		const corsOrigin = allowedOrigins.includes(origin)
+			? origin
+			: allowedOrigins[0];
+
+		reply.raw.writeHead(200, {
+			'Access-Control-Allow-Origin': corsOrigin,
+			'Cache-Control': 'no-cache',
+			'Content-Type': 'application/x-ndjson',
+			'Transfer-Encoding': 'chunked',
+			'X-Accel-Buffering': 'no',
+		});
+
+		const emit = (frame: object) =>
+			reply.raw.write(`${JSON.stringify(frame)}\n`);
+
+		try {
+			const result = await parseStoryMultiPass(
+				text.trim(),
+				context,
+				(stage, status, data) => {
+					emit({ parseProgress: { data, stage, status } });
+					if (status !== 'complete' || !data) return;
+					if (stage === 'story.core+locations') {
+						emit({ parsePartial: { data: data.storyCore, type: 'storyCore' } });
+						emit({ parsePartial: { data: data.locations, type: 'locations' } });
+					} else if (stage === 'story.characters') {
+						emit({ parsePartial: { data: data.characters, type: 'characters' } });
+					} else if (stage === 'story.memories') {
+						emit({ parsePartial: { data: data.memories, type: 'memories' } });
+					}
+				},
+				(event) => {
+					emit({ parseVerbose: event });
+				},
+			);
+
+			emit({ done: true, result });
+		} catch (err) {
+			const message =
+				err instanceof Error ? err.message : 'Parse error';
+			emit({ error: message });
+		}
+
+		reply.raw.end();
 	});
 }

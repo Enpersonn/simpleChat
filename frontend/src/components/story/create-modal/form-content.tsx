@@ -1,21 +1,28 @@
 import type { MemoryDeltaEffect } from '@simplechat/types';
-import { type Dispatch, type StateUpdater, useState } from 'preact/hooks';
+import {
+	type Dispatch,
+	type StateUpdater,
+	useRef,
+	useState,
+} from 'preact/hooks';
 import { api } from '@/src/lib/api';
+import { type ParseVerboseEvent, parseImportStream } from '@/src/lib/stream';
 import { useStoriesStore } from '@/src/store/stories';
 import { Badge } from '../../shared/Badge';
 import { Button } from '../../shared/Button';
 import { DialogClose } from '../../shared/Dialog';
 import { TagBox } from '../../shared/form/tag-box';
 import { f } from '../../shared/formCls';
-import {
-	DRAFT_STEPS,
-	GENRE_OPTIONS,
-	PARSE_STEPS,
-	TONE_OPTIONS,
-} from '../constants';
+import { DRAFT_STEPS, GENRE_OPTIONS, TONE_OPTIONS } from '../constants';
 import { emptyPreview } from '.';
 import { convertDeltasToEffects } from './conver-deltas-to-effect';
 import type { LivePreview } from './live-preview-panel';
+import {
+	applyProgressEvent,
+	type CharacterEntry,
+	ParseProgressLog,
+	type ParseStagesState,
+} from './ParseProgressLog';
 import type {
 	PendingChar,
 	PendingLocation,
@@ -65,6 +72,12 @@ export const FormContent = ({
 	const [error, setError] = useState('');
 	const [pendingMemories, setPendingMemories] = useState<PendingMemory[]>([]);
 	const [submitting, setSubmitting] = useState(false);
+	const [parseStages, setParseStages] = useState<ParseStagesState>({});
+	const [characterProgress, setCharacterProgress] = useState<
+		CharacterEntry[]
+	>([]);
+	const [verboseLog, setVerboseLog] = useState<ParseVerboseEvent[]>([]);
+	const abortRef = useRef<AbortController | null>(null);
 	const toggle = (
 		arr: string[],
 		val: string,
@@ -331,137 +344,178 @@ export const FormContent = ({
 		setGenStep(1);
 		setError('');
 		setLivePreview(emptyPreview());
+		setParseStages({});
+		setCharacterProgress([]);
+		setVerboseLog([]);
+
+		const controller = new AbortController();
+		abortRef.current = controller;
+
 		try {
-			const core = await api.ai.parse<{
-				title: string;
-				premise: string;
-				genres: string[];
-				tone: string[];
-				rules: string[];
-				writingStyle: { prose?: string };
-			}>('story-core', importText.trim());
-			applyGeneratedFields({ ...core, characters: [], locations: [] });
-			setLivePreview((p) => ({
-				...p,
-				genres: core.genres,
-				title: core.title,
-				tone: core.tone,
-			}));
-			setGenStep(2);
-			const { characters } = await api.ai.parse<{
-				characters: Array<{
-					name: string;
-					role: string;
-					isUserPersona: boolean;
-					age: string;
-					gender: string;
-					species: string;
-					clothing: string;
-					appearance: string;
-					personality: string[];
-					speechStyle: string;
-					trueMotives: string;
-					fears: string[];
-					relationships?: Array<{
-						otherCharacterName: string;
-						emotion: string;
-						publicAttitude: string;
-						privateAttitude: string;
-						trustLevel: number;
-					}>;
-				}>;
-			}>('story-characters', importText.trim(), {
-				premise: core.premise,
+			await parseImportStream({
+				onDone: () => {
+					setTab('write');
+				},
+				onError: (msg) => {
+					if (msg !== 'AbortError') setError(msg);
+				},
+				onPartial: (frame) => {
+					if (frame.type === 'storyCore') {
+						const core = frame.data as {
+							title?: string;
+							premise?: string;
+							genres?: string[];
+							tone?: string[];
+							rules?: string[];
+							writingStyle?: { prose?: string };
+						};
+						applyGeneratedFields({
+							...core,
+							characters: [],
+							genres: core.genres ?? [],
+							locations: [],
+							rules: core.rules ?? [],
+							tone: core.tone ?? [],
+							writingStyle: core.writingStyle ?? '',
+						});
+						setLivePreview((p) => ({
+							...p,
+							genres: core.genres ?? [],
+							title: core.title ?? '',
+							tone: core.tone ?? [],
+						}));
+					} else if (frame.type === 'characters') {
+						const characters =
+							(frame.data as Array<{
+								name: string;
+								role: string;
+								isUserPersona: boolean;
+								age: string;
+								gender: string;
+								species: string;
+								clothing: string;
+								appearance: string;
+								personality: string[];
+								speechStyle: string;
+								trueMotives: string;
+								fears: string[];
+								relationships?: RawRelation[];
+							}>) ?? [];
+						applyGeneratedFields({
+							characters,
+							genres: [],
+							locations: [],
+							rules: [],
+							tone: [],
+							writingStyle: '',
+						});
+						setLivePreview((p) => ({
+							...p,
+							characters: characters.map((c) => ({
+								isUserPersona: c.isUserPersona,
+								name: c.name,
+								role: c.role,
+							})),
+						}));
+					} else if (frame.type === 'locations') {
+						const locations =
+							(frame.data as Array<{
+								name: string;
+								description: string;
+								layout: string;
+								lighting: string;
+								atmosphere: string;
+								soundscape: string;
+								smells: string;
+								notes: string;
+								tags: string[];
+							}>) ?? [];
+						applyGeneratedFields({
+							characters: [],
+							genres: [],
+							locations,
+							rules: [],
+							tone: [],
+							writingStyle: '',
+						});
+						setLivePreview((p) => ({
+							...p,
+							locations: locations.map((l) => ({
+								description: l.description,
+								name: l.name,
+							})),
+						}));
+					} else if (frame.type === 'memories') {
+						const memories =
+							(frame.data as Array<{
+								characterName: string;
+								summary: string;
+								tags: string[];
+								importance: number;
+								deltas?: Record<string, unknown>;
+								relationshipEffects?: Array<{
+									otherCharacterName: string;
+									emotion: string;
+									publicAttitude: string;
+									privateAttitude: string;
+									trustLevel: number;
+								}>;
+							}>) ?? [];
+						if (memories.length > 0) {
+							setPendingMemories((prev) => [
+								...prev,
+								...memories.map((m, i) => ({
+									_localId: `mem-${Date.now()}-${i}`,
+									characterName: m.characterName,
+									deltas: m.deltas,
+									importance: m.importance,
+									relationshipEffects: m.relationshipEffects,
+									summary: m.summary,
+									tags: m.tags,
+								})),
+							]);
+							setLivePreview((p) => ({
+								...p,
+								memories: memories.map((m) => ({
+									characterName: m.characterName,
+									importance: m.importance,
+									summary: m.summary,
+								})),
+							}));
+						}
+					}
+				},
+				onProgress: (frame) => {
+					if (frame.stage === 'story.character') {
+						const name = frame.data?.characterName ?? '';
+						if (frame.status === 'start') {
+							setCharacterProgress((prev) => [
+								...prev,
+								{ name, status: 'running' },
+							]);
+						} else if (frame.status === 'complete') {
+							setCharacterProgress((prev) =>
+								prev.map((c) =>
+									c.name === name
+										? { ...c, status: 'complete' }
+										: c,
+								),
+							);
+						}
+					} else {
+						setParseStages((prev) =>
+							applyProgressEvent(prev, frame),
+						);
+					}
+				},
+				onVerbose: (event) => {
+					setVerboseLog((prev) => [...prev, event]);
+				},
+				signal: controller.signal,
+				text: importText.trim(),
 			});
-			applyGeneratedFields({
-				characters,
-				genres: [],
-				locations: [],
-				rules: [],
-				tone: [],
-				writingStyle: '',
-			});
-			setLivePreview((p) => ({
-				...p,
-				characters: characters.map((c) => ({
-					isUserPersona: c.isUserPersona,
-					name: c.name,
-					role: c.role,
-				})),
-			}));
-			setGenStep(3);
-			const { locations } = await api.ai.parse<{
-				locations: Array<{
-					name: string;
-					description: string;
-					layout: string;
-					lighting: string;
-					atmosphere: string;
-					soundscape: string;
-					smells: string;
-					notes: string;
-					tags: string[];
-				}>;
-			}>('story-locations', importText.trim(), { premise: core.premise });
-			applyGeneratedFields({
-				characters: [],
-				genres: [],
-				locations,
-				rules: [],
-				tone: [],
-				writingStyle: '',
-			});
-			setLivePreview((p) => ({
-				...p,
-				locations: locations.map((l) => ({
-					description: l.description,
-					name: l.name,
-				})),
-			}));
-			setGenStep(4);
-			const { memories } = await api.ai.parse<{
-				memories: Array<{
-					characterName: string;
-					summary: string;
-					tags: string[];
-					importance: number;
-					deltas?: Record<string, unknown>;
-					relationshipEffects?: Array<{
-						otherCharacterName: string;
-						emotion: string;
-						publicAttitude: string;
-						privateAttitude: string;
-						trustLevel: number;
-					}>;
-				}>;
-			}>('story-memories', importText.trim(), {
-				characterNames: characters.map((c) => c.name),
-				premise: core.premise,
-			});
-			if (memories.length > 0) {
-				const newMems: PendingMemory[] = memories.map((m, i) => ({
-					_localId: `mem-${Date.now()}-${i}`,
-					characterName: m.characterName,
-					deltas: m.deltas,
-					importance: m.importance,
-					relationshipEffects: m.relationshipEffects,
-					summary: m.summary,
-					tags: m.tags,
-				}));
-				setPendingMemories((prev) => [...prev, ...newMems]);
-				setLivePreview((p) => ({
-					...p,
-					memories: memories.map((m) => ({
-						characterName: m.characterName,
-						importance: m.importance,
-						summary: m.summary,
-					})),
-				}));
-			}
-			setTab('write');
-		} catch (err) {
-			setError((err as Error).message);
 		} finally {
+			abortRef.current = null;
 			setGenStep(0);
 		}
 	};
@@ -617,7 +671,7 @@ export const FormContent = ({
 	const customGenres = genres.filter((g) => !GENRE_OPTIONS.includes(g));
 	const customTones = tones.filter((t) => !TONE_OPTIONS.includes(t));
 
-	const steps = tab === 'import' ? PARSE_STEPS : DRAFT_STEPS;
+	const steps = DRAFT_STEPS;
 
 	const generating = genStep > 0;
 
@@ -625,7 +679,7 @@ export const FormContent = ({
 		<>
 			{error && <div class={f.errorMsg}>{error}</div>}
 
-			{genStep > 0 && (
+			{genStep > 0 && tab === 'write' && (
 				<div class={f.genProgress}>
 					<span class={f.genSpinner}>↻</span>
 					<span class={f.genLabel}>{steps[genStep - 1]}</span>
@@ -637,34 +691,48 @@ export const FormContent = ({
 
 			{tab === 'import' && (
 				<div class={f.field}>
-					<label class={f.label}>
-						Paste your story notes, excerpts, or drafts
-					</label>
-					<textarea
-						class={f.textarea}
-						placeholder="Paste story notes, chapter drafts, character sketches, world-building notes…"
-						value={importText}
-						onInput={(e) =>
-							setImportText(
-								(e.target as HTMLTextAreaElement).value,
-							)
-						}
-						style={{ minHeight: '220px' }}
-					/>
-					<div class={f.aiBar}>
-						<Button
-							variant="secondary"
-							onClick={handleParse}
-							disabled={generating || !importText.trim()}
-						>
-							{generating ? '✨ Parsing…' : '✨ Parse & Generate'}
-						</Button>
-					</div>
-					<div class="mt-1 text-[11px] text-text-muted">
-						The LLM will synthesise a clean premise and extract
-						characters, locations, and canon memories. Review all
-						fields before creating.
-					</div>
+					{generating ? (
+						<ParseProgressLog
+							stages={parseStages}
+							characters={characterProgress}
+							verboseLog={verboseLog}
+							onCancel={() => {
+								abortRef.current?.abort();
+							}}
+						/>
+					) : (
+						<>
+							<label class={f.label} for="import-text">
+								Paste your story notes, excerpts, or drafts
+							</label>
+							<textarea
+								id="import-text"
+								class={f.textarea}
+								placeholder="Paste story notes, chapter drafts, character sketches, world-building notes…"
+								value={importText}
+								onInput={(e) =>
+									setImportText(
+										(e.target as HTMLTextAreaElement).value,
+									)
+								}
+								style={{ minHeight: '220px' }}
+							/>
+							<div class={f.aiBar}>
+								<Button
+									variant="secondary"
+									onClick={handleParse}
+									disabled={!importText.trim()}
+								>
+									✨ Parse & Generate
+								</Button>
+							</div>
+							<div class="mt-1 text-[11px] text-text-muted">
+								The LLM will synthesise a clean premise and
+								extract characters, locations, and canon
+								memories. Review all fields before creating.
+							</div>
+						</>
+					)}
 				</div>
 			)}
 

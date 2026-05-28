@@ -1,5 +1,125 @@
 import type { DmProposal } from '@simplechat/types';
-import type { PipelineEvent, ContextSnapshot } from './debug-types.js';
+import type { ContextSnapshot, PipelineEvent } from './debug-types.js';
+
+export interface ParseProgressFrame {
+	stage: string;
+	status: 'start' | 'complete' | 'error';
+	data?: {
+		count?: number;
+		characterName?: string;
+		characterCount?: number;
+		locationCount?: number;
+		storyCore?: unknown;
+		locations?: unknown;
+		characters?: unknown;
+		memories?: unknown;
+	};
+}
+
+export interface ParsePartialFrame {
+	type: 'storyCore' | 'locations' | 'characters' | 'memories';
+	data: unknown;
+}
+
+export interface ParseVerboseEvent {
+	agent: string;
+	step: 'request' | 'response';
+	chunkIndex?: number;
+	totalChunks?: number;
+	prompt?: string;
+	rawText?: string;
+	durationMs?: number;
+}
+
+export interface ParseImportOptions {
+	text: string;
+	context?: Record<string, unknown>;
+	onProgress: (frame: ParseProgressFrame) => void;
+	onPartial: (frame: ParsePartialFrame) => void;
+	onVerbose?: (event: ParseVerboseEvent) => void;
+	onDone: (result: unknown) => void;
+	onError: (msg: string) => void;
+	signal?: AbortSignal;
+}
+
+export async function parseImportStream(opts: ParseImportOptions): Promise<void> {
+	const { text, context, onProgress, onPartial, onVerbose, onDone, onError, signal } = opts;
+
+	let res: Response;
+	try {
+		res = await fetch('/ai/parse-stream', {
+			body: JSON.stringify({ context, text }),
+			headers: { 'Content-Type': 'application/json' },
+			method: 'POST',
+			signal,
+		});
+	} catch (err) {
+		if ((err as Error).name === 'AbortError') return;
+		onError((err as Error).message);
+		return;
+	}
+
+	if (!res.ok || !res.body) {
+		onError(`Request failed: ${res.status}`);
+		return;
+	}
+
+	const reader = res.body.getReader();
+	const decoder = new TextDecoder();
+	let buffer = '';
+
+	while (true) {
+		let done: boolean;
+		let value: Uint8Array | undefined;
+		try {
+			({ done, value } = await reader.read());
+		} catch {
+			break;
+		}
+		if (done) break;
+
+		buffer += decoder.decode(value, { stream: true });
+		const lines = buffer.split('\n');
+		buffer = lines.pop() ?? '';
+
+		for (const line of lines) {
+			if (!line.trim()) continue;
+			try {
+				const msg = JSON.parse(line) as {
+					parseProgress?: ParseProgressFrame;
+					parsePartial?: ParsePartialFrame;
+					parseVerbose?: ParseVerboseEvent;
+					done?: boolean;
+					result?: unknown;
+					error?: string;
+				};
+				if (msg.error) {
+					onError(msg.error);
+					return;
+				}
+				if (msg.parseProgress) {
+					onProgress(msg.parseProgress);
+					continue;
+				}
+				if (msg.parsePartial) {
+					onPartial(msg.parsePartial);
+					continue;
+				}
+				if (msg.parseVerbose) {
+					onVerbose?.(msg.parseVerbose);
+					continue;
+				}
+				if (msg.done) {
+					onDone(msg.result);
+					return;
+				}
+			} catch {
+				// skip malformed line
+			}
+		}
+	}
+	onDone(undefined);
+}
 
 export interface DebugInfo {
 	systemPrompt: string;

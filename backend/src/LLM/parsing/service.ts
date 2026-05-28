@@ -9,9 +9,10 @@ import {
 	normaliseStoryCore,
 	parseArray,
 } from '../normalizers.js';
-import type { PromptRunner } from '../prompt-runners/create-prompt-runner.js';
+import type { PromptRunner, PromptRunnerVerboseEvent } from '../prompt-runners/create-prompt-runner.js';
 import { parseStoryMultiPass } from './pipeline.js';
 import { chunkText, sanitizeTextForParsing } from './sanitize.js';
+import type { ParseVerboseCallback } from './verbose-types.js';
 
 export type ParseType =
 	| 'story-core'
@@ -33,6 +34,7 @@ export async function runChunked<T>(
 	normalise: (item: Record<string, unknown>) => T,
 	filter: (item: T) => boolean,
 	dedupeBy?: (item: T) => string,
+	verboseOpts?: { agentLabel: string; onVerbose: ParseVerboseCallback },
 ): Promise<T[]> {
 	const total = chunks.length;
 	const all: T[] = [];
@@ -46,8 +48,21 @@ export async function runChunked<T>(
 			.filter(Boolean)
 			.join('\n\n');
 
+		const onVerbose = verboseOpts
+			? (ev: PromptRunnerVerboseEvent) =>
+					verboseOpts.onVerbose({
+						agent: verboseOpts.agentLabel,
+						chunkIndex: i + 1,
+						durationMs: ev.durationMs,
+						prompt: ev.prompt,
+						rawText: ev.rawText,
+						step: ev.step,
+						totalChunks: total,
+					})
+			: undefined;
+
 		try {
-			const data = await agent.run(prompt);
+			const data = await agent.run(prompt, { onVerbose });
 			all.push(...parseArray(data, arrayKey, normalise, filter));
 		} catch (err) {
 			console.warn(
@@ -82,8 +97,8 @@ export async function parseEntities(
 			parts.push('Respond with ONLY the JSON object. No other text.');
 			const data = await storyCoreParseAgent.run(parts.join('\n\n'));
 			return normaliseStoryCore(data, {
-				includeTitle: true,
 				includePremise: true,
+				includeTitle: true,
 			});
 		}
 

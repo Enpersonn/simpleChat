@@ -1,5 +1,13 @@
 import { z } from 'zod';
+import { extractJson } from '../../utils.js';
 import { getOllamaAdapter } from '../llm-client.js';
+
+export interface PromptRunnerVerboseEvent {
+	step: 'request' | 'response';
+	prompt?: string;
+	rawText?: string;
+	durationMs?: number;
+}
 
 export const createPromptRunner = <T extends z.ZodType<any>>(config: {
 	role: string;
@@ -8,22 +16,35 @@ export const createPromptRunner = <T extends z.ZodType<any>>(config: {
 	temperature: number;
 	num_ctx?: number;
 }) => {
-	const systemPrompt = `You are a ${config.role}. ${config.instructions}`;
+	const schemaHint = JSON.stringify(z.toJSONSchema(config.outputSchema), null, 2);
+	const systemPrompt = `You are a ${config.role}. ${config.instructions}\n\nOutput ONLY a valid JSON object matching this schema:\n${schemaHint}`;
 
 	const run = async (
 		userContent: string,
-		overrides?: { temperature?: number; num_ctx?: number },
+		overrides?: {
+			num_ctx?: number;
+			onVerbose?: (event: PromptRunnerVerboseEvent) => void;
+			temperature?: number;
+		},
 	): Promise<z.infer<T>> => {
-		const adapter = await getOllamaAdapter(overrides?.num_ctx ?? config.num_ctx);
-		const { json } = await adapter.json({
+		overrides?.onVerbose?.({ prompt: userContent, step: 'request' });
+		const startTime = Date.now();
+		const adapter = await getOllamaAdapter(
+			overrides?.num_ctx ?? config.num_ctx,
+		);
+		const { text } = await adapter.chat({
 			messages: [
-				{ role: 'system' as const, content: systemPrompt },
-				{ role: 'user' as const, content: userContent },
+				{ content: systemPrompt, role: 'system' as const },
+				{ content: userContent, role: 'user' as const },
 			],
-			schema: config.outputSchema,
 			temperature: overrides?.temperature ?? config.temperature,
 		});
-		return json as z.infer<T>;
+		overrides?.onVerbose?.({
+			durationMs: Date.now() - startTime,
+			rawText: text,
+			step: 'response',
+		});
+		return extractJson(text) as z.infer<T>;
 	};
 
 	return { run };
@@ -32,6 +53,10 @@ export const createPromptRunner = <T extends z.ZodType<any>>(config: {
 export type PromptRunner = {
 	run: (
 		content: string,
-		overrides?: { temperature?: number; num_ctx?: number },
+		overrides?: {
+			num_ctx?: number;
+			onVerbose?: (event: PromptRunnerVerboseEvent) => void;
+			temperature?: number;
+		},
 	) => Promise<Record<string, unknown>>;
 };
