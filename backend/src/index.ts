@@ -24,7 +24,8 @@ app.addContentTypeParser(
 	{ parseAs: 'string' },
 	(req, body, done) => {
 		try {
-			done(null, JSON.parse(body as string));
+			const raw = (body as string).trim();
+			done(null, raw ? JSON.parse(raw) : {});
 		} catch (err) {
 			done(err as Error, undefined);
 		}

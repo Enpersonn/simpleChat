@@ -1,476 +1,34 @@
-import { createOrchestrator } from '@llm-helpers/agents';
 import {
 	createSkillRunner,
 	defineSkill,
 	type SkillRunner,
 } from '@llm-helpers/skills';
-import {
-	createFunctionProvider,
-	createToolSystem,
-	defineTool,
-	type ToolSystem,
-} from '@llm-helpers/tools';
+import type { ToolSystem } from '@llm-helpers/tools';
+import type { SkillContext } from '@llm-helpers/types';
 import { z } from 'zod';
-import { storyLocationsParseAgent } from '../../features/locations/parsing-agent.js';
-import { storyMemoriesParseAgent } from '../../features/memories/parsing-agent.js';
-import { storyCoreParseAgent } from '../../features/stories/parsing-agent.js';
+import type { ParsingMcpPolicy } from './chunked-pass.js';
 import {
-	type normaliseCharacter,
-	normaliseLocation,
-	normaliseMemoryItem,
-	normaliseStoryCore,
-} from '../normalizers.js';
-import { createOllamaRuntime } from '../runtime.js';
-import { runCharacterDeepDiveAgent } from './agent-character.js';
-import { censusAgent } from './census-agent.js';
-import { identityAgent } from './identity-agent.js';
-import { relationshipAgent } from './relationship-agent.js';
-import { runChunked } from './service.js';
+	buildParsingIndex,
+	type EntityManifest,
+	isParsingIndex,
+	type ParsingIndex,
+} from './indexing.js';
+import {
+	type NormalisedCharacter,
+	type NormalisedLocation,
+	type NormalisedMemory,
+	type NormalisedStoryCore,
+	runStoryCensusStage,
+	runStoryCharactersStage,
+	runStoryCoreStage,
+	runStoryIdentitiesStage,
+	runStoryLocationsStage,
+	runStoryMemoriesStage,
+	runStoryRelationshipsStage,
+	type StoryStageRuntimeContext,
+} from './stages.js';
+import type { ParseTraceEmitter } from './trace-types.js';
 import type { ParseVerboseCallback } from './verbose-types.js';
-
-export type NormalisedCharacter = ReturnType<typeof normaliseCharacter>;
-export type NormalisedLocation = ReturnType<typeof normaliseLocation>;
-export type NormalisedMemory = ReturnType<typeof normaliseMemoryItem>;
-export type NormalisedStoryCore = ReturnType<typeof normaliseStoryCore>;
-
-export interface EntityManifest {
-	characterNames: string[];
-	locationNames: string[];
-	sceneNames: string[];
-}
-
-// ── Skills ────────────────────────────────────────────────────────────────
-
-const censusSkill = defineSkill({
-	description:
-		'Enumerate all named characters, locations, and scenes in the story text.',
-	async execute({ sanitizedText }, ctx): Promise<EntityManifest> {
-		const onVerbose = ctx.metadata?.onVerbose as
-			| ParseVerboseCallback
-			| undefined;
-		try {
-			const data = await censusAgent.run(
-				`Story text:\n${sanitizedText}`,
-				{
-					onVerbose: onVerbose
-						? (ev) => onVerbose({ agent: 'census', ...ev })
-						: undefined,
-				},
-			);
-			return {
-				characterNames: Array.isArray(data.characterNames)
-					? data.characterNames.filter(
-							(n): n is string => typeof n === 'string',
-						)
-					: [],
-				locationNames: Array.isArray(data.locationNames)
-					? data.locationNames.filter(
-							(n): n is string => typeof n === 'string',
-						)
-					: [],
-				sceneNames: Array.isArray(data.sceneNames)
-					? data.sceneNames.filter(
-							(n): n is string => typeof n === 'string',
-						)
-					: [],
-			};
-		} catch {
-			return { characterNames: [], locationNames: [], sceneNames: [] };
-		}
-	},
-	input: z.object({ sanitizedText: z.string() }),
-	name: 'story.census',
-});
-
-const storeCoreSkill = defineSkill({
-	description:
-		'Extract title, premise, genres, tone, themes, writing style, and rules.',
-	async execute(
-		{ sanitizedText, manifest, premise },
-		ctx,
-	): Promise<NormalisedStoryCore> {
-		const onVerbose = ctx.metadata?.onVerbose as
-			| ParseVerboseCallback
-			| undefined;
-		const parts: string[] = [];
-		if (premise) parts.push(`Story premise: ${premise}`);
-		parts.push(`Story text:\n${sanitizedText}`);
-		if (manifest.characterNames.length)
-			parts.push(`Characters: ${manifest.characterNames.join(', ')}`);
-		parts.push('Respond with ONLY the JSON object. No other text.');
-		const data = await storyCoreParseAgent.run(parts.join('\n\n'), {
-			onVerbose: onVerbose
-				? (ev) => onVerbose({ agent: 'story-core', ...ev })
-				: undefined,
-		});
-		return normaliseStoryCore(data, {
-			includePremise: true,
-			includeTitle: true,
-		});
-	},
-	input: z.object({
-		manifest: z.object({
-			characterNames: z.array(z.string()),
-			locationNames: z.array(z.string()),
-			sceneNames: z.array(z.string()),
-		}),
-		premise: z.string().optional(),
-		sanitizedText: z.string(),
-	}),
-	name: 'story.core',
-});
-
-const locationsSkill = defineSkill({
-	description:
-		'Extract and deduplicate all named locations from chunked story text.',
-	async execute(
-		{ chunks, manifest, premise },
-		ctx,
-	): Promise<NormalisedLocation[]> {
-		const onVerbose = ctx.metadata?.onVerbose as
-			| ParseVerboseCallback
-			| undefined;
-		const prefixParts: string[] = [];
-		if (premise) prefixParts.push(`Story premise: ${premise}`);
-		if (manifest.locationNames.length)
-			prefixParts.push(
-				`Expected locations: ${manifest.locationNames.join(', ')}`,
-			);
-		return runChunked(
-			storyLocationsParseAgent,
-			chunks,
-			prefixParts.join('\n\n'),
-			'locations',
-			normaliseLocation,
-			(l) => !!l.name,
-			(l) => l.name.toLowerCase(),
-			onVerbose ? { agentLabel: 'locations', onVerbose } : undefined,
-		);
-	},
-	input: z.object({
-		chunks: z.array(z.string()),
-		manifest: z.object({
-			characterNames: z.array(z.string()),
-			locationNames: z.array(z.string()),
-			sceneNames: z.array(z.string()),
-		}),
-		premise: z.string().optional(),
-	}),
-	name: 'story.locations',
-});
-
-const charactersSkill = defineSkill({
-	description:
-		'Deep-dive extract of each named character using an agent loop.',
-	async execute(
-		{ chunks, characterNames, premise },
-		ctx,
-	): Promise<NormalisedCharacter[]> {
-		const onProgress = ctx.metadata?.onProgress as
-			| import('./pipeline.js').ParseProgressCallback
-			| undefined;
-		const onVerbose = ctx.metadata?.onVerbose as
-			| ParseVerboseCallback
-			| undefined;
-		const onCharacterProgress = onProgress
-			? (name: string, status: 'start' | 'complete') =>
-					onProgress('story.character', status, {
-						characterName: name,
-					})
-			: undefined;
-		return runCharacterDeepDiveAgent(
-			characterNames,
-			chunks,
-			premise ? { premise } : undefined,
-			onCharacterProgress,
-			onVerbose,
-		);
-	},
-	input: z.object({
-		characterNames: z.array(z.string()),
-		chunks: z.array(z.string()),
-		premise: z.string().optional(),
-	}),
-	name: 'story.characters',
-});
-
-const relationshipsSkill = defineSkill({
-	description:
-		'Merge cross-character relationship edges into the character list.',
-	async execute(
-		{ sanitizedText, characters },
-		ctx,
-	): Promise<NormalisedCharacter[]> {
-		const onVerbose = ctx.metadata?.onVerbose as
-			| ParseVerboseCallback
-			| undefined;
-		const chars = characters as NormalisedCharacter[];
-		if (chars.length === 0) return chars;
-		try {
-			const charList = chars.map((c) => c.name).join(', ');
-			const data = await relationshipAgent.run(
-				`Characters: ${charList}\n\nStory text:\n${sanitizedText}`,
-				{
-					onVerbose: onVerbose
-						? (ev) => onVerbose({ agent: 'relationships', ...ev })
-						: undefined,
-				},
-			);
-			const rawRels = Array.isArray(data.relationships)
-				? data.relationships
-				: [];
-			for (const rel of rawRels as Record<string, unknown>[]) {
-				const fromName =
-					typeof rel.fromCharacter === 'string'
-						? rel.fromCharacter
-						: '';
-				const toName =
-					typeof rel.toCharacter === 'string' ? rel.toCharacter : '';
-				if (!fromName || !toName) continue;
-				const char = chars.find(
-					(c) => c.name.toLowerCase() === fromName.toLowerCase(),
-				);
-				if (!char) continue;
-				const edge = {
-					emotion: typeof rel.emotion === 'string' ? rel.emotion : '',
-					otherCharacterName: toName,
-					privateAttitude:
-						typeof rel.privateAttitude === 'string'
-							? rel.privateAttitude
-							: '',
-					publicAttitude:
-						typeof rel.publicAttitude === 'string'
-							? rel.publicAttitude
-							: '',
-					trustLevel:
-						typeof rel.trustLevel === 'number'
-							? Math.min(10, Math.max(0, rel.trustLevel))
-							: 5,
-				};
-				const existing = char.relationships.find(
-					(r) =>
-						r.otherCharacterName.toLowerCase() ===
-						toName.toLowerCase(),
-				);
-				if (!existing) char.relationships.push(edge);
-			}
-		} catch {
-			// non-fatal
-		}
-		return chars;
-	},
-	input: z.object({
-		characters: z.array(z.unknown()),
-		sanitizedText: z.string(),
-	}),
-	name: 'story.relationships',
-});
-
-const memoriesSkill = defineSkill({
-	description:
-		'Extract the chronological timeline of memory events for all characters.',
-	async execute(
-		{ chunks, characters, manifest, premise },
-		ctx,
-	): Promise<NormalisedMemory[]> {
-		const onVerbose = ctx.metadata?.onVerbose as
-			| ParseVerboseCallback
-			| undefined;
-		const chars = characters as NormalisedCharacter[];
-		const charList = chars.map((c) => c.name).join(', ');
-		const prefixParts: string[] = [];
-		if (premise) prefixParts.push(`Story premise: ${premise}`);
-		prefixParts.push(`Known characters: ${charList}`);
-		if (manifest.sceneNames.length)
-			prefixParts.push(`Known scenes: ${manifest.sceneNames.join(', ')}`);
-		return runChunked(
-			storyMemoriesParseAgent,
-			chunks,
-			prefixParts.join('\n\n'),
-			'memories',
-			normaliseMemoryItem,
-			(m) => !!(m.characterName && m.summary),
-			undefined,
-			onVerbose ? { agentLabel: 'memories', onVerbose } : undefined,
-		);
-	},
-	input: z.object({
-		characters: z.array(z.unknown()),
-		chunks: z.array(z.string()),
-		manifest: z.object({
-			characterNames: z.array(z.string()),
-			locationNames: z.array(z.string()),
-			sceneNames: z.array(z.string()),
-		}),
-		premise: z.string().optional(),
-	}),
-	name: 'story.memories',
-});
-
-const identitiesSkill = defineSkill({
-	description:
-		'Resolve cross-character identity links and alternate personas.',
-	async execute(
-		{ characters, memories },
-		ctx,
-	): Promise<NormalisedCharacter[]> {
-		const onVerbose = ctx.metadata?.onVerbose as
-			| ParseVerboseCallback
-			| undefined;
-		const chars = characters as NormalisedCharacter[];
-		const mems = memories as NormalisedMemory[];
-		if (chars.length === 0) return chars;
-		try {
-			const charList = chars.map((c) => c.name).join(', ');
-			const timelineSummary = mems
-				.slice(0, 20)
-				.map((m) => `${m.characterName}: ${m.summary}`)
-				.join('\n');
-			let data:
-				| {
-						links?: Array<Record<string, unknown>>;
-				  }
-				| undefined;
-
-			const resolveIdentitiesTool = defineTool({
-				description:
-					'Run the identity resolution parser on the provided character and memory summary.',
-				execute: async ({ content }) => {
-					const result = await identityAgent.run(content, {
-						onVerbose: onVerbose
-							? (ev) => onVerbose({ agent: 'identities', ...ev })
-							: undefined,
-					});
-					data = result as { links?: Array<Record<string, unknown>> };
-					return result;
-				},
-				input: z.object({
-					content: z.string(),
-				}),
-				name: 'identities.resolve',
-			});
-
-			const runtime = await createOllamaRuntime({ numCtx: 8192 });
-			const identityTools = createToolSystem({
-				providers: [
-					createFunctionProvider('identity-tools', [
-						resolveIdentitiesTool,
-					]),
-				],
-			});
-			const coordinatorTools = createToolSystem({
-				providers: [createFunctionProvider('parse-coordinator', [])],
-			});
-			const orchestrator = createOrchestrator({
-				agents: {
-					'identity-analyst': {
-						options: {
-							maxSteps: 3,
-						},
-						provider: runtime.provider,
-						systemPrompt:
-							'Call identities.resolve exactly once and use its JSON result as the answer.',
-						tools: identityTools,
-					},
-					'parse-coordinator': {
-						options: {
-							maxSteps: 3,
-						},
-						provider: runtime.provider,
-						systemPrompt:
-							'Delegate the identity resolution task to the identity-analyst agent using the ask skill exactly once. Do not add extra analysis.',
-						tools: coordinatorTools,
-					},
-				},
-				router: () => 'parse-coordinator',
-			});
-			await orchestrator.run(
-				`Characters: ${charList}\n\nTimeline summary:\n${timelineSummary}`,
-			);
-			if (!data) {
-				data = await identityAgent.run(
-					`Characters: ${charList}\n\nTimeline summary:\n${timelineSummary}`,
-					{
-						onVerbose: onVerbose
-							? (ev) => onVerbose({ agent: 'identities', ...ev })
-							: undefined,
-					},
-				);
-			}
-			const links = Array.isArray(data.links) ? data.links : [];
-			for (const link of links as Record<string, unknown>[]) {
-				const charName =
-					typeof link.characterName === 'string'
-						? link.characterName
-						: '';
-				if (!charName) continue;
-				const char = chars.find(
-					(c) => c.name.toLowerCase() === charName.toLowerCase(),
-				);
-				if (!char) continue;
-				if (Array.isArray(link.linkedCharacterNames)) {
-					for (const n of link.linkedCharacterNames as unknown[]) {
-						if (
-							typeof n === 'string' &&
-							!char.linkedCharacterNames.includes(n)
-						)
-							char.linkedCharacterNames.push(n);
-					}
-				}
-				if (Array.isArray(link.identities)) {
-					for (const raw of link.identities as Record<
-						string,
-						unknown
-					>[]) {
-						if (!raw || typeof raw.name !== 'string' || !raw.name)
-							continue;
-						const already = char.identities.find(
-							(i) =>
-								i.name.toLowerCase() ===
-								(raw.name as string).toLowerCase(),
-						);
-						if (!already) {
-							char.identities.push({
-								abilities: Array.isArray(raw.abilities)
-									? (raw.abilities as unknown[]).filter(
-											(x): x is string =>
-												typeof x === 'string',
-										)
-									: [],
-								appearance:
-									typeof raw.appearance === 'string'
-										? raw.appearance
-										: '',
-								conditions:
-									typeof raw.conditions === 'string'
-										? raw.conditions
-										: '',
-								id: crypto.randomUUID(),
-								knownBy: [],
-								name: raw.name as string,
-								notes:
-									typeof raw.notes === 'string'
-										? raw.notes
-										: '',
-								selfAware: raw.selfAware !== false,
-							});
-						}
-					}
-				}
-			}
-		} catch {
-			// non-fatal
-		}
-		return chars;
-	},
-	input: z.object({
-		characters: z.array(z.unknown()),
-		memories: z.array(z.unknown()),
-	}),
-	name: 'story.identities',
-});
-
-// ── Master orchestrator ───────────────────────────────────────────────────
 
 export interface MultiPassResult {
 	storyCore: NormalisedStoryCore;
@@ -479,81 +37,459 @@ export interface MultiPassResult {
 	memories: NormalisedMemory[];
 }
 
+function getStageRuntimeContext(ctx: SkillContext): StoryStageRuntimeContext {
+	return {
+		mcpPolicy: ctx.metadata?.mcpPolicy as ParsingMcpPolicy | undefined,
+		onProgress: ctx.metadata?.onProgress as
+			| import('./pipeline.js').ParseProgressCallback
+			| undefined,
+		onVerbose: ctx.metadata?.onVerbose as ParseVerboseCallback | undefined,
+		signal: ctx.signal,
+		trace: ctx.metadata?.trace as ParseTraceEmitter | undefined,
+	};
+}
+
+async function ensureParsingIndexFromSkill(
+	ctx: SkillContext,
+	args: {
+		chunks?: string[];
+		index?: unknown;
+		sanitizedText?: string;
+	},
+): Promise<ParsingIndex> {
+	if (isParsingIndex(args.index)) {
+		return args.index;
+	}
+	return buildParsingIndex(
+		{
+			chunks: args.chunks ?? [],
+			sanitizedText: args.sanitizedText ?? '',
+		},
+		getStageRuntimeContext(ctx),
+	);
+}
+
+async function emitSkillEvent(
+	trace: ParseTraceEmitter | undefined,
+	kind: 'skill_call' | 'skill_result' | 'skill_error',
+	name: string,
+	stage: string,
+	payload: Record<string, unknown> = {},
+) {
+	await trace?.emit({
+		kind,
+		payload: { name, ...payload },
+		stage,
+	});
+}
+
+const censusSkill = defineSkill({
+	description:
+		'Enumerate all named characters, locations, and scenes in the story text.',
+	execute: async (
+		{ chunks, index, sanitizedText },
+		ctx,
+	): Promise<EntityManifest> => {
+		const parsingIndex = await ensureParsingIndexFromSkill(ctx, {
+			chunks,
+			index,
+			sanitizedText,
+		});
+		return runStoryCensusStage(
+			{ index: parsingIndex },
+			getStageRuntimeContext(ctx),
+		);
+	},
+	input: z.object({
+		chunks: z.array(z.string()).default([]),
+		index: z.unknown().optional(),
+		sanitizedText: z.string().optional(),
+	}),
+	name: 'story.census',
+});
+
+const indexSkill = defineSkill({
+	description: 'Build the shared parsing index used by every story stage.',
+	execute: async ({ chunks, sanitizedText }, ctx): Promise<ParsingIndex> =>
+		buildParsingIndex(
+			{
+				chunks,
+				sanitizedText,
+			},
+			getStageRuntimeContext(ctx),
+		),
+	input: z.object({
+		chunks: z.array(z.string()).default([]),
+		sanitizedText: z.string(),
+	}),
+	name: 'story.index',
+});
+
+const storyCoreSkill = defineSkill({
+	description:
+		'Extract title, premise, genres, tone, themes, writing style, and rules.',
+	execute: async (
+		{ chunks, index, premise, sanitizedText },
+		ctx,
+	): Promise<NormalisedStoryCore> => {
+		const parsingIndex = await ensureParsingIndexFromSkill(ctx, {
+			chunks,
+			index,
+			sanitizedText,
+		});
+		return runStoryCoreStage(
+			{ index: parsingIndex, premise },
+			getStageRuntimeContext(ctx),
+		);
+	},
+	input: z.object({
+		chunks: z.array(z.string()).default([]),
+		index: z.unknown().optional(),
+		premise: z.string().optional(),
+		sanitizedText: z.string().optional(),
+	}),
+	name: 'story.core',
+});
+
+const locationsSkill = defineSkill({
+	description:
+		'Extract and deduplicate all named locations from chunked story text.',
+	execute: async (
+		{ chunks, index, premise, sanitizedText },
+		ctx,
+	): Promise<NormalisedLocation[]> => {
+		const parsingIndex = await ensureParsingIndexFromSkill(ctx, {
+			chunks,
+			index,
+			sanitizedText,
+		});
+		return runStoryLocationsStage(
+			{ index: parsingIndex, premise },
+			getStageRuntimeContext(ctx),
+		);
+	},
+	input: z.object({
+		chunks: z.array(z.string()).default([]),
+		index: z.unknown().optional(),
+		premise: z.string().optional(),
+		sanitizedText: z.string().optional(),
+	}),
+	name: 'story.locations',
+});
+
+const charactersSkill = defineSkill({
+	description:
+		'Deep-dive extract of each named character using a deterministic worker queue.',
+	execute: async (
+		{ chunks, characterNames, index, premise, sanitizedText },
+		ctx,
+	): Promise<NormalisedCharacter[]> => {
+		const parsingIndex = await ensureParsingIndexFromSkill(ctx, {
+			chunks,
+			index,
+			sanitizedText,
+		});
+		return runStoryCharactersStage(
+			{ characterNames, index: parsingIndex, premise },
+			getStageRuntimeContext(ctx),
+		);
+	},
+	input: z.object({
+		characterNames: z.array(z.string()),
+		chunks: z.array(z.string()).default([]),
+		index: z.unknown().optional(),
+		premise: z.string().optional(),
+		sanitizedText: z.string().optional(),
+	}),
+	name: 'story.characters',
+});
+
+const relationshipsSkill = defineSkill({
+	description:
+		'Extract chunk-level relationship evidence and merge it by pair.',
+	execute: async (
+		{ characters, chunks, index, premise, sanitizedText },
+		ctx,
+	): Promise<NormalisedCharacter[]> => {
+		const parsingIndex = await ensureParsingIndexFromSkill(ctx, {
+			chunks,
+			index,
+			sanitizedText,
+		});
+		return runStoryRelationshipsStage(
+			{
+				characters: characters as NormalisedCharacter[],
+				index: parsingIndex,
+				premise,
+			},
+			getStageRuntimeContext(ctx),
+		);
+	},
+	input: z.object({
+		characters: z.array(z.unknown()),
+		chunks: z.array(z.string()).default([]),
+		index: z.unknown().optional(),
+		premise: z.string().optional(),
+		sanitizedText: z.string().optional(),
+	}),
+	name: 'story.relationships',
+});
+
+const memoriesSkill = defineSkill({
+	description:
+		'Extract the chronological timeline of memory events for all characters.',
+	execute: async (
+		{ characters, chunks, index, premise, sanitizedText },
+		ctx,
+	): Promise<NormalisedMemory[]> => {
+		const parsingIndex = await ensureParsingIndexFromSkill(ctx, {
+			chunks,
+			index,
+			sanitizedText,
+		});
+		return runStoryMemoriesStage(
+			{
+				characters: characters as NormalisedCharacter[],
+				index: parsingIndex,
+				premise,
+			},
+			getStageRuntimeContext(ctx),
+		);
+	},
+	input: z.object({
+		characters: z.array(z.unknown()),
+		chunks: z.array(z.string()).default([]),
+		index: z.unknown().optional(),
+		premise: z.string().optional(),
+		sanitizedText: z.string().optional(),
+	}),
+	name: 'story.memories',
+});
+
+const identitiesSkill = defineSkill({
+	description:
+		'Resolve cross-character identity links and alternate personas from chunk evidence.',
+	execute: async (
+		{ characters, chunks, index, premise, sanitizedText },
+		ctx,
+	): Promise<NormalisedCharacter[]> => {
+		const parsingIndex = await ensureParsingIndexFromSkill(ctx, {
+			chunks,
+			index,
+			sanitizedText,
+		});
+		return runStoryIdentitiesStage(
+			{
+				characters: characters as NormalisedCharacter[],
+				index: parsingIndex,
+				premise,
+			},
+			getStageRuntimeContext(ctx),
+		);
+	},
+	input: z.object({
+		characters: z.array(z.unknown()),
+		chunks: z.array(z.string()).default([]),
+		index: z.unknown().optional(),
+		premise: z.string().optional(),
+		sanitizedText: z.string().optional(),
+	}),
+	name: 'story.identities',
+});
+
 const parseStorySkill = defineSkill({
 	description: 'Full multi-pass story parsing pipeline.',
 	async execute(
 		{ sanitizedText, chunks, premise },
 		ctx,
 	): Promise<MultiPassResult> {
-		const onProgress = ctx.metadata?.onProgress as
-			| import('./pipeline.js').ParseProgressCallback
-			| undefined;
+		const runtime = getStageRuntimeContext(ctx);
+		const trace = runtime.trace;
 
-		// Stage 1: census
-		onProgress?.('story.census', 'start', {});
-		const manifest = (await ctx.skill('story.census', {
-			sanitizedText,
-		})) as EntityManifest;
-		onProgress?.('story.census', 'complete', {
-			characterCount: manifest.characterNames.length,
-			locationCount: manifest.locationNames.length,
+		const markStage = async (
+			stage: string,
+			status: 'start' | 'complete' | 'error',
+			data: Record<string, unknown> = {},
+		) => {
+			runtime.onProgress?.(stage, status, data);
+			if (status === 'start') {
+				await trace?.setStage(stage);
+				await trace?.emit({
+					kind: 'stage_start',
+					payload: data,
+					stage,
+				});
+				return;
+			}
+			await trace?.emit({
+				kind: status === 'complete' ? 'stage_complete' : 'stage_error',
+				payload: data,
+				stage,
+			});
+		};
+
+		const invokeSkill = async <TValue>(
+			name: string,
+			stage: string,
+			args: Record<string, unknown>,
+		): Promise<TValue> => {
+			await emitSkillEvent(trace, 'skill_call', name, stage, { args });
+			try {
+				const value = (await ctx.skill(name, args)) as TValue;
+				await emitSkillEvent(trace, 'skill_result', name, stage, {
+					resultType: Array.isArray(value) ? 'array' : typeof value,
+				});
+				return value;
+			} catch (error) {
+				await emitSkillEvent(trace, 'skill_error', name, stage, {
+					message:
+						error instanceof Error ? error.message : String(error),
+				});
+				throw error;
+			}
+		};
+
+		await markStage('story.index', 'start', {
+			chunkCount: chunks.length,
+		});
+		const index = await invokeSkill<ParsingIndex>(
+			'story.index',
+			'story.index',
+			{
+				chunks,
+				sanitizedText,
+			},
+		);
+		await markStage('story.index', 'complete', {
+			characterCount: index.manifest.characterNames.length,
+			chunkCount: index.chunks.length,
+			locationCount: index.manifest.locationNames.length,
+			sceneCount: index.manifest.sceneNames.length,
 		});
 
-		// Stages 2 & 3: concurrent — no shared state, both only read manifest
-		onProgress?.('story.core+locations', 'start', {});
-		const [storyCore, locations] = (await Promise.all([
-			ctx.skill('story.core', { manifest, premise, sanitizedText }),
-			ctx.skill('story.locations', { chunks, manifest, premise }),
-		])) as [NormalisedStoryCore, NormalisedLocation[]];
-		onProgress?.('story.core+locations', 'complete', {
+		await markStage('story.census', 'start', {});
+		const manifest = await invokeSkill<EntityManifest>(
+			'story.census',
+			'story.census',
+			{
+				index,
+			},
+		);
+		await markStage('story.census', 'complete', {
+			characterCount: manifest.characterNames.length,
+			locationCount: manifest.locationNames.length,
+			sceneCount: manifest.sceneNames.length,
+		});
+
+		await markStage('story.core+locations', 'start', {});
+		const [storyCore, locations] = await Promise.all([
+			invokeSkill<NormalisedStoryCore>(
+				'story.core',
+				'story.core+locations',
+				{
+					index,
+					premise,
+				},
+			),
+			invokeSkill<NormalisedLocation[]>(
+				'story.locations',
+				'story.core+locations',
+				{
+					index,
+					premise,
+				},
+			),
+		]);
+		await trace?.replacePartial({
+			slice: 'storyCore',
+			stage: 'story.core+locations',
+			value: storyCore,
+		});
+		await trace?.replacePartial({
+			slice: 'locations',
+			stage: 'story.core+locations',
+			value: locations,
+		});
+		await markStage('story.core+locations', 'complete', {
 			locationCount: locations.length,
 			locations,
 			storyCore,
 		});
 
 		if (manifest.characterNames.length === 0) {
+			await trace?.setStage(null);
 			return { characters: [], locations, memories: [], storyCore };
 		}
 
-		// Stage 4: character agent loop
-		onProgress?.('story.characters', 'start', {
+		await markStage('story.characters', 'start', {
 			count: manifest.characterNames.length,
 		});
-		const rawCharacters = (await ctx.skill('story.characters', {
-			characterNames: manifest.characterNames,
-			chunks,
-			premise,
-		})) as NormalisedCharacter[];
-		onProgress?.('story.characters', 'complete', {
+		const rawCharacters = await invokeSkill<NormalisedCharacter[]>(
+			'story.characters',
+			'story.characters',
+			{
+				characterNames: manifest.characterNames,
+				index,
+				premise,
+			},
+		);
+		await markStage('story.characters', 'complete', {
 			characters: rawCharacters,
 			count: rawCharacters.length,
 		});
 
-		// Stage 5: relationship merge (mutates in-place, returns same array)
-		onProgress?.('story.relationships', 'start', {});
-		const characters = (await ctx.skill('story.relationships', {
+		await markStage('story.relationships', 'start', {});
+		const charactersWithRelationships = await invokeSkill<
+			NormalisedCharacter[]
+		>('story.relationships', 'story.relationships', {
 			characters: rawCharacters,
-			sanitizedText,
-		})) as NormalisedCharacter[];
-		onProgress?.('story.relationships', 'complete', {});
-
-		// Stage 6: memories
-		onProgress?.('story.memories', 'start', {});
-		const memories = (await ctx.skill('story.memories', {
-			characters,
-			chunks,
-			manifest,
+			index,
 			premise,
-		})) as NormalisedMemory[];
-		onProgress?.('story.memories', 'complete', {
+		});
+		await trace?.replacePartial({
+			slice: 'characters',
+			stage: 'story.relationships',
+			value: charactersWithRelationships,
+		});
+		await markStage('story.relationships', 'complete', {});
+
+		await markStage('story.memories', 'start', {});
+		const memories = await invokeSkill<NormalisedMemory[]>(
+			'story.memories',
+			'story.memories',
+			{
+				characters: charactersWithRelationships,
+				index,
+				premise,
+			},
+		);
+		await trace?.replacePartial({
+			slice: 'memories',
+			stage: 'story.memories',
+			value: memories,
+		});
+		await markStage('story.memories', 'complete', {
 			count: memories.length,
 			memories,
 		});
 
-		// Stage 7: identity resolution (mutates characters in-place)
-		onProgress?.('story.identities', 'start', {});
-		await ctx.skill('story.identities', { characters, memories });
-		onProgress?.('story.identities', 'complete', {});
+		await markStage('story.identities', 'start', {});
+		const characters = await invokeSkill<NormalisedCharacter[]>(
+			'story.identities',
+			'story.identities',
+			{
+				characters: charactersWithRelationships,
+				index,
+				premise,
+			},
+		);
+		await trace?.replacePartial({
+			slice: 'characters',
+			stage: 'story.identities',
+			value: characters,
+		});
+		await markStage('story.identities', 'complete', {});
+		await trace?.setStage(null);
 
 		return { characters, locations, memories, storyCore };
 	},
@@ -565,6 +501,7 @@ const parseStorySkill = defineSkill({
 	name: 'story.parse',
 	needs: {
 		skills: [
+			'story.index',
 			'story.census',
 			'story.core',
 			'story.locations',
@@ -576,23 +513,27 @@ const parseStorySkill = defineSkill({
 	},
 });
 
-// ── Factory ───────────────────────────────────────────────────────────────
-
 export function createParsingSkillRunner(
 	opts: {
+		mcpPolicy?: ParsingMcpPolicy;
 		tools?: ToolSystem;
 		onProgress?: import('./pipeline.js').ParseProgressCallback;
 		onVerbose?: ParseVerboseCallback;
+		trace?: ParseTraceEmitter;
 	} = {},
 ): SkillRunner {
 	const metadata: Record<string, unknown> = {};
+	if (opts.mcpPolicy) metadata.mcpPolicy = opts.mcpPolicy;
 	if (opts.onProgress) metadata.onProgress = opts.onProgress;
 	if (opts.onVerbose) metadata.onVerbose = opts.onVerbose;
+	if (opts.trace) metadata.trace = opts.trace;
+
 	return createSkillRunner({
 		metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
 		skills: [
+			indexSkill,
 			censusSkill,
-			storeCoreSkill,
+			storyCoreSkill,
 			locationsSkill,
 			charactersSkill,
 			relationshipsSkill,

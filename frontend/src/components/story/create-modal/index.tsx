@@ -53,7 +53,7 @@ export function StoryCreateModal({ selectStory }: Props) {
 
 	return (
 		<Dialog>
-			<DialogTrigger>
+			<DialogTrigger asChild>
 				<button
 					type="button"
 					class={

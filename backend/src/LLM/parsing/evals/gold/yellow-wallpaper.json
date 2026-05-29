@@ -1,0 +1,69 @@
+{
+  "characters": [
+    "Narrator",
+    "John",
+    "Jennie"
+  ],
+  "locations": [
+    "colonial mansion",
+    "nursery"
+  ],
+  "identityLinks": [],
+  "keyMemories": [
+    {
+      "id": "rest-cure-at-mansion",
+      "characterName": "John",
+      "importanceMin": 0.4,
+      "summaryIncludesAny": ["rest cure", "colonial mansion", "summer"]
+    },
+    {
+      "id": "john-dismisses-illness",
+      "characterName": "John",
+      "importanceMin": 0.4,
+      "summaryIncludesAny": ["dismisses", "nervousness", "practical physician"]
+    },
+    {
+      "id": "nursery-yellow-wallpaper",
+      "characterName": "Narrator",
+      "importanceMin": 0.4,
+      "summaryIncludesAny": ["yellow wallpaper", "nursery", "horrid pattern"]
+    },
+    {
+      "id": "jennie-household-care",
+      "characterName": "Jennie",
+      "importanceMin": 0.4,
+      "summaryIncludesAny": ["Jennie", "housekeeping", "care"]
+    },
+    {
+      "id": "obsession-with-pattern",
+      "characterName": "Narrator",
+      "importanceMin": 0.7,
+      "summaryIncludesAny": ["pattern", "obsession", "wallpaper"]
+    },
+    {
+      "id": "woman-behind-wallpaper",
+      "characterName": "Narrator",
+      "importanceMin": 0.7,
+      "summaryIncludesAny": ["woman behind", "creeping", "bars"]
+    },
+    {
+      "id": "tears-wallpaper",
+      "characterName": "Narrator",
+      "importanceMin": 0.8,
+      "summaryIncludesAny": ["tears the wallpaper", "peeled off", "stripped"]
+    },
+    {
+      "id": "final-creeping-scene",
+      "characterName": "Narrator",
+      "importanceMin": 0.8,
+      "summaryIncludesAny": ["creeping", "John fainted", "got out at last"]
+    }
+  ],
+  "storyCore": {
+    "titleIncludes": ["Yellow Wallpaper"],
+    "themesAny": ["confinement", "madness", "control"],
+    "worldRulesAny": [],
+    "storyRulesAny": ["psychological decline"],
+    "characterRulesAny": ["Narrator", "John"]
+  }
+}

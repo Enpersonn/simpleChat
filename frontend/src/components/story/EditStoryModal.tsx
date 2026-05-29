@@ -24,7 +24,7 @@ export function EditStoryModal({
 }: Pick<Props, 'story' | 'onSaved'>) {
 	return (
 		<Dialog>
-			<DialogTrigger>
+			<DialogTrigger asChild>
 				<Button size="icon" variant="ghost" title="Edit story">
 					✎
 				</Button>

@@ -1,6 +1,3 @@
-// @ts-nocheck — @llm-helpers/an-mcp-runtime-handler is not yet installed.
-// Add it to backend/package.json first, then remove this directive.
-//
 // Optional MCP bridge for story parsing. Not imported by pipeline.ts or skills.ts.
 //
 // Usage: add @llm-helpers/an-mcp-runtime-handler to backend/package.json, then:

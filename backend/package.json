@@ -1,9 +1,10 @@
 {
 	"dependencies": {
-		"@llm-helpers/agents": "1.0.0-dev.8775a76",
 		"@fastify/cors": "^10.0.2",
+		"@llm-helpers/agents": "1.0.0-dev.8775a76",
 		"@llm-helpers/an-agent-runtime-handler": "1.0.0-dev.8775a76",
 		"@llm-helpers/an-llm-request-router": "1.0.0-dev.8775a76",
+		"@llm-helpers/an-mcp-runtime-handler": "1.0.0-dev.8775a76",
 		"@llm-helpers/core": "1.0.0-dev.8775a76",
 		"@llm-helpers/skills": "1.0.0-dev.8775a76",
 		"@llm-helpers/tools": "1.0.0-dev.8775a76",
@@ -20,6 +21,9 @@
 	"name": "backend",
 	"private": true,
 	"scripts": {
+		"benchmark:parse": "npm run build --workspace=@simplechat/types && tsx src/scripts/parse-eval.ts",
+		"benchmark:parse:all": "npm run benchmark:parse -- --all",
+		"benchmark:parse:bless": "npm run benchmark:parse -- --bless",
 		"build": "tsc",
 		"dev": "npm run build --workspace=@simplechat/types && tsx watch src/index.ts",
 		"start": "node dist/index.js"

@@ -1,18 +1,15 @@
-import { storyCharactersParseAgent } from '../../features/characters/parsing-agent.js';
-import { storyLocationsParseAgent } from '../../features/locations/parsing-agent.js';
-import { storyMemoriesParseAgent } from '../../features/memories/parsing-agent.js';
-import { storyCoreParseAgent } from '../../features/stories/parsing-agent.js';
-import {
-	normaliseCharacter,
-	normaliseLocation,
-	normaliseMemoryItem,
-	normaliseStoryCore,
-	parseArray,
-} from '../normalizers.js';
-import type { PromptRunner, PromptRunnerVerboseEvent } from '../prompt-runners/create-prompt-runner.js';
+import { buildParsingIndex } from './indexing.js';
 import { parseStoryMultiPass } from './pipeline.js';
 import { chunkText, sanitizeTextForParsing } from './sanitize.js';
-import type { ParseVerboseCallback } from './verbose-types.js';
+import {
+	runStoryCensusStage,
+	runStoryCharactersStage,
+	runStoryCoreStage,
+	runStoryLocationsStage,
+	runStoryMemoriesStage,
+	runStoryRelationshipsStage,
+	type StoryStageRuntimeContext,
+} from './stages.js';
 
 export type ParseType =
 	| 'story-core'
@@ -26,62 +23,7 @@ export interface ParseContext {
 	characterNames?: string[];
 }
 
-export async function runChunked<T>(
-	agent: PromptRunner,
-	chunks: string[],
-	contextPrefix: string,
-	arrayKey: string,
-	normalise: (item: Record<string, unknown>) => T,
-	filter: (item: T) => boolean,
-	dedupeBy?: (item: T) => string,
-	verboseOpts?: { agentLabel: string; onVerbose: ParseVerboseCallback },
-): Promise<T[]> {
-	const total = chunks.length;
-	const all: T[] = [];
-
-	for (let i = 0; i < chunks.length; i++) {
-		const prompt = [
-			contextPrefix,
-			`Story text (section ${i + 1} of ${total}):\n${chunks[i]}`,
-			'Respond with ONLY the JSON object. No other text.',
-		]
-			.filter(Boolean)
-			.join('\n\n');
-
-		const onVerbose = verboseOpts
-			? (ev: PromptRunnerVerboseEvent) =>
-					verboseOpts.onVerbose({
-						agent: verboseOpts.agentLabel,
-						chunkIndex: i + 1,
-						durationMs: ev.durationMs,
-						prompt: ev.prompt,
-						rawText: ev.rawText,
-						step: ev.step,
-						totalChunks: total,
-					})
-			: undefined;
-
-		try {
-			const data = await agent.run(prompt, { onVerbose });
-			all.push(...parseArray(data, arrayKey, normalise, filter));
-		} catch (err) {
-			console.warn(
-				`[runChunked] chunk ${i + 1}/${total} failed:`,
-				(err as Error).message,
-			);
-		}
-	}
-
-	if (!dedupeBy) return all;
-
-	const seen = new Set<string>();
-	return all.filter((item) => {
-		const key = dedupeBy(item);
-		if (seen.has(key)) return false;
-		seen.add(key);
-		return true;
-	});
-}
+const localStageContext: StoryStageRuntimeContext = {};
 
 export async function parseEntities(
 	type: ParseType,
@@ -91,73 +33,99 @@ export async function parseEntities(
 	switch (type) {
 		case 'story-core': {
 			const sanitized = sanitizeTextForParsing(text);
-			const parts: string[] = [];
-			if (ctx?.premise) parts.push(`Story premise: ${ctx.premise}`);
-			parts.push(`Story text:\n${sanitized}`);
-			parts.push('Respond with ONLY the JSON object. No other text.');
-			const data = await storyCoreParseAgent.run(parts.join('\n\n'));
-			return normaliseStoryCore(data, {
-				includePremise: true,
-				includeTitle: true,
-			});
+			const chunks = chunkText(sanitized);
+			const index = await buildParsingIndex(
+				{ chunks, sanitizedText: sanitized },
+				localStageContext,
+			);
+			await runStoryCensusStage({ index }, localStageContext);
+			const storyCore = await runStoryCoreStage(
+				{
+					index,
+					premise: ctx?.premise,
+				},
+				localStageContext,
+			);
+			return storyCore as unknown as Record<string, unknown>;
 		}
 
 		case 'story-characters': {
 			const sanitized = sanitizeTextForParsing(text);
-			const contextParts: string[] = [];
-			if (ctx?.premise)
-				contextParts.push(`Story premise: ${ctx.premise}`);
-			const contextPrefix = contextParts.join('\n\n');
 			const chunks = chunkText(sanitized);
-			const characters = await runChunked(
-				storyCharactersParseAgent,
-				chunks,
-				contextPrefix,
-				'characters',
-				normaliseCharacter,
-				(c) => !!c.name,
-				(c) => c.name.toLowerCase(),
+			const index = await buildParsingIndex(
+				{ chunks, sanitizedText: sanitized },
+				localStageContext,
+			);
+			const manifest = await runStoryCensusStage(
+				{ index },
+				localStageContext,
+			);
+			const baseCharacters = await runStoryCharactersStage(
+				{
+					characterNames: ctx?.characterNames?.length
+						? ctx.characterNames
+						: manifest.characterNames,
+					index,
+					premise: ctx?.premise,
+				},
+				localStageContext,
+			);
+			const characters = await runStoryRelationshipsStage(
+				{
+					characters: baseCharacters,
+					index,
+					premise: ctx?.premise,
+				},
+				localStageContext,
 			);
 			return { characters };
 		}
 
 		case 'story-locations': {
 			const sanitized = sanitizeTextForParsing(text);
-			const contextParts: string[] = [];
-			if (ctx?.premise)
-				contextParts.push(`Story premise: ${ctx.premise}`);
-			const contextPrefix = contextParts.join('\n\n');
 			const chunks = chunkText(sanitized);
-			const locations = await runChunked(
-				storyLocationsParseAgent,
-				chunks,
-				contextPrefix,
-				'locations',
-				normaliseLocation,
-				(l) => !!l.name,
-				(l) => l.name.toLowerCase(),
+			const index = await buildParsingIndex(
+				{ chunks, sanitizedText: sanitized },
+				localStageContext,
+			);
+			const locations = await runStoryLocationsStage(
+				{
+					index,
+					premise: ctx?.premise,
+				},
+				localStageContext,
 			);
 			return { locations };
 		}
 
 		case 'story-memories': {
 			const sanitized = sanitizeTextForParsing(text);
-			const contextParts: string[] = [];
-			if (ctx?.premise)
-				contextParts.push(`Story premise: ${ctx.premise}`);
-			if (ctx?.characterNames?.length)
-				contextParts.push(
-					`Known characters: ${ctx.characterNames.join(', ')}`,
-				);
-			const contextPrefix = contextParts.join('\n\n');
 			const chunks = chunkText(sanitized);
-			const memories = await runChunked(
-				storyMemoriesParseAgent,
-				chunks,
-				contextPrefix,
-				'memories',
-				normaliseMemoryItem,
-				(m) => !!(m.characterName && m.summary),
+			const index = await buildParsingIndex(
+				{ chunks, sanitizedText: sanitized },
+				localStageContext,
+			);
+			const manifest = await runStoryCensusStage(
+				{ index },
+				localStageContext,
+			);
+			const characters = await runStoryCharactersStage(
+				{
+					characterNames: ctx?.characterNames?.length
+						? ctx.characterNames
+						: manifest.characterNames,
+					index,
+					premise: ctx?.premise,
+				},
+				localStageContext,
+			);
+			const memories = await runStoryMemoriesStage(
+				{
+					characters,
+					index,
+					premise: ctx?.premise,
+				},
+				localStageContext,
 			);
 			return { memories };
 		}

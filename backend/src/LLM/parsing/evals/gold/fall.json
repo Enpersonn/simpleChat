@@ -1,0 +1,114 @@
+{
+  "characters": [
+    "Alice",
+    "Alex",
+    "Vaelora",
+    "Vireath",
+    "Lucifer",
+    "Lilith",
+    "Michael",
+    "Father",
+    "Samael"
+  ],
+  "locations": [
+    "Earth",
+    "stage",
+    "backstage",
+    "Alex's house",
+    "forgotten temple",
+    "hell",
+    "heavenly kingdom",
+    "ash planes"
+  ],
+  "identityLinks": [
+    {
+      "left": "Alex",
+      "right": "Michael"
+    },
+    {
+      "left": "Lucifer",
+      "right": "Samael"
+    }
+  ],
+  "keyMemories": [
+    {
+      "id": "alice-performance-fails",
+      "characterName": "Alice",
+      "importanceMin": 0.4,
+      "summaryIncludesAny": ["unfazed by her beauty", "had no effect on the man", "mask of confidence"]
+    },
+    {
+      "id": "alice-true-form-reveal",
+      "characterName": "Alice",
+      "importanceMin": 0.8,
+      "summaryIncludesAny": ["true form", "lifted her disguise", "revealing her true form"]
+    },
+    {
+      "id": "alice-runs-into-night",
+      "characterName": "Alice",
+      "importanceMin": 0.4,
+      "summaryIncludesAny": ["runs further into the night", "freezing", "wings close"]
+    },
+    {
+      "id": "alex-accepts-alice",
+      "characterName": "Alex",
+      "importanceMin": 0.7,
+      "summaryIncludesAny": ["I am not leaving you here", "kissed her", "the real you"]
+    },
+    {
+      "id": "vireath-finds-alice",
+      "characterName": "Vireath",
+      "importanceMin": 0.4,
+      "summaryIncludesAny": ["found you", "fell in love with a human", "Your father is looking for you"]
+    },
+    {
+      "id": "alice-forceful-return",
+      "characterName": "Alice",
+      "importanceMin": 0.7,
+      "summaryIncludesAny": ["forceful return", "gateway closes", "left alone"]
+    },
+    {
+      "id": "alex-finds-victor-mortis",
+      "characterName": "Alex",
+      "importanceMin": 0.7,
+      "summaryIncludesAny": ["Victor-Mortis", "forgotten temple", "giant door"]
+    },
+    {
+      "id": "alex-runes-michael",
+      "characterName": "Alex",
+      "importanceMin": 0.8,
+      "summaryIncludesAny": ["glowing runes", "Michael", "vision blurred"]
+    },
+    {
+      "id": "father-explains-redemption-plan",
+      "characterName": "Father",
+      "importanceMin": 0.8,
+      "summaryIncludesAny": ["free will", "path of redemption", "reincarnated as mortals"]
+    },
+    {
+      "id": "alex-cries-out-to-father",
+      "characterName": "Alex",
+      "importanceMin": 0.7,
+      "summaryIncludesAny": ["I am Michael", "I have not forsaken you", "what have i become"]
+    },
+    {
+      "id": "alex-must-remain-in-hell",
+      "characterName": "Alex",
+      "importanceMin": 0.9,
+      "summaryIncludesAny": ["only prisoner of hell", "can’t leave", "slay lucifer"]
+    },
+    {
+      "id": "alice-alex-final-goodbye",
+      "characterName": "Alice",
+      "importanceMin": 0.9,
+      "summaryIncludesAny": ["It is time to go Alice", "I can’t leave you here", "deserve your happy ending"]
+    }
+  ],
+  "storyCore": {
+    "titleIncludes": ["Fall"],
+    "themesAny": ["redemption", "identity", "free will", "sacrifice"],
+    "worldRulesAny": ["free will", "redemption", "demons", "heaven"],
+    "storyRulesAny": ["love", "sacrifice", "acceptance"],
+    "characterRulesAny": ["Alice", "Alex", "Michael"]
+  }
+}

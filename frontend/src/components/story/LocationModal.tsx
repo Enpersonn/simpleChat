@@ -128,7 +128,7 @@ export function LocationModal({ initial }: Props) {
 
 	return (
 		<Dialog>
-			<DialogTrigger>
+			<DialogTrigger asChild>
 				<Button size="icon" variant="ghost" title="Edit story">
 					{initial ? '✎' : '+'}
 				</Button>

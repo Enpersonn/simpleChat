@@ -1,74 +1,16 @@
 import { z } from 'zod';
 import { createPromptRunner } from '../../prompt-runners/create-prompt-runner.js';
-
-export function chunkText(
-	text: string,
-	charsPerChunk = 3000,
-	overlapChars = 300,
-): string[] {
-	const sentences = text.split(/(?<=[.!?])\s+/);
-	const chunks: string[] = [];
-	let current = '';
-
-	for (const sentence of sentences) {
-		if (
-			current.length + sentence.length > charsPerChunk &&
-			current.length > 0
-		) {
-			chunks.push(current.trimEnd());
-			const tail =
-				current.length > overlapChars
-					? current.slice(-overlapChars)
-					: current;
-			current = `${tail.trimStart()} ${sentence}`;
-		} else {
-			current += (current ? ' ' : '') + sentence;
-		}
-	}
-
-	if (current.trim()) chunks.push(current.trim());
-	return chunks.length > 0 ? chunks : [text];
-}
+import {
+	withConcurrencyLimit,
+	withRetry,
+} from '../../parsing/chunked-pass.js';
+export { chunkText } from '../../parsing/sanitize.js';
 
 function normalizeValue(value: string): string {
 	return value
 		.trim()
 		.replace(/[.,;:!?"']+$/, '')
 		.trim();
-}
-
-async function withConcurrencyLimit<T>(
-	fns: (() => Promise<T>)[],
-	limit: number,
-): Promise<T[]> {
-	const results: T[] = new Array(fns.length);
-	let next = 0;
-
-	async function worker() {
-		while (next < fns.length) {
-			const i = next++;
-			results[i] = await fns[i]();
-		}
-	}
-
-	await Promise.all(
-		Array.from({ length: Math.min(limit, fns.length) }, worker),
-	);
-	return results;
-}
-
-async function withRetry<T>(
-	fn: () => Promise<T>,
-	attempts = 2,
-): Promise<T | null> {
-	for (let i = 0; i < attempts; i++) {
-		try {
-			return await fn();
-		} catch {
-			if (i === attempts - 1) return null;
-		}
-	}
-	return null;
 }
 
 export const extractionPromptRunner = (tag: string, def: string) =>

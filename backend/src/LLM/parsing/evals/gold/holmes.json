@@ -1,0 +1,96 @@
+{
+  "characters": [
+    "Sherlock Holmes",
+    "Dr. Watson",
+    "Mrs. Hudson",
+    "Irene Adler",
+    "Inspector Lestrade",
+    "Jabez Wilson",
+    "Helen Stoner",
+    "John Openshaw",
+    "Neville St. Clair",
+    "Hugh Boone"
+  ],
+  "locations": [
+    "Baker Street",
+    "London",
+    "Stoke Moran",
+    "Bohemia",
+    "Briarbrae"
+  ],
+  "identityLinks": [
+    {
+      "left": "Neville St. Clair",
+      "right": "Hugh Boone"
+    }
+  ],
+  "keyMemories": [
+    {
+      "id": "holmes-watson-baker-street",
+      "characterName": "Dr. Watson",
+      "importanceMin": 0.4,
+      "summaryIncludesAny": ["Baker Street", "Sherlock Holmes", "rooms"]
+    },
+    {
+      "id": "irene-adler-photograph",
+      "characterName": "Irene Adler",
+      "importanceMin": 0.7,
+      "summaryIncludesAny": ["photograph", "King of Bohemia", "outwits Holmes"]
+    },
+    {
+      "id": "jabez-red-headed-league",
+      "characterName": "Jabez Wilson",
+      "importanceMin": 0.4,
+      "summaryIncludesAny": ["Red-Headed League", "copying the Encyclopaedia", "red-headed"]
+    },
+    {
+      "id": "openshaw-orange-pips",
+      "characterName": "John Openshaw",
+      "importanceMin": 0.4,
+      "summaryIncludesAny": ["orange pips", "K.K.K.", "warning"]
+    },
+    {
+      "id": "helen-stoner-speckled-band",
+      "characterName": "Helen Stoner",
+      "importanceMin": 0.7,
+      "summaryIncludesAny": ["speckled band", "Stoke Moran", "snake"]
+    },
+    {
+      "id": "holmes-speckled-band-solved",
+      "characterName": "Sherlock Holmes",
+      "importanceMin": 0.7,
+      "summaryIncludesAny": ["speckled band", "swamp adder", "Dr. Roylott"]
+    },
+    {
+      "id": "blue-carbuncle-goose",
+      "characterName": "Sherlock Holmes",
+      "importanceMin": 0.4,
+      "summaryIncludesAny": ["blue carbuncle", "goose", "Countess of Morcar"]
+    },
+    {
+      "id": "twisted-lip-identity",
+      "characterName": "Neville St. Clair",
+      "importanceMin": 0.7,
+      "summaryIncludesAny": ["Hugh Boone", "beggar", "The Man with the Twisted Lip"]
+    },
+    {
+      "id": "musgrave-ritual-treasure",
+      "characterName": "Sherlock Holmes",
+      "importanceMin": 0.4,
+      "summaryIncludesAny": ["Musgrave Ritual", "treasure", "Briarbrae"]
+    },
+    {
+      "id": "engineers-thumb",
+      "characterName": "Dr. Watson",
+      "importanceMin": 0.4,
+      "summaryIncludesAny": ["engineer's thumb", "hydraulic press", "Victor Hatherley"]
+    }
+  ],
+  "storyCore": {
+    "titleIncludes": ["Sherlock Holmes"],
+    "themesAny": ["deduction", "identity", "justice"],
+    "worldRulesAny": [],
+    "storyRulesAny": ["mystery"],
+    "characterRulesAny": ["Holmes", "Watson"]
+  }
+}

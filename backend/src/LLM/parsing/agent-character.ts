@@ -1,180 +1,201 @@
-import { createOrchestrator } from '@llm-helpers/agents';
-import { createAgent } from '@llm-helpers/an-agent-runtime-handler';
-import {
-	createFunctionProvider,
-	createToolSystem,
-	defineTool,
-} from '@llm-helpers/tools';
-import { z } from 'zod';
 import { characterDeepDiveAgent } from '../../features/characters/parsing-agent.js';
 import { normaliseCharacter } from '../normalizers.js';
-import { createOllamaRuntime } from '../runtime.js';
-import type { ParseContext } from './service.js';
-import { runChunked } from './service.js';
+import { runChunkedPass } from './chunked-pass.js';
+import type { ParseTraceEmitter } from './trace-types.js';
 import type { ParseVerboseCallback } from './verbose-types.js';
 
 type NormalisedCharacter = ReturnType<typeof normaliseCharacter>;
+type CharacterParseContext = { premise?: string };
+export interface CharacterExtractionInput {
+	chunkIndices?: number[];
+	chunks: string[];
+	name: string;
+}
+
+const CHARACTER_WORKER_CONCURRENCY = 2;
+const PARSE_LLM_RETRY_COUNT = 1;
+const PARSE_LLM_TIMEOUT_MS = 180_000;
+
+function isAbortError(error: unknown): boolean {
+	return error instanceof DOMException
+		? error.name === 'AbortError'
+		: error instanceof Error
+			? error.name === 'AbortError'
+			: false;
+}
+
+async function emitCharacterEvent(
+	trace: ParseTraceEmitter | undefined,
+	kind: 'character_start' | 'character_complete' | 'character_error',
+	name: string,
+	payload: Record<string, unknown> = {},
+) {
+	await trace?.emit({
+		kind,
+		payload: { name, ...payload },
+		stage: 'story.characters',
+	});
+}
 
 export async function runCharacterDeepDiveAgent(
-	characterNames: string[],
-	chunks: string[],
-	ctx?: ParseContext,
+	characterInputs: CharacterExtractionInput[],
+	ctx?: CharacterParseContext,
 	onCharacterProgress?: (name: string, status: 'start' | 'complete') => void,
 	onVerbose?: ParseVerboseCallback,
+	signal?: AbortSignal,
+	trace?: ParseTraceEmitter,
 ): Promise<NormalisedCharacter[]> {
-	if (characterNames.length === 0) return [];
+	if (characterInputs.length === 0) return [];
 
-	// Closure-based accumulator — the tool's execute pushes here as the agent calls it
 	const results: NormalisedCharacter[] = [];
+	let nextIndex = 0;
 
-	const deepDiveTool = defineTool({
-		description:
-			'Extract all story information about a single named character. Call once per character.',
-		execute: async ({ characterName }) => {
-			onCharacterProgress?.(characterName, 'start');
-			const prefixParts = [
-				...(ctx?.premise ? [`Story premise: ${ctx.premise}`] : []),
-				`Extract EVERYTHING about: ${characterName}`,
-			];
-			const agentLabel = `character:${characterName}`;
-			try {
-				const arr = await runChunked(
-					characterDeepDiveAgent,
-					chunks,
-					prefixParts.join('\n\n'),
-					'characters',
-					normaliseCharacter,
-					(c) => !!c.name,
-					undefined,
-					onVerbose ? { agentLabel, onVerbose } : undefined,
-				);
-				const found = arr.find(
-					(c) => c.name.toLowerCase() === characterName.toLowerCase(),
-				);
-				if (found) {
-					results.push(found);
-					onCharacterProgress?.(found.name, 'complete');
-					return { name: found.name, ok: true };
-				}
-				// fallback: single-chunk direct call
-				const raw = await characterDeepDiveAgent.run(
-					[
-						...prefixParts,
-						`Story text (section 1 of ${chunks.length}):\n${chunks[0]}`,
-						'Respond with ONLY the JSON object. No other text.',
-					].join('\n\n'),
-					{
-						onVerbose: onVerbose
-							? (ev) =>
-									onVerbose({
-										agent: `${agentLabel}:fallback`,
-										...ev,
-									})
-							: undefined,
-					},
-				);
-				const c = normaliseCharacter(raw);
-				results.push(c);
-				onCharacterProgress?.(c.name, 'complete');
-				return { name: c.name, ok: true };
-			} catch (err) {
-				console.warn(
-					`[characterAgent] deep_dive_character failed for "${characterName}":`,
-					err,
-				);
-				return { name: characterName, ok: false };
-			}
-		},
-		input: z.object({ characterName: z.string() }),
-		name: 'deep_dive_character',
-	});
-
-	const toolSystem = createToolSystem({
-		providers: [createFunctionProvider('character-agent', [deepDiveTool])],
-	});
-
-	const runtime = await createOllamaRuntime({ numCtx: 8192 });
-	const emptyToolSystem = createToolSystem({
-		providers: [createFunctionProvider('parse-coordinator', [])],
-	});
-
-	const nameList = characterNames.map((n, i) => `${i + 1}. ${n}`).join('\n');
-
-	try {
-		const orchestrator = createOrchestrator({
-			agents: {
-				'character-analyst': {
-					options: {
-						hooks: {
-							onContextOverflow: (messages) => messages.slice(-6),
-						},
-						maxSteps: characterNames.length + 4,
-						onToolError: 'continue',
-					},
-					provider: runtime.provider,
-					systemPrompt:
-						'You are a story analyst. For each character name listed, call deep_dive_character exactly once. Do not skip any character.',
-					tools: toolSystem,
-				},
-				'parse-coordinator': {
-					options: {
-						maxSteps: 3,
-					},
-					provider: runtime.provider,
-					systemPrompt:
-						'Delegate the character extraction task to the character-analyst agent using the ask skill exactly once. After the worker replies, confirm completion in one short sentence.',
-					tools: emptyToolSystem,
-				},
-			},
-			router: () => 'parse-coordinator',
+	const extractCharacter = async (
+		characterInput: CharacterExtractionInput,
+	): Promise<NormalisedCharacter | null> => {
+		const characterName = characterInput.name;
+		await emitCharacterEvent(trace, 'character_start', characterName);
+		await trace?.setCharacterProgress({
+			name: characterName,
+			status: 'running',
 		});
-		await orchestrator.run(
-			`Process these ${characterNames.length} characters:\n${nameList}\n\nCall deep_dive_character for each one.`,
-		);
-	} catch (err) {
-		console.warn(
-			'[characterAgent] agent loop error (using partial results):',
-			err,
-		);
-	}
+		onCharacterProgress?.(characterName, 'start');
 
-	// Fallback: if agent produced nothing (model doesn't support tool calling), run sequential
-	if (results.length === 0) {
-		console.warn(
-			'[characterAgent] no results from agent, falling back to sequential extraction',
-		);
-		for (const name of characterNames) {
-			onCharacterProgress?.(name, 'start');
-			try {
-				const prefixParts = [
-					...(ctx?.premise ? [`Story premise: ${ctx.premise}`] : []),
-					`Extract EVERYTHING about: ${name}`,
-				];
-				const arr = await runChunked(
-					characterDeepDiveAgent,
-					chunks,
-					prefixParts.join('\n\n'),
-					'characters',
-					normaliseCharacter,
-					(c) => !!c.name,
-					undefined,
-					onVerbose
-						? { agentLabel: `character:${name}`, onVerbose }
-						: undefined,
+		const prefixParts = [
+			...(ctx?.premise ? [`Story premise: ${ctx.premise}`] : []),
+			`Extract EVERYTHING about: ${characterName}`,
+		];
+		const agentLabel = `character:${characterName}`;
+
+		try {
+			const arr = await runChunkedPass<NormalisedCharacter>(
+				{
+					buildPrompt: (chunk, index, total) =>
+						[
+							prefixParts.join('\n\n'),
+							`Story text (routed section ${index + 1} of ${total}, original chunk ${
+								(characterInput.chunkIndices?.[index] ??
+									index) + 1
+							}):\n${chunk}`,
+							'Respond with ONLY the JSON object. No other text.',
+						]
+							.filter(Boolean)
+							.join('\n\n'),
+					chunkInput: {
+						chunks: characterInput.chunks,
+						maxChars: 3000,
+						overlapChars: 300,
+					},
+					extractor: characterDeepDiveAgent,
+					maxConcurrency: 1,
+					parseChunk: (result) => {
+						if (typeof result !== 'object' || result === null) {
+							return [];
+						}
+						const parsed = normaliseCharacter(
+							result as Record<string, unknown>,
+						);
+						return parsed.name ? [parsed] : [];
+					},
+					promptScope: 'story.characters.deep_dive',
+					retryCount: PARSE_LLM_RETRY_COUNT,
+					stage: 'story.characters',
+					traceAgent: agentLabel,
+				},
+				{
+					onVerbose,
+					signal,
+					timeoutMs: PARSE_LLM_TIMEOUT_MS,
+					trace,
+				},
+			);
+			const found =
+				arr.find(
+					(c) => c.name.toLowerCase() === characterName.toLowerCase(),
+				) ?? arr[0];
+
+			if (!found) {
+				await trace?.emit({
+					kind: 'warning',
+					payload: {
+						message: `No character result returned for ${characterName}`,
+						name: characterName,
+					},
+					stage: 'story.characters',
+				});
+				await trace?.setCharacterProgress({
+					detail: 'No result returned',
+					name: characterName,
+					status: 'error',
+				});
+				await emitCharacterEvent(
+					trace,
+					'character_error',
+					characterName,
+					{
+						message: 'No result returned',
+					},
 				);
-				const found =
-					arr.find(
-						(c) => c.name.toLowerCase() === name.toLowerCase(),
-					) ?? arr[0];
-				if (found) {
-					results.push(found);
-					onCharacterProgress?.(found.name, 'complete');
-				}
-			} catch {
-				// skip
+				return null;
 			}
-		}
-	}
 
-	return results.filter((c) => !!c.name);
+			onCharacterProgress?.(found.name, 'complete');
+			await trace?.setCharacterProgress({
+				name: found.name,
+				status: 'complete',
+			});
+			await emitCharacterEvent(trace, 'character_complete', found.name, {
+				identityCount: found.identities.length,
+				relationshipCount: found.relationships.length,
+			});
+			return found;
+		} catch (error) {
+			if (isAbortError(error)) throw error;
+			const message =
+				error instanceof Error ? error.message : String(error);
+			await trace?.setCharacterProgress({
+				detail: message,
+				name: characterName,
+				status: 'error',
+			});
+			await emitCharacterEvent(trace, 'character_error', characterName, {
+				message,
+			});
+			await trace?.emit({
+				kind: 'warning',
+				payload: {
+					message,
+					name: characterName,
+				},
+				stage: 'story.characters',
+			});
+			console.warn(
+				`[characterAgent] deep dive failed for "${characterName}":`,
+				message,
+			);
+			return null;
+		}
+	};
+
+	const workerCount = Math.min(
+		CHARACTER_WORKER_CONCURRENCY,
+		characterInputs.length,
+	);
+	const workers = Array.from({ length: workerCount }, async () => {
+		while (nextIndex < characterInputs.length) {
+			if (signal?.aborted) {
+				throw signal.reason instanceof Error
+					? signal.reason
+					: new DOMException('Aborted', 'AbortError');
+			}
+			const currentIndex = nextIndex++;
+			const characterInput = characterInputs[currentIndex];
+			const result = await extractCharacter(characterInput);
+			if (result) results.push(result);
+		}
+	});
+
+	await Promise.all(workers);
+
+	return results.filter((character) => !!character.name);
 }

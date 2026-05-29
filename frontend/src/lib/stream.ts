@@ -1,5 +1,6 @@
 import type { DmProposal } from '@simplechat/types';
 import type { ContextSnapshot, PipelineEvent } from './debug-types.js';
+import { tailImportJobEvents } from './import-jobs.js';
 
 export interface ParseProgressFrame {
 	stage: string;
@@ -23,6 +24,7 @@ export interface ParsePartialFrame {
 
 export interface ParseVerboseEvent {
 	agent: string;
+	attempt?: number;
 	step: 'request' | 'response';
 	chunkIndex?: number;
 	totalChunks?: number;
@@ -261,7 +263,7 @@ export async function parseImportStream(
 
 	let res: Response;
 	try {
-		res = await fetch('/ai/parse-stream', {
+		res = await fetch('/ai/import-jobs', {
 			body: JSON.stringify({ context, text }),
 			headers: { 'Content-Type': 'application/json' },
 			method: 'POST',
@@ -278,67 +280,138 @@ export async function parseImportStream(
 		return;
 	}
 
-	const reader = res.body.getReader();
-	const decoder = new TextDecoder();
-	let buffer = '';
-
-	while (true) {
-		let done: boolean;
-		let value: Uint8Array | undefined;
-		try {
-			({ done, value } = await reader.read());
-		} catch {
-			break;
-		}
-		if (done) break;
-
-		buffer += decoder.decode(value, { stream: true });
-		const lines = buffer.split('\n');
-		buffer = lines.pop() ?? '';
-
-		for (const line of lines) {
-			if (!line.trim()) continue;
-			try {
-				const msg = JSON.parse(line) as
-					| { event: UnifiedStreamEvent }
-					| LegacyParseMessage;
-				if (isUnifiedEnvelope(msg)) {
-					const handled = handleUnifiedParseEvent(msg.event, {
-						onDone,
-						onError,
-						onPartial,
-						onProgress,
-						onVerbose,
-					});
-					if (handled) return;
-					continue;
-				}
-				if (msg.error) {
-					onError(msg.error);
-					return;
-				}
-				if (msg.parseProgress) {
-					onProgress(msg.parseProgress);
-					continue;
-				}
-				if (msg.parsePartial) {
-					onPartial(msg.parsePartial);
-					continue;
-				}
-				if (msg.parseVerbose) {
-					onVerbose?.(msg.parseVerbose);
-					continue;
-				}
-				if (msg.done) {
-					onDone(msg.result);
-					return;
-				}
-			} catch {
-				// skip malformed line
-			}
-		}
+	const { jobId } = (await res.json()) as { jobId?: string };
+	if (!jobId) {
+		onError('Import job creation did not return a job id');
+		return;
 	}
-	onDone(undefined);
+
+	const result: {
+		storyCore: unknown | null;
+		characters: unknown[];
+		locations: unknown[];
+		memories: unknown[];
+	} = {
+		characters: [],
+		locations: [],
+		memories: [],
+		storyCore: null,
+	};
+	let failed = false;
+
+	await tailImportJobEvents({
+		afterSeq: 0,
+		jobId,
+		onClose: () => {
+			if (failed) return;
+			onDone(result);
+		},
+		onError,
+		onEvent: (event) => {
+			switch (event.kind) {
+				case 'stage_start':
+				case 'stage_complete':
+				case 'stage_error':
+					onProgress({
+						data: event.payload as ParseProgressFrame['data'],
+						stage: event.stage ?? '',
+						status:
+							event.kind === 'stage_start'
+								? 'start'
+								: event.kind === 'stage_complete'
+									? 'complete'
+									: 'error',
+					});
+					break;
+				case 'character_start':
+				case 'character_complete':
+				case 'character_error':
+					onProgress({
+						data: {
+							characterName:
+								typeof event.payload.name === 'string'
+									? event.payload.name
+									: '',
+						},
+						stage: 'story.character',
+						status:
+							event.kind === 'character_start'
+								? 'start'
+								: event.kind === 'character_complete'
+									? 'complete'
+									: 'error',
+					});
+					break;
+				case 'partial_result': {
+					const slice = event.payload.slice;
+					const value = event.payload.value;
+					if (
+						slice === 'storyCore' ||
+						slice === 'characters' ||
+						slice === 'locations' ||
+						slice === 'memories'
+					) {
+						(result as Record<string, unknown>)[slice] = value;
+						onPartial({
+							data: value,
+							type: slice,
+						});
+					}
+					break;
+				}
+				case 'llm_request':
+					onVerbose?.({
+						agent:
+							typeof event.payload.agent === 'string'
+								? event.payload.agent
+								: 'llm',
+						attempt:
+							typeof event.payload.attempt === 'number'
+								? event.payload.attempt
+								: undefined,
+						prompt:
+							typeof event.payload.prompt === 'string'
+								? event.payload.prompt
+								: undefined,
+						step: 'request',
+					});
+					break;
+				case 'llm_response':
+					onVerbose?.({
+						agent:
+							typeof event.payload.agent === 'string'
+								? event.payload.agent
+								: 'llm',
+						attempt:
+							typeof event.payload.attempt === 'number'
+								? event.payload.attempt
+								: undefined,
+						durationMs:
+							typeof event.payload.durationMs === 'number'
+								? event.payload.durationMs
+								: undefined,
+						rawText:
+							typeof event.payload.rawText === 'string'
+								? event.payload.rawText
+								: undefined,
+						step: 'response',
+					});
+					break;
+				case 'job_failed':
+				case 'job_cancelled':
+					failed = true;
+					onError(
+						typeof event.payload.error === 'string'
+							? event.payload.error
+							: event.kind,
+					);
+					break;
+				default:
+					break;
+			}
+		},
+		signal,
+	});
 }
 
 async function readStream(

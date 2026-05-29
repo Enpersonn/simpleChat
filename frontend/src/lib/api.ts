@@ -16,6 +16,8 @@ import type {
 	StoryLocation as Location,
 	LocationCreate,
 	LocationUpdate,
+	ImportJobSnapshot,
+	ImportJobSummary,
 	MemoryItem,
 	Story,
 	StoryCreate,
@@ -65,6 +67,30 @@ export const api = {
 				body: JSON.stringify({ context, text, type }),
 				method: 'POST',
 			}),
+	},
+
+	importJobs: {
+		cancel: (jobId: string) =>
+			request<ImportJobSnapshot>(`/ai/import-jobs/${jobId}/cancel`, {
+				method: 'POST',
+			}),
+		clearAll: () =>
+			request<{ ok: boolean }>('/ai/import-jobs', {
+				method: 'DELETE',
+			}),
+		create: (text: string, context?: Record<string, unknown>) =>
+			request<{ jobId: string }>('/ai/import-jobs', {
+				body: JSON.stringify({ context, text }),
+				method: 'POST',
+			}),
+		delete: (jobId: string) =>
+			request<{ ok: boolean }>(`/ai/import-jobs/${jobId}`, {
+				method: 'DELETE',
+			}),
+		get: (jobId: string) =>
+			request<ImportJobSnapshot>(`/ai/import-jobs/${jobId}`),
+		recent: () =>
+			request<ImportJobSummary[]>('/ai/import-jobs/recent'),
 	},
 
 	canonTimeline: {

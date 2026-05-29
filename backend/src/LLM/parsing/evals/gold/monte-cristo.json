@@ -1,0 +1,93 @@
+{
+  "characters": [
+    "Edmond Dantes",
+    "Mercedes",
+    "Fernand Mondego",
+    "Danglars",
+    "Villefort",
+    "Abbe Faria",
+    "Count of Monte Cristo"
+  ],
+  "locations": [
+    "Marseilles",
+    "Chateau d'If",
+    "Elba",
+    "Monte Cristo",
+    "Paris"
+  ],
+  "identityLinks": [
+    {
+      "left": "Edmond Dantes",
+      "right": "Count of Monte Cristo"
+    }
+  ],
+  "keyMemories": [
+    {
+      "id": "dantes-returns-to-marseilles",
+      "characterName": "Edmond Dantes",
+      "importanceMin": 0.4,
+      "summaryIncludesAny": ["Marseilles", "Pharaon", "returns"]
+    },
+    {
+      "id": "dantes-engaged-to-mercedes",
+      "characterName": "Edmond Dantes",
+      "importanceMin": 0.4,
+      "summaryIncludesAny": ["Mercedes", "engagement", "betrothed"]
+    },
+    {
+      "id": "conspiracy-against-dantes",
+      "characterName": "Danglars",
+      "importanceMin": 0.7,
+      "summaryIncludesAny": ["conspiracy", "accusation", "anonymous letter"]
+    },
+    {
+      "id": "villefort-imprisons-dantes",
+      "characterName": "Villefort",
+      "importanceMin": 0.7,
+      "summaryIncludesAny": ["imprisoned", "Chateau d'If", "Bonapartist"]
+    },
+    {
+      "id": "dantes-meets-faria",
+      "characterName": "Edmond Dantes",
+      "importanceMin": 0.7,
+      "summaryIncludesAny": ["Abbe Faria", "cell", "tunnel"]
+    },
+    {
+      "id": "faria-reveals-treasure",
+      "characterName": "Abbe Faria",
+      "importanceMin": 0.7,
+      "summaryIncludesAny": ["treasure", "Monte Cristo", "secret"]
+    },
+    {
+      "id": "dantes-escapes-prison",
+      "characterName": "Edmond Dantes",
+      "importanceMin": 0.8,
+      "summaryIncludesAny": ["escapes", "burial sack", "sea"]
+    },
+    {
+      "id": "dantes-finds-treasure",
+      "characterName": "Edmond Dantes",
+      "importanceMin": 0.8,
+      "summaryIncludesAny": ["finds the treasure", "Monte Cristo", "wealth"]
+    },
+    {
+      "id": "count-of-monte-cristo-returns",
+      "characterName": "Count of Monte Cristo",
+      "importanceMin": 0.7,
+      "summaryIncludesAny": ["Count of Monte Cristo", "returns", "Paris"]
+    },
+    {
+      "id": "dantes-seeks-revenge",
+      "characterName": "Count of Monte Cristo",
+      "importanceMin": 0.7,
+      "summaryIncludesAny": ["revenge", "Fernand", "Danglars", "Villefort"]
+    }
+  ],
+  "storyCore": {
+    "titleIncludes": ["Monte Cristo"],
+    "themesAny": ["revenge", "justice", "identity"],
+    "worldRulesAny": [],
+    "storyRulesAny": ["revenge"],
+    "characterRulesAny": ["Dantes"]
+  }
+}

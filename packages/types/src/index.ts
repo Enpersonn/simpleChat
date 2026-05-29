@@ -4,6 +4,7 @@ export * from './character.js';
 export * from './character-memory.js';
 export * from './chat.js';
 export * from './chat-state.js';
+export * from './import-job.js';
 export * from './location.js';
 export * from './settings.js';
 export * from './memory.js';

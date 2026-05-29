@@ -1,5 +1,6 @@
 export interface ParseVerboseEvent {
 	agent: string;
+	attempt?: number;
 	step: 'request' | 'response';
 	chunkIndex?: number;
 	totalChunks?: number;

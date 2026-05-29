@@ -1,14 +1,18 @@
-import type { MemoryDeltaEffect, Story } from '@simplechat/types';
+import type {
+	MemoryDelta,
+	ImportJobPartialResult,
+	MemoryDeltaEffect,
+	Story,
+} from '@simplechat/types';
 import {
 	type Dispatch,
 	type StateUpdater,
-	useRef,
+	useEffect,
 	useState,
 } from 'preact/hooks';
 import { api } from '@/src/lib/api';
-import { type ParseVerboseEvent, parseImportStream } from '@/src/lib/stream';
+import { useImportJobStore } from '@/src/store/import-jobs';
 import { useStoriesStore } from '@/src/store/stories';
-import { Badge } from '../../shared/Badge';
 import { Button } from '../../shared/Button';
 import { DialogClose } from '../../shared/Dialog';
 import { TagBox } from '../../shared/form/tag-box';
@@ -16,13 +20,8 @@ import { f } from '../../shared/formCls';
 import { DRAFT_STEPS, GENRE_OPTIONS, TONE_OPTIONS } from '../constants';
 import { emptyPreview } from '.';
 import { convertDeltasToEffects } from './conver-deltas-to-effect';
+import { ImportJobPanel } from './ImportJobPanel';
 import type { LivePreview } from './live-preview-panel';
-import {
-	applyProgressEvent,
-	type CharacterEntry,
-	ParseProgressLog,
-	type ParseStagesState,
-} from './ParseProgressLog';
 import type {
 	PendingChar,
 	PendingLocation,
@@ -56,7 +55,17 @@ export const FormContent = ({
 	genStep,
 }: Props) => {
 	const createStory = useStoriesStore((s) => s.createStory);
-	const [importText, setImportText] = useState('');
+	const activeJobId = useImportJobStore((state) => state.activeJobId);
+	const connectionStatus = useImportJobStore(
+		(state) => state.connectionStatus,
+	);
+	const draftText = useImportJobStore((state) => state.draftText);
+	const importError = useImportJobStore((state) => state.error);
+	const recentJobs = useImportJobStore((state) => state.recentJobs);
+	const resumeLatestJob = useImportJobStore((state) => state.resumeLatestJob);
+	const setDraftText = useImportJobStore((state) => state.setDraftText);
+	const snapshot = useImportJobStore((state) => state.snapshot);
+	const startImport = useImportJobStore((state) => state.startImport);
 	const [title, setTitle] = useState('');
 	const [premise, setPremise] = useState('');
 	const [openingMessage, setOpeningMessage] = useState('');
@@ -72,12 +81,6 @@ export const FormContent = ({
 	const [error, setError] = useState('');
 	const [pendingMemories, setPendingMemories] = useState<PendingMemory[]>([]);
 	const [submitting, setSubmitting] = useState(false);
-	const [parseStages, setParseStages] = useState<ParseStagesState>({});
-	const [characterProgress, setCharacterProgress] = useState<
-		CharacterEntry[]
-	>([]);
-	const [verboseLog, setVerboseLog] = useState<ParseVerboseEvent[]>([]);
-	const abortRef = useRef<AbortController | null>(null);
 	const toggle = (
 		arr: string[],
 		val: string,
@@ -194,6 +197,131 @@ export const FormContent = ({
 			setPendingLocations((prev) => [...prev, ...newLocs]);
 		}
 	};
+
+	const applyImportResult = (result: ImportJobPartialResult) => {
+		const storyCore = result.storyCore;
+		if (storyCore) {
+			setTitle(storyCore.title);
+			setPremise(storyCore.premise);
+			setGenres(storyCore.genres);
+			setTones(storyCore.tone);
+			const allRules = [
+				...storyCore.rules.worldRules,
+				...storyCore.rules.storyRules,
+				...storyCore.rules.characterRules,
+			];
+			setRules(allRules.join('\n'));
+			setWritingStyle(storyCore.writingStyle.prose);
+		}
+
+		setPendingChars(
+			result.characters.map((character, index) => ({
+				_localId: `import-char-${index}-${character.name}`,
+				_rawRelationships: character.relationships.length
+					? character.relationships
+					: undefined,
+				isUserPersona: character.isUserPersona,
+				name: character.name,
+				private: {
+					fears: character.fears,
+					hiddenEmotionalState: '',
+					moralLimits: '',
+					privateKnowledge: [],
+					trueMotives: character.trueMotives,
+				},
+				public: {
+					age: character.age,
+					appearance: character.appearance,
+					clothing: character.clothing,
+					gender: character.gender,
+					personality: character.personality,
+					reputation: '',
+					species: character.species || 'human',
+					speechStyle: character.speechStyle,
+					voiceNotes: '',
+				},
+				role: character.role,
+			})),
+		);
+
+		setPendingLocations(
+			result.locations.map((location, index) => ({
+				_localId: `import-loc-${index}-${location.name}`,
+				atmosphere: location.atmosphere,
+				description: location.description,
+				layout: location.layout,
+				lighting: location.lighting,
+				name: location.name,
+				notes: location.notes,
+				smells: location.smells,
+				soundscape: location.soundscape,
+				tags: location.tags,
+			})),
+		);
+
+		setPendingMemories(
+			result.memories.map((memory, index) => ({
+				_localId: `import-mem-${index}-${memory.characterName}`,
+				characterName: memory.characterName,
+				deltas: { effects: memory.deltas.effects },
+				importance: memory.importance,
+				summary: memory.summary,
+				tags: memory.tags,
+			})),
+		);
+
+		setLivePreview({
+			characters: result.characters.map((character) => ({
+				isUserPersona: character.isUserPersona,
+				name: character.name,
+				role: character.role,
+			})),
+			genres: storyCore?.genres ?? [],
+			locations: result.locations.map((location) => ({
+				description: location.description,
+				name: location.name,
+			})),
+			memories: result.memories.map((memory) => ({
+				characterName: memory.characterName,
+				importance: memory.importance,
+				summary: memory.summary,
+			})),
+			title: storyCore?.title ?? '',
+			tone: storyCore?.tone ?? [],
+		});
+	};
+
+	useEffect(() => {
+		void resumeLatestJob();
+	}, []);
+
+	useEffect(() => {
+		if (!snapshot) return;
+		applyImportResult(snapshot.partialResult);
+		if (snapshot.status === 'completed') {
+			setTab('write');
+		}
+	}, [snapshot?.lastSeq]);
+
+	useEffect(() => {
+		if (!importError) return;
+		setError(importError);
+	}, [importError]);
+
+	useEffect(() => {
+		const shouldWarn =
+			snapshot?.status === 'queued' || snapshot?.status === 'running';
+		if (!shouldWarn) return;
+
+		const onBeforeUnload = (event: BeforeUnloadEvent) => {
+			event.preventDefault();
+			event.returnValue =
+				'An import is still running. You can reconnect later, but this page is currently following the live job.';
+		};
+
+		window.addEventListener('beforeunload', onBeforeUnload);
+		return () => window.removeEventListener('beforeunload', onBeforeUnload);
+	}, [snapshot?.status]);
 
 	const handleDraft = async () => {
 		if (!premise.trim() || generating) return;
@@ -340,184 +468,13 @@ export const FormContent = ({
 	};
 
 	const handleParse = async () => {
-		if (!importText.trim() || generating) return;
-		setGenStep(1);
+		if (!draftText.trim() || generating) return;
 		setError('');
 		setLivePreview(emptyPreview());
-		setParseStages({});
-		setCharacterProgress([]);
-		setVerboseLog([]);
-
-		const controller = new AbortController();
-		abortRef.current = controller;
-
-		try {
-			await parseImportStream({
-				onDone: () => {
-					setTab('write');
-				},
-				onError: (msg) => {
-					if (msg !== 'AbortError') setError(msg);
-				},
-				onPartial: (frame) => {
-					if (frame.type === 'storyCore') {
-						const core = frame.data as {
-							title?: string;
-							premise?: string;
-							genres?: string[];
-							tone?: string[];
-							rules?: string[];
-							writingStyle?: { prose?: string };
-						};
-						applyGeneratedFields({
-							...core,
-							characters: [],
-							genres: core.genres ?? [],
-							locations: [],
-							rules: core.rules ?? [],
-							tone: core.tone ?? [],
-							writingStyle: core.writingStyle ?? '',
-						});
-						setLivePreview((p) => ({
-							...p,
-							genres: core.genres ?? [],
-							title: core.title ?? '',
-							tone: core.tone ?? [],
-						}));
-					} else if (frame.type === 'characters') {
-						const characters =
-							(frame.data as Array<{
-								name: string;
-								role: string;
-								isUserPersona: boolean;
-								age: string;
-								gender: string;
-								species: string;
-								clothing: string;
-								appearance: string;
-								personality: string[];
-								speechStyle: string;
-								trueMotives: string;
-								fears: string[];
-								relationships?: RawRelation[];
-							}>) ?? [];
-						applyGeneratedFields({
-							characters,
-							genres: [],
-							locations: [],
-							rules: [],
-							tone: [],
-							writingStyle: '',
-						});
-						setLivePreview((p) => ({
-							...p,
-							characters: characters.map((c) => ({
-								isUserPersona: c.isUserPersona,
-								name: c.name,
-								role: c.role,
-							})),
-						}));
-					} else if (frame.type === 'locations') {
-						const locations =
-							(frame.data as Array<{
-								name: string;
-								description: string;
-								layout: string;
-								lighting: string;
-								atmosphere: string;
-								soundscape: string;
-								smells: string;
-								notes: string;
-								tags: string[];
-							}>) ?? [];
-						applyGeneratedFields({
-							characters: [],
-							genres: [],
-							locations,
-							rules: [],
-							tone: [],
-							writingStyle: '',
-						});
-						setLivePreview((p) => ({
-							...p,
-							locations: locations.map((l) => ({
-								description: l.description,
-								name: l.name,
-							})),
-						}));
-					} else if (frame.type === 'memories') {
-						const memories =
-							(frame.data as Array<{
-								characterName: string;
-								summary: string;
-								tags: string[];
-								importance: number;
-								deltas?: Record<string, unknown>;
-								relationshipEffects?: Array<{
-									otherCharacterName: string;
-									emotion: string;
-									publicAttitude: string;
-									privateAttitude: string;
-									trustLevel: number;
-								}>;
-							}>) ?? [];
-						if (memories.length > 0) {
-							setPendingMemories((prev) => [
-								...prev,
-								...memories.map((m, i) => ({
-									_localId: `mem-${Date.now()}-${i}`,
-									characterName: m.characterName,
-									deltas: m.deltas,
-									importance: m.importance,
-									relationshipEffects: m.relationshipEffects,
-									summary: m.summary,
-									tags: m.tags,
-								})),
-							]);
-							setLivePreview((p) => ({
-								...p,
-								memories: memories.map((m) => ({
-									characterName: m.characterName,
-									importance: m.importance,
-									summary: m.summary,
-								})),
-							}));
-						}
-					}
-				},
-				onProgress: (frame) => {
-					if (frame.stage === 'story.character') {
-						const name = frame.data?.characterName ?? '';
-						if (frame.status === 'start') {
-							setCharacterProgress((prev) => [
-								...prev,
-								{ name, status: 'running' },
-							]);
-						} else if (frame.status === 'complete') {
-							setCharacterProgress((prev) =>
-								prev.map((c) =>
-									c.name === name
-										? { ...c, status: 'complete' }
-										: c,
-								),
-							);
-						}
-					} else {
-						setParseStages((prev) =>
-							applyProgressEvent(prev, frame),
-						);
-					}
-				},
-				onVerbose: (event) => {
-					setVerboseLog((prev) => [...prev, event]);
-				},
-				signal: controller.signal,
-				text: importText.trim(),
-			});
-		} finally {
-			abortRef.current = null;
-			setGenStep(0);
-		}
+		setPendingChars([]);
+		setPendingLocations([]);
+		setPendingMemories([]);
+		await startImport();
 	};
 
 	const handleSubmit = async () => {
@@ -621,7 +578,11 @@ export const FormContent = ({
 					})
 					.filter((r): r is NonNullable<typeof r> => r !== null);
 				const effects: MemoryDeltaEffect[] = [
-					...convertDeltasToEffects(deltas ?? {}),
+					...((deltas &&
+					typeof deltas === 'object' &&
+					Array.isArray((deltas as MemoryDelta).effects)
+						? (deltas as MemoryDelta).effects
+						: convertDeltasToEffects(deltas ?? {})) as MemoryDeltaEffect[]),
 					...(resolvedRelDelta.length
 						? [
 								{
@@ -672,14 +633,22 @@ export const FormContent = ({
 	const customTones = tones.filter((t) => !TONE_OPTIONS.includes(t));
 
 	const steps = DRAFT_STEPS;
-
-	const generating = genStep > 0;
+	const draftGenerating = tab === 'write' && genStep > 0;
+	const importActive =
+		connectionStatus === 'connecting' ||
+		connectionStatus === 'live' ||
+		connectionStatus === 'reconnecting' ||
+		snapshot?.status === 'queued' ||
+		snapshot?.status === 'running';
+	const generating = draftGenerating || importActive;
+	const showImportPanel =
+		!!snapshot || !!activeJobId || recentJobs.length > 0 || importActive;
 
 	return (
 		<>
 			{error && <div class={f.errorMsg}>{error}</div>}
 
-			{genStep > 0 && tab === 'write' && (
+			{draftGenerating && (
 				<div class={f.genProgress}>
 					<span class={f.genSpinner}>↻</span>
 					<span class={f.genLabel}>{steps[genStep - 1]}</span>
@@ -691,47 +660,41 @@ export const FormContent = ({
 
 			{tab === 'import' && (
 				<div class={f.field}>
-					{generating ? (
-						<ParseProgressLog
-							stages={parseStages}
-							characters={characterProgress}
-							verboseLog={verboseLog}
-							onCancel={() => {
-								abortRef.current?.abort();
-							}}
-						/>
-					) : (
-						<>
-							<label class={f.label} for="import-text">
-								Paste your story notes, excerpts, or drafts
-							</label>
-							<textarea
-								id="import-text"
-								class={f.textarea}
-								placeholder="Paste story notes, chapter drafts, character sketches, world-building notes…"
-								value={importText}
-								onInput={(e) =>
-									setImportText(
-										(e.target as HTMLTextAreaElement).value,
-									)
-								}
-								style={{ minHeight: '220px' }}
-							/>
-							<div class={f.aiBar}>
-								<Button
-									variant="secondary"
-									onClick={handleParse}
-									disabled={!importText.trim()}
-								>
-									✨ Parse & Generate
-								</Button>
-							</div>
-							<div class="mt-1 text-[11px] text-text-muted">
-								The LLM will synthesise a clean premise and
-								extract characters, locations, and canon
-								memories. Review all fields before creating.
-							</div>
-						</>
+					<label class={f.label} for="import-text">
+						Paste your story notes, excerpts, or drafts
+					</label>
+					<textarea
+						id="import-text"
+						class={f.textarea}
+						placeholder="Paste story notes, chapter drafts, character sketches, world-building notes…"
+						value={draftText}
+						onInput={(e) =>
+							setDraftText(
+								(e.target as HTMLTextAreaElement).value,
+							)
+						}
+						style={{ minHeight: '220px' }}
+					/>
+					<div class={f.aiBar}>
+						<Button
+							variant="secondary"
+							onClick={handleParse}
+							disabled={!draftText.trim() || importActive}
+						>
+							{importActive
+								? 'Import running…'
+								: '✨ Parse & Generate'}
+						</Button>
+					</div>
+					<div class="mt-1 text-[11px] text-text-muted">
+						The import runs as a durable backend job. You can
+						refresh and reconnect to the live trace without losing
+						progress.
+					</div>
+					{showImportPanel && (
+						<div class="mt-4">
+							<ImportJobPanel />
+						</div>
 					)}
 				</div>
 			)}
