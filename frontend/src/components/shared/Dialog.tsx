@@ -113,7 +113,13 @@ export const DialogTitle = ({ children, class: cls }: BaseProps) => (
 	</h2>
 );
 
-export const DialogClose = ({ class: cls }: { class?: string }) => {
+export const DialogClose = ({
+	children,
+	class: cls,
+}: {
+	children?: ComponentChildren;
+	class?: string;
+}) => {
 	const { onClose } = useContext(DialogContext);
 	return (
 		<button
@@ -124,7 +130,7 @@ export const DialogClose = ({ class: cls }: { class?: string }) => {
 			)}
 			onClick={onClose}
 		>
-			✕
+			{children ?? '✕'}
 		</button>
 	);
 };

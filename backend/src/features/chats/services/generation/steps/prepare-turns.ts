@@ -1,21 +1,21 @@
 import type { Turn } from '@simplechat/types';
 import { randomUUID } from 'crypto';
-import { appendTurn, deleteSingleTurn } from '../../../store';
-import type { GenerationContext } from '../../../types';
+import { appendTurn, deleteSingleTurn } from '../../../store.js';
+import type { GenerationContext } from '../../../types.js';
 
 export async function prepareTurns(ctx: GenerationContext) {
 	const { kind, chat, params } = ctx;
 
 	if (kind === 'message') {
 		const userTurn: Turn = {
-			id: randomUUID(),
 			chatId: ctx.chatId,
-			speaker: params.speaker!,
+			id: randomUUID(),
+			meta: { mode: chat.mode },
+			pinned: false,
 			role: 'user',
+			speaker: params.speaker!,
 			text: params.text!,
 			timestamp: new Date().toISOString(),
-			pinned: false,
-			meta: { mode: chat.mode },
 		};
 
 		await appendTurn(userTurn);

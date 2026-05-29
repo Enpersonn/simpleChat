@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { SendMessageSchema, type Turn } from '@simplechat/types';
 import type { FastifyInstance } from 'fastify';
-import { chatGenerationService } from '../services/generation/chat-generation-service';
-import { appendTurn, chat_store } from '../store';
+import { chatGenerationService } from '../services/generation/chat-generation-service.js';
+import { appendTurn, chat_store } from '../store.js';
 
 export async function chatGenerationRoutes(
 	app: FastifyInstance,
@@ -16,12 +16,12 @@ export async function chatGenerationRoutes(
 			}
 
 			await chatGenerationService.run({
-				kind: 'message',
-				storyId: req.params.storyId,
 				chatId: req.params.chatId,
+				kind: 'message',
 				params: body.data,
-				req,
 				reply,
+				req,
+				storyId: req.params.storyId,
 			});
 		},
 	);
@@ -35,12 +35,12 @@ export async function chatGenerationRoutes(
 			}
 
 			await chatGenerationService.run({
-				kind: 'regenerate',
-				storyId: req.params.storyId,
 				chatId: req.params.chatId,
+				kind: 'regenerate',
 				params: body.data,
-				req,
 				reply,
+				req,
+				storyId: req.params.storyId,
 			});
 		},
 	);
@@ -56,14 +56,14 @@ export async function chatGenerationRoutes(
 			if (!chat)
 				return reply.status(404).send({ error: 'Chat not found' });
 			const turn: Turn = {
-				id: randomUUID(),
 				chatId,
-				speaker: chat.activeSpeakers[0] ?? 'narrator',
+				id: randomUUID(),
+				meta: { mode: chat.mode },
+				pinned: false,
 				role: 'assistant',
+				speaker: chat.activeSpeakers[0] ?? 'narrator',
 				text: text.trim(),
 				timestamp: new Date().toISOString(),
-				pinned: false,
-				meta: { mode: chat.mode },
 			};
 			await appendTurn(turn);
 			return reply.status(201).send(turn);
@@ -74,12 +74,12 @@ export async function chatGenerationRoutes(
 		'/stories/:storyId/chats/:chatId/opener',
 		async (req, reply) => {
 			await chatGenerationService.run({
-				kind: 'opener',
-				storyId: req.params.storyId,
 				chatId: req.params.chatId,
+				kind: 'opener',
 				params: {},
-				req,
 				reply,
+				req,
+				storyId: req.params.storyId,
 			});
 		},
 	);

@@ -1,6 +1,6 @@
-import { applyMemoryChain } from '../../../../characters/character-state';
-import { buildChainDiffs, resolveCharacterChains } from '../../../helpers';
-import type { GenerationContext } from '../../../types';
+import { applyMemoryChain } from '../../../../characters/character-state.js';
+import { buildChainDiffs, resolveCharacterChains } from '../../../helpers.js';
+import type { GenerationContext } from '../../../types.js';
 
 export async function applyMemoryChainStep(ctx: GenerationContext) {
 	ctx.characterChains = await resolveCharacterChains(

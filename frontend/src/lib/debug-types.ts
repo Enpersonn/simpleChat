@@ -1,11 +1,14 @@
 export type PipelineStep =
+	| 'prepare_turns'
 	| 'data_load'
 	| 'memory_chain'
 	| 'memory_retrieval'
 	| 'context_assembly'
 	| 'llm_call'
 	| 'persist_result'
-	| 'extraction';
+	| 'extraction'
+	| 'planning_reply'
+	| 'proposal_author';
 
 export type PipelineStatus = 'start' | 'complete' | 'error';
 

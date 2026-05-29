@@ -2,8 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { defineTool, type FunctionTool } from '@llm-helpers/tools';
 import { z } from 'zod';
-import { dataDir } from '../config';
-import { now, readJson, writeJson } from './helpers';
+import { dataDir } from '../config.js';
+import { now, readJson, writeJson } from './helpers.js';
 
 type Filter<T> = Partial<{
 	[K in keyof T]: T[K] | ((value: T[K], item: T) => boolean);
@@ -109,46 +109,56 @@ export class BaseStorageObject<TSchema extends z.ZodType<any>> {
 		return true;
 	}
 
-	public asTools(): FunctionTool[] {
+	public asReadTools(): FunctionTool[] {
 		const t = this.dataType;
 		return [
 			defineTool({
 				description: `Get a single ${t} record by id`,
 				execute: ({ id }, _ctx) => this.get(id),
-				name: `${t}.get`,
 				input: z.object({ id: z.string() }),
+				name: `${t}.get`,
 			}),
 			defineTool({
 				description: `List all ${t} records, optionally filtered by field values`,
 				execute: ({ filters }, _ctx) =>
 					this.list(filters as Filter<z.infer<TSchema>>),
-				name: `${t}.list`,
 				input: z.object({
 					filters: z.record(z.string(), z.unknown()).optional(),
 				}),
+				name: `${t}.list`,
 			}),
+		];
+	}
+
+	public asWriteTools(): FunctionTool[] {
+		const t = this.dataType;
+		return [
 			defineTool({
 				description: `Create a new ${t} record`,
 				execute: ({ body }, _ctx) => this.add(body),
-				name: `${t}.add`,
 				input: z.object({ body: z.record(z.string(), z.unknown()) }),
+				name: `${t}.add`,
 			}),
 			defineTool({
 				description: `Update an existing ${t} record by id`,
 				execute: ({ id, body }, _ctx) =>
 					this.update(id, body as Partial<z.infer<TSchema>>),
-				name: `${t}.update`,
 				input: z.object({
 					body: z.record(z.string(), z.unknown()),
 					id: z.string(),
 				}),
+				name: `${t}.update`,
 			}),
 			defineTool({
 				description: `Delete a ${t} record by id`,
 				execute: ({ id }, _ctx) => this.delete(id),
-				name: `${t}.delete`,
 				input: z.object({ id: z.string() }),
+				name: `${t}.delete`,
 			}),
 		];
+	}
+
+	public asTools(): FunctionTool[] {
+		return [...this.asReadTools(), ...this.asWriteTools()];
 	}
 }

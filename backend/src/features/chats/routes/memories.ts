@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { MemoryItemCreateSchema } from '@simplechat/types';
 import type { FastifyInstance } from 'fastify';
-import { now } from '../../../storage/helpers';
-import { memories_store } from '../../memories/store';
+import { now } from '../../../storage/helpers.js';
+import { memories_store } from '../../memories/store/index.js';
 
 export async function chatMemoryRoutes(app: FastifyInstance): Promise<void> {
 	app.get<{ Params: { storyId: string; chatId: string } }>(
@@ -20,10 +20,10 @@ export async function chatMemoryRoutes(app: FastifyInstance): Promise<void> {
 				return reply.status(400).send({ error: body.error.flatten() });
 			const item = await memories_store.add({
 				...body.data,
-				id: randomUUID(),
 				createdAt: now(),
-				updatedAt: now(),
+				id: randomUUID(),
 				storyId: req.params.storyId,
+				updatedAt: now(),
 			});
 			return reply.status(201).send(item);
 		},

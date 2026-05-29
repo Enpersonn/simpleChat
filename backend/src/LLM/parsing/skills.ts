@@ -1,9 +1,15 @@
+import { createOrchestrator } from '@llm-helpers/agents';
 import {
 	createSkillRunner,
 	defineSkill,
 	type SkillRunner,
 } from '@llm-helpers/skills';
-import type { ToolSystem } from '@llm-helpers/tools';
+import {
+	createFunctionProvider,
+	createToolSystem,
+	defineTool,
+	type ToolSystem,
+} from '@llm-helpers/tools';
 import { z } from 'zod';
 import { storyLocationsParseAgent } from '../../features/locations/parsing-agent.js';
 import { storyMemoriesParseAgent } from '../../features/memories/parsing-agent.js';
@@ -14,6 +20,7 @@ import {
 	normaliseMemoryItem,
 	normaliseStoryCore,
 } from '../normalizers.js';
+import { createOllamaRuntime } from '../runtime.js';
 import { runCharacterDeepDiveAgent } from './agent-character.js';
 import { censusAgent } from './census-agent.js';
 import { identityAgent } from './identity-agent.js';
@@ -38,13 +45,18 @@ const censusSkill = defineSkill({
 	description:
 		'Enumerate all named characters, locations, and scenes in the story text.',
 	async execute({ sanitizedText }, ctx): Promise<EntityManifest> {
-		const onVerbose = ctx.metadata?.onVerbose as ParseVerboseCallback | undefined;
+		const onVerbose = ctx.metadata?.onVerbose as
+			| ParseVerboseCallback
+			| undefined;
 		try {
-			const data = await censusAgent.run(`Story text:\n${sanitizedText}`, {
-				onVerbose: onVerbose
-					? (ev) => onVerbose({ agent: 'census', ...ev })
-					: undefined,
-			});
+			const data = await censusAgent.run(
+				`Story text:\n${sanitizedText}`,
+				{
+					onVerbose: onVerbose
+						? (ev) => onVerbose({ agent: 'census', ...ev })
+						: undefined,
+				},
+			);
 			return {
 				characterNames: Array.isArray(data.characterNames)
 					? data.characterNames.filter(
@@ -74,14 +86,12 @@ const storeCoreSkill = defineSkill({
 	description:
 		'Extract title, premise, genres, tone, themes, writing style, and rules.',
 	async execute(
-		{
-			sanitizedText,
-			manifest,
-			premise,
-		},
+		{ sanitizedText, manifest, premise },
 		ctx,
 	): Promise<NormalisedStoryCore> {
-		const onVerbose = ctx.metadata?.onVerbose as ParseVerboseCallback | undefined;
+		const onVerbose = ctx.metadata?.onVerbose as
+			| ParseVerboseCallback
+			| undefined;
 		const parts: string[] = [];
 		if (premise) parts.push(`Story premise: ${premise}`);
 		parts.push(`Story text:\n${sanitizedText}`);
@@ -114,14 +124,12 @@ const locationsSkill = defineSkill({
 	description:
 		'Extract and deduplicate all named locations from chunked story text.',
 	async execute(
-		{
-			chunks,
-			manifest,
-			premise,
-		},
+		{ chunks, manifest, premise },
 		ctx,
 	): Promise<NormalisedLocation[]> {
-		const onVerbose = ctx.metadata?.onVerbose as ParseVerboseCallback | undefined;
+		const onVerbose = ctx.metadata?.onVerbose as
+			| ParseVerboseCallback
+			| undefined;
 		const prefixParts: string[] = [];
 		if (premise) prefixParts.push(`Story premise: ${premise}`);
 		if (manifest.locationNames.length)
@@ -161,10 +169,14 @@ const charactersSkill = defineSkill({
 		const onProgress = ctx.metadata?.onProgress as
 			| import('./pipeline.js').ParseProgressCallback
 			| undefined;
-		const onVerbose = ctx.metadata?.onVerbose as ParseVerboseCallback | undefined;
+		const onVerbose = ctx.metadata?.onVerbose as
+			| ParseVerboseCallback
+			| undefined;
 		const onCharacterProgress = onProgress
 			? (name: string, status: 'start' | 'complete') =>
-					onProgress('story.character', status, { characterName: name })
+					onProgress('story.character', status, {
+						characterName: name,
+					})
 			: undefined;
 		return runCharacterDeepDiveAgent(
 			characterNames,
@@ -186,13 +198,12 @@ const relationshipsSkill = defineSkill({
 	description:
 		'Merge cross-character relationship edges into the character list.',
 	async execute(
-		{
-			sanitizedText,
-			characters,
-		},
+		{ sanitizedText, characters },
 		ctx,
 	): Promise<NormalisedCharacter[]> {
-		const onVerbose = ctx.metadata?.onVerbose as ParseVerboseCallback | undefined;
+		const onVerbose = ctx.metadata?.onVerbose as
+			| ParseVerboseCallback
+			| undefined;
 		const chars = characters as NormalisedCharacter[];
 		if (chars.length === 0) return chars;
 		try {
@@ -259,15 +270,12 @@ const memoriesSkill = defineSkill({
 	description:
 		'Extract the chronological timeline of memory events for all characters.',
 	async execute(
-		{
-			chunks,
-			characters,
-			manifest,
-			premise,
-		},
+		{ chunks, characters, manifest, premise },
 		ctx,
 	): Promise<NormalisedMemory[]> {
-		const onVerbose = ctx.metadata?.onVerbose as ParseVerboseCallback | undefined;
+		const onVerbose = ctx.metadata?.onVerbose as
+			| ParseVerboseCallback
+			| undefined;
 		const chars = characters as NormalisedCharacter[];
 		const charList = chars.map((c) => c.name).join(', ');
 		const prefixParts: string[] = [];
@@ -302,8 +310,13 @@ const memoriesSkill = defineSkill({
 const identitiesSkill = defineSkill({
 	description:
 		'Resolve cross-character identity links and alternate personas.',
-	async execute({ characters, memories }, ctx): Promise<NormalisedCharacter[]> {
-		const onVerbose = ctx.metadata?.onVerbose as ParseVerboseCallback | undefined;
+	async execute(
+		{ characters, memories },
+		ctx,
+	): Promise<NormalisedCharacter[]> {
+		const onVerbose = ctx.metadata?.onVerbose as
+			| ParseVerboseCallback
+			| undefined;
 		const chars = characters as NormalisedCharacter[];
 		const mems = memories as NormalisedMemory[];
 		if (chars.length === 0) return chars;
@@ -313,14 +326,77 @@ const identitiesSkill = defineSkill({
 				.slice(0, 20)
 				.map((m) => `${m.characterName}: ${m.summary}`)
 				.join('\n');
-			const data = await identityAgent.run(
-				`Characters: ${charList}\n\nTimeline summary:\n${timelineSummary}`,
-				{
-					onVerbose: onVerbose
-						? (ev) => onVerbose({ agent: 'identities', ...ev })
-						: undefined,
+			let data:
+				| {
+						links?: Array<Record<string, unknown>>;
+				  }
+				| undefined;
+
+			const resolveIdentitiesTool = defineTool({
+				description:
+					'Run the identity resolution parser on the provided character and memory summary.',
+				execute: async ({ content }) => {
+					const result = await identityAgent.run(content, {
+						onVerbose: onVerbose
+							? (ev) => onVerbose({ agent: 'identities', ...ev })
+							: undefined,
+					});
+					data = result as { links?: Array<Record<string, unknown>> };
+					return result;
 				},
+				input: z.object({
+					content: z.string(),
+				}),
+				name: 'identities.resolve',
+			});
+
+			const runtime = await createOllamaRuntime({ numCtx: 8192 });
+			const identityTools = createToolSystem({
+				providers: [
+					createFunctionProvider('identity-tools', [
+						resolveIdentitiesTool,
+					]),
+				],
+			});
+			const coordinatorTools = createToolSystem({
+				providers: [createFunctionProvider('parse-coordinator', [])],
+			});
+			const orchestrator = createOrchestrator({
+				agents: {
+					'identity-analyst': {
+						options: {
+							maxSteps: 3,
+						},
+						provider: runtime.provider,
+						systemPrompt:
+							'Call identities.resolve exactly once and use its JSON result as the answer.',
+						tools: identityTools,
+					},
+					'parse-coordinator': {
+						options: {
+							maxSteps: 3,
+						},
+						provider: runtime.provider,
+						systemPrompt:
+							'Delegate the identity resolution task to the identity-analyst agent using the ask skill exactly once. Do not add extra analysis.',
+						tools: coordinatorTools,
+					},
+				},
+				router: () => 'parse-coordinator',
+			});
+			await orchestrator.run(
+				`Characters: ${charList}\n\nTimeline summary:\n${timelineSummary}`,
 			);
+			if (!data) {
+				data = await identityAgent.run(
+					`Characters: ${charList}\n\nTimeline summary:\n${timelineSummary}`,
+					{
+						onVerbose: onVerbose
+							? (ev) => onVerbose({ agent: 'identities', ...ev })
+							: undefined,
+					},
+				);
+			}
 			const links = Array.isArray(data.links) ? data.links : [];
 			for (const link of links as Record<string, unknown>[]) {
 				const charName =
@@ -469,7 +545,10 @@ const parseStorySkill = defineSkill({
 			manifest,
 			premise,
 		})) as NormalisedMemory[];
-		onProgress?.('story.memories', 'complete', { count: memories.length, memories });
+		onProgress?.('story.memories', 'complete', {
+			count: memories.length,
+			memories,
+		});
 
 		// Stage 7: identity resolution (mutates characters in-place)
 		onProgress?.('story.identities', 'start', {});

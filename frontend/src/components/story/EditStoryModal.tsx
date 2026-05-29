@@ -20,7 +20,7 @@ interface Props {
 
 export function EditStoryModal({
 	story,
-	onSaved,
+	onSaved = () => {},
 }: Pick<Props, 'story' | 'onSaved'>) {
 	return (
 		<Dialog>

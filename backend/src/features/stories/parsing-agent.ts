@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { createPromptRunner } from '../../LLM/prompt-runners/create-prompt-runner';
-import { STORY_GENRES, STORY_TONES } from '.';
+import { createPromptRunner } from '../../LLM/prompt-runners/create-prompt-runner.js';
+import { STORY_GENRES, STORY_TONES } from './index.js';
 
 export const storyCoreParseAgent = createPromptRunner({
 	instructions: [

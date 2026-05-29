@@ -1,9 +1,9 @@
 import { HttpError } from '../../../../error-handlers.js';
-import { characters_store } from '../../../characters/store';
-import { locations_store } from '../../../locations/store';
-import { stories_store } from '../../../stories/store';
-import { defaultChatState } from '../../helpers';
-import { chat_state_store, chat_store, turn_store } from '../../store';
+import { characters_store } from '../../../characters/store.js';
+import { locations_store } from '../../../locations/store.js';
+import { stories_store } from '../../../stories/store.js';
+import { defaultChatState } from '../../helpers.js';
+import { chat_state_store, chat_store, turn_store } from '../../store.js';
 
 export async function loadGenerationData(storyId: string, chatId: string) {
 	const [story, chat, characters, turns, locations, chatState] =
@@ -20,11 +20,11 @@ export async function loadGenerationData(storyId: string, chatId: string) {
 	if (!chat) throw new HttpError(404, 'Chat not found');
 
 	return {
-		story,
-		chat,
 		characters,
-		turns,
-		locations,
+		chat,
 		chatState: chatState ?? defaultChatState(chatId, storyId),
+		locations,
+		story,
+		turns,
 	};
 }

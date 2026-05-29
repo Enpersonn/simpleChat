@@ -1,16 +1,18 @@
 import { createAgent } from '@llm-helpers/an-agent-runtime-handler';
 import type { LLMMessage } from '@llm-helpers/types';
-import { getOllamaAdapter } from '../../../../../LLM/llm-client.js';
-import { createStoryToolSystem } from '../../../../../LLM/tools/tool-system.js';
-import type { GenerationContext } from '../../../types';
+import { createOllamaRuntime } from '../../../../../LLM/runtime.js';
+import { createStoryReadToolSystem } from '../../../../../LLM/tools/tool-system.js';
+import type { GenerationContext } from '../../../types.js';
 
 export const runAgentStep = async (ctx: GenerationContext) => {
-	const adapter = await getOllamaAdapter();
-	const tools = createStoryToolSystem();
+	const runtime = await createOllamaRuntime({
+		model: ctx.resolvedModel,
+	});
+	const tools = createStoryReadToolSystem();
 
-	const agent = createAgent(adapter, tools, {
-		stream: true,
+	const agent = createAgent(runtime.provider, tools, {
 		maxSteps: 10,
+		stream: true,
 	});
 
 	let fullText = '';
@@ -21,7 +23,7 @@ export const runAgentStep = async (ctx: GenerationContext) => {
 	});
 
 	agent.bus.on('tool_call', (e) => {
-		ctx.stream.toolCall({ name: e.toolName, args: e.args });
+		ctx.stream.toolCall({ args: e.args, name: e.toolName });
 	});
 
 	agent.bus.on('tool_result', (e) => {

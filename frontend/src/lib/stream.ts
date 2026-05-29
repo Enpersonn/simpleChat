@@ -42,85 +42,6 @@ export interface ParseImportOptions {
 	signal?: AbortSignal;
 }
 
-export async function parseImportStream(opts: ParseImportOptions): Promise<void> {
-	const { text, context, onProgress, onPartial, onVerbose, onDone, onError, signal } = opts;
-
-	let res: Response;
-	try {
-		res = await fetch('/ai/parse-stream', {
-			body: JSON.stringify({ context, text }),
-			headers: { 'Content-Type': 'application/json' },
-			method: 'POST',
-			signal,
-		});
-	} catch (err) {
-		if ((err as Error).name === 'AbortError') return;
-		onError((err as Error).message);
-		return;
-	}
-
-	if (!res.ok || !res.body) {
-		onError(`Request failed: ${res.status}`);
-		return;
-	}
-
-	const reader = res.body.getReader();
-	const decoder = new TextDecoder();
-	let buffer = '';
-
-	while (true) {
-		let done: boolean;
-		let value: Uint8Array | undefined;
-		try {
-			({ done, value } = await reader.read());
-		} catch {
-			break;
-		}
-		if (done) break;
-
-		buffer += decoder.decode(value, { stream: true });
-		const lines = buffer.split('\n');
-		buffer = lines.pop() ?? '';
-
-		for (const line of lines) {
-			if (!line.trim()) continue;
-			try {
-				const msg = JSON.parse(line) as {
-					parseProgress?: ParseProgressFrame;
-					parsePartial?: ParsePartialFrame;
-					parseVerbose?: ParseVerboseEvent;
-					done?: boolean;
-					result?: unknown;
-					error?: string;
-				};
-				if (msg.error) {
-					onError(msg.error);
-					return;
-				}
-				if (msg.parseProgress) {
-					onProgress(msg.parseProgress);
-					continue;
-				}
-				if (msg.parsePartial) {
-					onPartial(msg.parsePartial);
-					continue;
-				}
-				if (msg.parseVerbose) {
-					onVerbose?.(msg.parseVerbose);
-					continue;
-				}
-				if (msg.done) {
-					onDone(msg.result);
-					return;
-				}
-			} catch {
-				// skip malformed line
-			}
-		}
-	}
-	onDone(undefined);
-}
-
 export interface DebugInfo {
 	systemPrompt: string;
 	model: string;
@@ -172,6 +93,254 @@ export interface PlanStreamOptions {
 	signal?: AbortSignal;
 }
 
+type UnifiedStreamEvent =
+	| { type: 'content'; text: string }
+	| {
+			type: 'progress';
+			channel?: string;
+			name: string;
+			status?: 'start' | 'complete' | 'error';
+			data?: unknown;
+	  }
+	| { type: 'debug'; name: string; data: unknown }
+	| { type: 'tool_call'; name: string; args: unknown }
+	| { type: 'tool_result'; name: string; output: unknown }
+	| { type: 'skill_call'; name: string; args: unknown }
+	| { type: 'skill_result'; name: string; output: unknown }
+	| { type: 'handoff'; from: string; to: string; message: string }
+	| { type: 'error'; message: string }
+	| { type: 'done'; result?: unknown };
+
+type LegacyParseMessage = {
+	parseProgress?: ParseProgressFrame;
+	parsePartial?: ParsePartialFrame;
+	parseVerbose?: ParseVerboseEvent;
+	done?: boolean;
+	result?: unknown;
+	error?: string;
+};
+
+type LegacyStreamMessage = {
+	content?: string;
+	done?: boolean;
+	error?: string;
+	debug?: DebugInfo;
+	stateUpdate?: StateUpdate;
+	pipelineEvent?: PipelineEvent;
+	contextSnapshot?: ContextSnapshot;
+	proposals?: DmProposal[];
+	toolCall?: { name: string; args: unknown };
+	toolResult?: { name: string; output: unknown };
+};
+
+function isUnifiedEnvelope(
+	msg: unknown,
+): msg is { event: UnifiedStreamEvent } {
+	return (
+		!!msg &&
+		typeof msg === 'object' &&
+		'event' in msg &&
+		!!(msg as { event?: unknown }).event
+	);
+}
+
+function handleUnifiedParseEvent(
+	event: UnifiedStreamEvent,
+	handlers: {
+		onDone: (result: unknown) => void;
+		onError: (msg: string) => void;
+		onPartial: (frame: ParsePartialFrame) => void;
+		onProgress: (frame: ParseProgressFrame) => void;
+		onVerbose?: (event: ParseVerboseEvent) => void;
+	},
+): boolean {
+	if (event.type === 'error') {
+		handlers.onError(event.message);
+		return true;
+	}
+
+	if (event.type === 'progress' && event.channel === 'parse_stage') {
+		handlers.onProgress(event.data as ParseProgressFrame);
+		return false;
+	}
+
+	if (event.type === 'progress' && event.channel === 'parse_partial') {
+		handlers.onPartial(event.data as ParsePartialFrame);
+		return false;
+	}
+
+	if (event.type === 'debug' && event.name === 'parse_verbose') {
+		handlers.onVerbose?.(event.data as ParseVerboseEvent);
+		return false;
+	}
+
+	if (event.type === 'done') {
+		handlers.onDone(event.result);
+		return true;
+	}
+
+	return false;
+}
+
+function handleUnifiedStreamEvent(
+	event: UnifiedStreamEvent,
+	handlers: {
+		onChunk: (text: string) => void;
+		onDone: () => void;
+		onError: (msg: string) => void;
+		onDebug?: (info: DebugInfo) => void;
+		onStateUpdate?: (update: StateUpdate) => void;
+		onPipelineEvent?: (event: PipelineEvent) => void;
+		onContextSnapshot?: (snapshot: ContextSnapshot) => void;
+		onProposals?: (proposals: DmProposal[]) => void;
+		onToolCall?: (call: { name: string; args: unknown }) => void;
+		onToolResult?: (result: { name: string; output: unknown }) => void;
+	},
+): boolean {
+	switch (event.type) {
+		case 'content':
+			handlers.onChunk(event.text);
+			return false;
+		case 'progress':
+			if (event.channel === 'pipeline') {
+				handlers.onPipelineEvent?.(event.data as PipelineEvent);
+				return false;
+			}
+			if (event.channel === 'state_update') {
+				handlers.onStateUpdate?.(event.data as StateUpdate);
+				return false;
+			}
+			if (event.channel === 'proposals') {
+				handlers.onProposals?.(event.data as DmProposal[]);
+			}
+			return false;
+		case 'debug':
+			if (event.name === 'llm') {
+				handlers.onDebug?.(event.data as DebugInfo);
+				return false;
+			}
+			if (event.name === 'context_snapshot') {
+				handlers.onContextSnapshot?.(
+					event.data as ContextSnapshot,
+				);
+			}
+			return false;
+		case 'tool_call':
+			handlers.onToolCall?.({ args: event.args, name: event.name });
+			return false;
+		case 'tool_result':
+			handlers.onToolResult?.({
+				name: event.name,
+				output: event.output,
+			});
+			return false;
+		case 'error':
+			handlers.onError(event.message);
+			return true;
+		case 'done':
+			handlers.onDone();
+			return true;
+		default:
+			return false;
+	}
+}
+
+export async function parseImportStream(
+	opts: ParseImportOptions,
+): Promise<void> {
+	const {
+		text,
+		context,
+		onProgress,
+		onPartial,
+		onVerbose,
+		onDone,
+		onError,
+		signal,
+	} = opts;
+
+	let res: Response;
+	try {
+		res = await fetch('/ai/parse-stream', {
+			body: JSON.stringify({ context, text }),
+			headers: { 'Content-Type': 'application/json' },
+			method: 'POST',
+			signal,
+		});
+	} catch (err) {
+		if ((err as Error).name === 'AbortError') return;
+		onError((err as Error).message);
+		return;
+	}
+
+	if (!res.ok || !res.body) {
+		onError(`Request failed: ${res.status}`);
+		return;
+	}
+
+	const reader = res.body.getReader();
+	const decoder = new TextDecoder();
+	let buffer = '';
+
+	while (true) {
+		let done: boolean;
+		let value: Uint8Array | undefined;
+		try {
+			({ done, value } = await reader.read());
+		} catch {
+			break;
+		}
+		if (done) break;
+
+		buffer += decoder.decode(value, { stream: true });
+		const lines = buffer.split('\n');
+		buffer = lines.pop() ?? '';
+
+		for (const line of lines) {
+			if (!line.trim()) continue;
+			try {
+				const msg = JSON.parse(line) as
+					| { event: UnifiedStreamEvent }
+					| LegacyParseMessage;
+				if (isUnifiedEnvelope(msg)) {
+					const handled = handleUnifiedParseEvent(msg.event, {
+						onDone,
+						onError,
+						onPartial,
+						onProgress,
+						onVerbose,
+					});
+					if (handled) return;
+					continue;
+				}
+				if (msg.error) {
+					onError(msg.error);
+					return;
+				}
+				if (msg.parseProgress) {
+					onProgress(msg.parseProgress);
+					continue;
+				}
+				if (msg.parsePartial) {
+					onPartial(msg.parsePartial);
+					continue;
+				}
+				if (msg.parseVerbose) {
+					onVerbose?.(msg.parseVerbose);
+					continue;
+				}
+				if (msg.done) {
+					onDone(msg.result);
+					return;
+				}
+			} catch {
+				// skip malformed line
+			}
+		}
+	}
+	onDone(undefined);
+}
+
 async function readStream(
 	res: Response,
 	onChunk: (text: string) => void,
@@ -211,18 +380,25 @@ async function readStream(
 		for (const line of lines) {
 			if (!line.trim()) continue;
 			try {
-				const msg = JSON.parse(line) as {
-					content?: string;
-					done?: boolean;
-					error?: string;
-					debug?: DebugInfo;
-					stateUpdate?: StateUpdate;
-					pipelineEvent?: PipelineEvent;
-					contextSnapshot?: ContextSnapshot;
-					proposals?: DmProposal[];
-					toolCall?: { name: string; args: unknown };
-					toolResult?: { name: string; output: unknown };
-				};
+				const msg = JSON.parse(line) as
+					| { event: UnifiedStreamEvent }
+					| LegacyStreamMessage;
+				if (isUnifiedEnvelope(msg)) {
+					const handled = handleUnifiedStreamEvent(msg.event, {
+						onChunk,
+						onDone,
+						onError,
+						onDebug,
+						onStateUpdate,
+						onPipelineEvent,
+						onContextSnapshot,
+						onProposals,
+						onToolCall,
+						onToolResult,
+					});
+					if (handled) return;
+					continue;
+				}
 				if (msg.pipelineEvent) {
 					onPipelineEvent?.(msg.pipelineEvent);
 					continue;

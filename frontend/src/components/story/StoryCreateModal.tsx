@@ -191,9 +191,9 @@ export function StoryCreateModal({ selectStory }: Props) {
 	};
 
 	const onClose = () => setShowCreateStory(false);
-	const onCreated = (story: string) => {
+	const onCreated = (story: Story) => {
 		setShowCreateStory(false);
-		selectStory(story);
+		selectStory(story.id);
 	};
 
 	const addCustomTag = (

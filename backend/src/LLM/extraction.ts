@@ -9,8 +9,7 @@ import type {
 } from '@simplechat/types';
 import { z } from 'zod';
 import { createPromptRunner } from '../LLM/prompt-runners/create-prompt-runner.js';
-import { extractJson } from '../utils.js';
-import { streamChat } from './ollama.js';
+import { createOllamaRuntime } from './runtime.js';
 
 export interface ExtractionContext {
 	activeSpeakers: string[];
@@ -70,10 +69,10 @@ const locationExtractor = {
 			.join(', ');
 
 		const currentId = ctx.currentState.currentLocationId;
-		let raw = '';
 
 		try {
-			await streamChat({
+			const runtime = await createOllamaRuntime();
+			const response = await runtime.json({
 				messages: [
 					{
 						content: [
@@ -100,15 +99,10 @@ const locationExtractor = {
 						role: 'user',
 					},
 				],
-				onChunk: (chunk) => {
-					raw += chunk;
-				},
+				schema: LocationExtractionSchema,
 				temperature: 0.1,
 			});
-
-			const parsed = LocationExtractionSchema.safeParse(extractJson(raw));
-			if (!parsed.success) return {};
-			const data = parsed.data;
+			const data = response.json;
 
 			const result: {
 				currentLocationId?: string | null;

@@ -1,9 +1,9 @@
 import { StoryCreateSchema, StoryUpdateSchema } from '@simplechat/types';
 import type { FastifyInstance } from 'fastify';
-import { seedDefaultFieldDefs } from '../../storage/field-defs';
-import { characters_store } from '../characters/store';
-import { locations_store } from '../locations/store';
-import { stories_store } from './store';
+import { seedDefaultFieldDefs } from '../../storage/field-defs/index.js';
+import { characters_store } from '../characters/store.js';
+import { locations_store } from '../locations/store.js';
+import { stories_store } from './store.js';
 
 export async function storiesRoutes(app: FastifyInstance): Promise<void> {
 	// ─── Stories CRUD ─────────────────────────────────────────────────────────

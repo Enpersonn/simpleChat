@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { deleteAfterTurn, deleteSingleTurn, turn_store } from '../store';
+import { deleteAfterTurn, deleteSingleTurn, turn_store } from '../store.js';
 
 export async function chatTurnRoutes(app: FastifyInstance): Promise<void> {
 	app.patch<{ Params: { storyId: string; chatId: string; turnId: string } }>(

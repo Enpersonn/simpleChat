@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { dataDir } from '../config';
+import { dataDir } from '../config.js';
 export async function storyDir(storyId: string): Promise<string> {
 	return join(await dataDir(), 'stories', storyId);
 }

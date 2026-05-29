@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { createPromptRunner } from '../../LLM/prompt-runners/create-prompt-runner';
-import { STORY_GENRES, STORY_TONES } from '.';
+import { createPromptRunner } from '../../LLM/prompt-runners/create-prompt-runner.js';
+import { STORY_GENRES, STORY_TONES } from './index.js';
 
 export const storyCoreAgent = createPromptRunner({
 	instructions: `Given a story concept, generate the story metadata only. Do NOT write characters. Include a title. Allowed genres: ${STORY_GENRES.join(', ')}. Allowed tones: ${STORY_TONES.join(', ')}. Include 2-4 world rules as short sentences. writingStyle is one sentence describing narrative style.`,

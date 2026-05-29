@@ -1,21 +1,25 @@
 import { randomUUID } from 'node:crypto';
 import type { Turn } from '@simplechat/types';
-import { appendTurn } from '../../../store';
-import type { GenerationContext } from '../../../types';
+import { appendTurn } from '../../../store.js';
+import type { GenerationContext } from '../../../types.js';
 
 export const persistAssistantTurn = async (ctx: GenerationContext) => {
 	const assistantTurn: Turn = {
-		id: randomUUID(),
 		chatId: ctx.chatId,
-		speaker: ctx.activeSpeaker,
+		id: randomUUID(),
+		meta: { mode: ctx.chat.mode },
+		pinned: false,
 		role: 'assistant',
+		speaker: ctx.activeSpeaker,
 		text: ctx.assistantText,
 		timestamp: new Date().toISOString(),
-		pinned: false,
-		meta: { mode: ctx.chat.mode },
 	};
 
 	await appendTurn(assistantTurn);
 
 	ctx.turns.push(assistantTurn);
+
+	return {
+		turnId: assistantTurn.id,
+	};
 };

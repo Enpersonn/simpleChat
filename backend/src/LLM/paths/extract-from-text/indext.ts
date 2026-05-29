@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createPromptRunner } from '../../prompt-runners/create-prompt-runner';
+import { createPromptRunner } from '../../prompt-runners/create-prompt-runner.js';
 
 export function chunkText(
 	text: string,

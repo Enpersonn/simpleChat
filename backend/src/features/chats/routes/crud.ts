@@ -4,7 +4,7 @@ import {
 	ChatModeSchema,
 } from '@simplechat/types';
 import type { FastifyInstance } from 'fastify';
-import { chat_state_store, chat_store, turn_store } from '../store';
+import { chat_state_store, chat_store, turn_store } from '../store.js';
 
 export async function chatCRUDRoutes(app: FastifyInstance): Promise<void> {
 	app.get<{ Params: { storyId: string } }>(
@@ -28,9 +28,9 @@ export async function chatCRUDRoutes(app: FastifyInstance): Promise<void> {
 				chat.id,
 				ChatEntityStateSchema.parse({
 					chatId: chat.id,
-					storyId: req.params.storyId,
 					currentLocationId: body.data.startingLocationId ?? null,
 					locationOverrides: {},
+					storyId: req.params.storyId,
 					updatedAt: new Date().toISOString(),
 				}),
 			);

@@ -1,6 +1,6 @@
 import { ChatEntityStateSchema } from '@simplechat/types';
 import type { FastifyInstance } from 'fastify';
-import { chat_state_store, chat_store } from '../store';
+import { chat_state_store, chat_store } from '../store.js';
 
 export async function ChatStateRoutes(app: FastifyInstance): Promise<void> {
 	app.get<{ Params: { storyId: string; chatId: string } }>(

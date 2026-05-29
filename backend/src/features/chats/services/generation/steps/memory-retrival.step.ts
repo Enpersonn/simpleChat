@@ -1,5 +1,5 @@
-import { findRelevantMemories } from '../../../../../LLM/memory-retrieval';
-import type { GenerationContext } from '../../../types';
+import { findRelevantMemories } from '../../../../../LLM/memory-retrieval.js';
+import type { GenerationContext } from '../../../types.js';
 
 export async function retrieveMemoriesStep(ctx: GenerationContext) {
 	ctx.activeSpeaker = ctx.chat.activeSpeakers[0] ?? 'narrator';
@@ -20,13 +20,13 @@ export async function retrieveMemoriesStep(ctx: GenerationContext) {
 
 		return {
 			accessibleCount: ctx.accessibleMemories.length,
+			llmFallbackFired: false,
 			results: ctx.relevantMemories.map((m) => ({
 				memoryId: m.id,
-				summary: m.summary.slice(0, 100),
 				reason: 'always_include',
+				summary: m.summary.slice(0, 100),
 				tags: m.tags,
 			})),
-			llmFallbackFired: false,
 		};
 	}
 
@@ -40,13 +40,13 @@ export async function retrieveMemoriesStep(ctx: GenerationContext) {
 
 	return {
 		accessibleCount: ctx.accessibleMemories.length,
+		llmFallbackFired: result.llmFallbackFired,
 		results: result.details.map((d) => ({
 			memoryId: d.memory.id,
-			summary: d.memory.summary.slice(0, 100),
 			reason: d.reason,
 			score: d.score,
+			summary: d.memory.summary.slice(0, 100),
 			tags: d.memory.tags,
 		})),
-		llmFallbackFired: result.llmFallbackFired,
 	};
 }

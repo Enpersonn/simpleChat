@@ -13,6 +13,7 @@ import {
 	type ParseType,
 	parseEntities,
 } from '../LLM/parsing/service.js';
+import { writeStreamEvent } from '../stream-events.js';
 
 export async function aiRoutes(app: FastifyInstance): Promise<void> {
 	app.post('/ai/generate', async (req, reply) => {
@@ -84,35 +85,65 @@ export async function aiRoutes(app: FastifyInstance): Promise<void> {
 			'X-Accel-Buffering': 'no',
 		});
 
-		const emit = (frame: object) =>
-			reply.raw.write(`${JSON.stringify(frame)}\n`);
-
 		try {
 			const result = await parseStoryMultiPass(
 				text.trim(),
 				context,
 				(stage, status, data) => {
-					emit({ parseProgress: { data, stage, status } });
+					writeStreamEvent(reply.raw, {
+						channel: 'parse_stage',
+						data: { data, stage, status },
+						name: stage,
+						status,
+						type: 'progress',
+					});
 					if (status !== 'complete' || !data) return;
 					if (stage === 'story.core+locations') {
-						emit({ parsePartial: { data: data.storyCore, type: 'storyCore' } });
-						emit({ parsePartial: { data: data.locations, type: 'locations' } });
+						writeStreamEvent(reply.raw, {
+							channel: 'parse_partial',
+							data: { data: data.storyCore, type: 'storyCore' },
+							name: 'storyCore',
+							status: 'complete',
+							type: 'progress',
+						});
+						writeStreamEvent(reply.raw, {
+							channel: 'parse_partial',
+							data: { data: data.locations, type: 'locations' },
+							name: 'locations',
+							status: 'complete',
+							type: 'progress',
+						});
 					} else if (stage === 'story.characters') {
-						emit({ parsePartial: { data: data.characters, type: 'characters' } });
+						writeStreamEvent(reply.raw, {
+							channel: 'parse_partial',
+							data: { data: data.characters, type: 'characters' },
+							name: 'characters',
+							status: 'complete',
+							type: 'progress',
+						});
 					} else if (stage === 'story.memories') {
-						emit({ parsePartial: { data: data.memories, type: 'memories' } });
+						writeStreamEvent(reply.raw, {
+							channel: 'parse_partial',
+							data: { data: data.memories, type: 'memories' },
+							name: 'memories',
+							status: 'complete',
+							type: 'progress',
+						});
 					}
 				},
 				(event) => {
-					emit({ parseVerbose: event });
+					writeStreamEvent(reply.raw, {
+						data: event,
+						name: 'parse_verbose',
+						type: 'debug',
+					});
 				},
 			);
 
-			emit({ done: true, result });
+			writeStreamEvent(reply.raw, { result, type: 'done' });
 		} catch (err) {
-			const message =
-				err instanceof Error ? err.message : 'Parse error';
-			emit({ error: message });
+			const message = err instanceof Error ? err.message : 'Parse error';
+			writeStreamEvent(reply.raw, { message, type: 'error' });
 		}
 
 		reply.raw.end();

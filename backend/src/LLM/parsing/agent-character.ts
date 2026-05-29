@@ -1,9 +1,14 @@
+import { createOrchestrator } from '@llm-helpers/agents';
 import { createAgent } from '@llm-helpers/an-agent-runtime-handler';
-import { createFunctionProvider, createToolSystem, defineTool } from '@llm-helpers/tools';
+import {
+	createFunctionProvider,
+	createToolSystem,
+	defineTool,
+} from '@llm-helpers/tools';
 import { z } from 'zod';
 import { characterDeepDiveAgent } from '../../features/characters/parsing-agent.js';
-import { getOllamaAdapter } from '../llm-client.js';
 import { normaliseCharacter } from '../normalizers.js';
+import { createOllamaRuntime } from '../runtime.js';
 import type { ParseContext } from './service.js';
 import { runChunked } from './service.js';
 import type { ParseVerboseCallback } from './verbose-types.js';
@@ -60,7 +65,11 @@ export async function runCharacterDeepDiveAgent(
 					].join('\n\n'),
 					{
 						onVerbose: onVerbose
-							? (ev) => onVerbose({ agent: `${agentLabel}:fallback`, ...ev })
+							? (ev) =>
+									onVerbose({
+										agent: `${agentLabel}:fallback`,
+										...ev,
+									})
 							: undefined,
 					},
 				);
@@ -84,32 +93,44 @@ export async function runCharacterDeepDiveAgent(
 		providers: [createFunctionProvider('character-agent', [deepDiveTool])],
 	});
 
-	const provider = await getOllamaAdapter(8192);
-
-	const agent = createAgent(provider, toolSystem, {
-		hooks: {
-			onContextOverflow: (messages) => messages.slice(-6),
-		},
-		maxSteps: characterNames.length + 4,
-		onToolError: 'continue',
+	const runtime = await createOllamaRuntime({ numCtx: 8192 });
+	const emptyToolSystem = createToolSystem({
+		providers: [createFunctionProvider('parse-coordinator', [])],
 	});
 
 	const nameList = characterNames.map((n, i) => `${i + 1}. ${n}`).join('\n');
 
 	try {
-		await agent.start({
-			messages: [
-				{
-					content:
+		const orchestrator = createOrchestrator({
+			agents: {
+				'character-analyst': {
+					options: {
+						hooks: {
+							onContextOverflow: (messages) => messages.slice(-6),
+						},
+						maxSteps: characterNames.length + 4,
+						onToolError: 'continue',
+					},
+					provider: runtime.provider,
+					systemPrompt:
 						'You are a story analyst. For each character name listed, call deep_dive_character exactly once. Do not skip any character.',
-					role: 'system',
+					tools: toolSystem,
 				},
-				{
-					content: `Process these ${characterNames.length} characters:\n${nameList}\n\nCall deep_dive_character for each one.`,
-					role: 'user',
+				'parse-coordinator': {
+					options: {
+						maxSteps: 3,
+					},
+					provider: runtime.provider,
+					systemPrompt:
+						'Delegate the character extraction task to the character-analyst agent using the ask skill exactly once. After the worker replies, confirm completion in one short sentence.',
+					tools: emptyToolSystem,
 				},
-			],
+			},
+			router: () => 'parse-coordinator',
 		});
+		await orchestrator.run(
+			`Process these ${characterNames.length} characters:\n${nameList}\n\nCall deep_dive_character for each one.`,
+		);
 	} catch (err) {
 		console.warn(
 			'[characterAgent] agent loop error (using partial results):',
@@ -142,8 +163,9 @@ export async function runCharacterDeepDiveAgent(
 						: undefined,
 				);
 				const found =
-					arr.find((c) => c.name.toLowerCase() === name.toLowerCase()) ??
-					arr[0];
+					arr.find(
+						(c) => c.name.toLowerCase() === name.toLowerCase(),
+					) ?? arr[0];
 				if (found) {
 					results.push(found);
 					onCharacterProgress?.(found.name, 'complete');

@@ -1,6 +1,6 @@
 import { LocationCreateSchema, LocationUpdateSchema } from '@simplechat/types';
 import type { FastifyInstance } from 'fastify';
-import { locations_store } from './store';
+import { locations_store } from './store.js';
 
 export async function locationsRoutes(app: FastifyInstance): Promise<void> {
 	app.get<{ Params: { id: string } }>(

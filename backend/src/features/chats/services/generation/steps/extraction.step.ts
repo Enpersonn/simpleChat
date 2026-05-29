@@ -1,13 +1,17 @@
-import { runExtraction } from '../../../../../LLM/extraction';
-import { characters_store } from '../../../../characters/store';
-import { locations_store } from '../../../../locations/store';
-import { memories_store } from '../../../../memories/store/index';
-import { generateLocationFromContext } from '../../../helpers';
-import { chat_state_store } from '../../../store';
-import type { GenerationContext } from '../../../types';
+import { runExtraction } from '../../../../../LLM/extraction.js';
+import { characters_store } from '../../../../characters/store.js';
+import { locations_store } from '../../../../locations/store.js';
+import { memories_store } from '../../../../memories/store/index.js';
+import { generateLocationFromContext } from '../../../helpers.js';
+import { chat_state_store } from '../../../store.js';
+import type { GenerationContext } from '../../../types.js';
 
 export const extractStateStep = async (ctx: GenerationContext) => {
-	if (!ctx.assistantText || (ctx.locations.length === 0 && ctx.characters.length === 0)) return;
+	if (
+		!ctx.assistantText ||
+		(ctx.locations.length === 0 && ctx.characters.length === 0)
+	)
+		return;
 
 	const extracted = await runExtraction({
 		activeSpeakers: ctx.chat.activeSpeakers,
@@ -41,12 +45,15 @@ export const extractStateStep = async (ctx: GenerationContext) => {
 
 	// ── Volatile character state ───────────────────────────────────────────────
 	const newVolatileState = { ...ctx.chatState.volatileState };
-	for (const [charId, state] of Object.entries(extracted.volatileStateUpdates)) {
+	for (const [charId, state] of Object.entries(
+		extracted.volatileStateUpdates,
+	)) {
 		newVolatileState[charId] = state;
 	}
 
 	// ── Narrative pressure ─────────────────────────────────────────────────────
-	const rawPressure = (ctx.chatState.narrativePressure ?? 0) + extracted.pressureDelta - 5;
+	const rawPressure =
+		(ctx.chatState.narrativePressure ?? 0) + extracted.pressureDelta - 5;
 	const newPressure = Math.max(0, Math.min(100, rawPressure));
 
 	const resolvedSet = new Set(extracted.resolvedHooks);
@@ -59,8 +66,12 @@ export const extractStateStep = async (ctx: GenerationContext) => {
 	const finalState = {
 		...extracted,
 		activeHooks: newHooks,
-		currentLocationId: newLocationCreated ? finalLocationId : extracted.currentLocationId,
-		locationOverrides: newLocationCreated ? {} : extracted.locationOverrides,
+		currentLocationId: newLocationCreated
+			? finalLocationId
+			: extracted.currentLocationId,
+		locationOverrides: newLocationCreated
+			? {}
+			: extracted.locationOverrides,
 		narrativePressure: newPressure,
 		volatileState: newVolatileState,
 	};
@@ -71,11 +82,16 @@ export const extractStateStep = async (ctx: GenerationContext) => {
 	for (const update of extracted.relationshipUpdates) {
 		const char = ctx.characters.find((c) => c.id === update.fromCharId);
 		if (!char) continue;
-		const edgeIdx = char.relationships.findIndex((r) => r.charId === update.toCharId);
+		const edgeIdx = char.relationships.findIndex(
+			(r) => r.charId === update.toCharId,
+		);
 		if (edgeIdx === -1) continue;
 
 		const edge = char.relationships[edgeIdx];
-		const newTrust = Math.max(0, Math.min(10, edge.trustLevel + update.trustDelta));
+		const newTrust = Math.max(
+			0,
+			Math.min(10, edge.trustLevel + update.trustDelta),
+		);
 		const updatedEdge = {
 			...edge,
 			trustLevel: newTrust,
@@ -83,7 +99,9 @@ export const extractStateStep = async (ctx: GenerationContext) => {
 		};
 		const updatedRelationships = [...char.relationships];
 		updatedRelationships[edgeIdx] = updatedEdge;
-		await characters_store.update(update.fromCharId, { relationships: updatedRelationships });
+		await characters_store.update(update.fromCharId, {
+			relationships: updatedRelationships,
+		});
 	}
 
 	// ── Canon facts → new memory records ─────────────────────────────────────
@@ -100,29 +118,31 @@ export const extractStateStep = async (ctx: GenerationContext) => {
 	}
 
 	// ── Stream state update frame (always emitted) ────────────────────────────
-	const locationChanged = finalState.currentLocationId !== ctx.chatState.currentLocationId;
+	const locationChanged =
+		finalState.currentLocationId !== ctx.chatState.currentLocationId;
 	const overridesChanged =
 		JSON.stringify(finalState.locationOverrides) !==
 		JSON.stringify(ctx.chatState.locationOverrides);
 
 	const locationName = finalState.currentLocationId
-		? (ctx.locations.find((l) => l.id === finalState.currentLocationId)?.name ?? null)
+		? (ctx.locations.find((l) => l.id === finalState.currentLocationId)
+				?.name ?? null)
 		: null;
 
 	const volatileUpdatesMap = extracted.volatileStateUpdates;
 	const hasVolatileUpdates = Object.keys(volatileUpdatesMap).length > 0;
 
-	ctx.stream.frame({
-		stateUpdate: {
-			activeHooks: newHooks.length > 0 ? newHooks : undefined,
-			canonFactsCreated: extracted.canonFacts.length,
-			currentLocationId: finalState.currentLocationId,
-			locationChanged,
-			locationName,
-			narrativePressure: newPressure,
-			newLocationCreated,
-			volatileStateUpdates: hasVolatileUpdates ? volatileUpdatesMap : undefined,
-		},
+	ctx.stream.stateUpdate({
+		activeHooks: newHooks.length > 0 ? newHooks : undefined,
+		canonFactsCreated: extracted.canonFacts.length,
+		currentLocationId: finalState.currentLocationId,
+		locationChanged,
+		locationName,
+		narrativePressure: newPressure,
+		newLocationCreated,
+		volatileStateUpdates: hasVolatileUpdates
+			? volatileUpdatesMap
+			: undefined,
 	});
 
 	return {

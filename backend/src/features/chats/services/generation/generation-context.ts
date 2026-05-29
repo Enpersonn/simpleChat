@@ -1,48 +1,48 @@
-import type { GenerationContext } from '../../types';
+import type { GenerationContext } from '../../types.js';
 
 export function buildContextSnapshot(ctx: GenerationContext) {
 	return {
-		story: {
-			id: ctx.story.id,
-			title: ctx.story.title,
-		},
+		accessibleMemories: ctx.accessibleMemories.map((m) => ({
+			id: m.id,
+			importance: m.importance,
+			summary: m.summary.slice(0, 100),
+			tags: m.tags,
+		})),
 		activeSpeakerId: ctx.activeSpeaker,
 		characters: ctx.characters.map((base, i) => {
 			const effective = ctx.effectiveCharacters[i];
 
 			return {
+				baseFears: base.private.fears,
+				basePersonality: base.public.personality,
+				baseSpeechStyle: base.public.speechStyle ?? '',
+				baseTrueMotives: base.private.trueMotives ?? '',
+				effectiveFears: effective.private.fears,
+				effectivePersonality: effective.public.personality,
+				effectiveSpeechStyle: effective.public.speechStyle ?? '',
+				effectiveTrueMotives: effective.private.trueMotives ?? '',
 				id: base.id,
+				isNarrator: base.isNarrator,
+				isUserPersona: base.isUserPersona,
 				name: base.name,
 				role: base.role,
-				isUserPersona: base.isUserPersona,
-				isNarrator: base.isNarrator,
-				basePersonality: base.public.personality,
-				effectivePersonality: effective.public.personality,
-				baseSpeechStyle: base.public.speechStyle ?? '',
-				effectiveSpeechStyle: effective.public.speechStyle ?? '',
-				baseTrueMotives: base.private.trueMotives ?? '',
-				effectiveTrueMotives: effective.private.trueMotives ?? '',
-				baseFears: base.private.fears,
-				effectiveFears: effective.private.fears,
 			};
 		}),
-		accessibleMemories: ctx.accessibleMemories.map((m) => ({
-			id: m.id,
-			summary: m.summary.slice(0, 100),
-			tags: m.tags,
-			importance: m.importance,
-		})),
+		currentLocationId: ctx.chatState.currentLocationId,
+		feelText: ctx.params.feelText ?? '',
 		injectedMemoryIds: ctx.relevantMemories.map((m) => m.id),
-		memoryReasons: ctx.memoryReasons,
 		locations: ctx.locations.map((location) => ({
 			id: location.id,
-			name: location.name,
 			isCurrent: location.id === ctx.chatState.currentLocationId,
+			name: location.name,
 		})),
-		currentLocationId: ctx.chatState.currentLocationId,
+		memoryReasons: ctx.memoryReasons,
+		model: ctx.resolvedModel,
 		moodTags: ctx.params.moodTags ?? [],
 		responseLength: ctx.params.responseLength ?? 'medium',
-		feelText: ctx.params.feelText ?? '',
-		model: ctx.resolvedModel,
+		story: {
+			id: ctx.story.id,
+			title: ctx.story.title,
+		},
 	};
 }

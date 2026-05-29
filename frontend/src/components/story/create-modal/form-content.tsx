@@ -1,4 +1,4 @@
-import type { MemoryDeltaEffect } from '@simplechat/types';
+import type { MemoryDeltaEffect, Story } from '@simplechat/types';
 import {
 	type Dispatch,
 	type StateUpdater,
@@ -88,8 +88,8 @@ export const FormContent = ({
 		);
 	};
 
-	const onCreated = (story: string) => {
-		selectStory(story);
+	const onCreated = (story: Story) => {
+		selectStory(story.id);
 	};
 
 	const addCustomTag = (

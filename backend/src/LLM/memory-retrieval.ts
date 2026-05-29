@@ -1,8 +1,13 @@
 import type { MemoryItem, Turn } from '@simplechat/types';
+import { z } from 'zod';
 import { embedText } from './embedding/index.js';
-import { streamChat } from './ollama.js';
+import { createOllamaRuntime } from './runtime.js';
 
-export type MemoryReason = 'always_include' | 'semantic' | 'tag_match' | 'llm_picked';
+export type MemoryReason =
+	| 'always_include'
+	| 'semantic'
+	| 'tag_match'
+	| 'llm_picked';
 
 export interface MemoryWithReason {
 	memory: MemoryItem;
@@ -39,10 +44,40 @@ function extractKeywords(turns: Turn[]): Set<string> {
 		.map((t) => t.text.toLowerCase())
 		.join(' ');
 	const stopWords = new Set([
-		'a', 'an', 'and', 'are', 'at', 'be', 'been', 'but', 'do', 'did',
-		'for', 'had', 'has', 'have', 'he', 'i', 'in', 'is', 'it', 'not',
-		'of', 'on', 'or', 'she', 'that', 'the', 'they', 'this', 'to',
-		'was', 'we', 'were', 'with', 'you',
+		'a',
+		'an',
+		'and',
+		'are',
+		'at',
+		'be',
+		'been',
+		'but',
+		'do',
+		'did',
+		'for',
+		'had',
+		'has',
+		'have',
+		'he',
+		'i',
+		'in',
+		'is',
+		'it',
+		'not',
+		'of',
+		'on',
+		'or',
+		'she',
+		'that',
+		'the',
+		'they',
+		'this',
+		'to',
+		'was',
+		'we',
+		'were',
+		'with',
+		'you',
 	]);
 	return new Set(
 		text.split(/\W+/).filter((w) => w.length > 3 && !stopWords.has(w)),
@@ -61,7 +96,12 @@ export async function findRelevantMemories(
 	maxResults = 5,
 ): Promise<RelevantMemoryResult> {
 	if (memories.length === 0) {
-		return { details: [], llmFallbackFired: false, memories: [], reasons: {} };
+		return {
+			details: [],
+			llmFallbackFired: false,
+			memories: [],
+			reasons: {},
+		};
 	}
 
 	// Pass 1: always include high-importance memories
@@ -84,7 +124,9 @@ export async function findRelevantMemories(
 			.map((t) => t.text)
 			.join(' ');
 
-		const embeddedMemories = remaining1.filter((m) => m.embedding && m.embedding.length > 0);
+		const embeddedMemories = remaining1.filter(
+			(m) => m.embedding && m.embedding.length > 0,
+		);
 
 		if (embeddedMemories.length > 0) {
 			try {
@@ -94,7 +136,11 @@ export async function findRelevantMemories(
 					const sim = cosineSimilarity(queryVec, m.embedding);
 					const score = sim * (0.5 + m.importance * 0.5);
 					if (sim >= 0.65) {
-						semanticDetails.push({ memory: m, reason: 'semantic', score });
+						semanticDetails.push({
+							memory: m,
+							reason: 'semantic',
+							score,
+						});
 						semanticIds.add(m.id);
 					}
 				}
@@ -107,9 +153,15 @@ export async function findRelevantMemories(
 
 	// Pass 3: tag matching for remaining slots
 	const remaining2 = remaining1.filter((m) => !semanticIds.has(m.id));
-	const keywords = recentTurns ? extractKeywords(recentTurns) : new Set<string>();
+	const keywords = recentTurns
+		? extractKeywords(recentTurns)
+		: new Set<string>();
 	const tagDetails: MemoryWithReason[] = remaining2
-		.map((m) => ({ memory: m, reason: 'tag_match' as MemoryReason, score: scoreByTags(m, keywords) }))
+		.map((m) => ({
+			memory: m,
+			reason: 'tag_match' as MemoryReason,
+			score: scoreByTags(m, keywords),
+		}))
 		.filter((x) => x.score >= 1)
 		.sort((a, b) => b.score - a.score);
 
@@ -119,7 +171,12 @@ export async function findRelevantMemories(
 		const sliced = combined.slice(0, maxResults);
 		const reasons: Record<string, MemoryReason> = {};
 		for (const d of sliced) reasons[d.memory.id] = d.reason;
-		return { details: sliced, llmFallbackFired: false, memories: sliced.map((d) => d.memory), reasons };
+		return {
+			details: sliced,
+			llmFallbackFired: false,
+			memories: sliced.map((d) => d.memory),
+			reasons,
+		};
 	}
 
 	// Pass 4: LLM fallback for remaining slots
@@ -149,10 +206,10 @@ export async function findRelevantMemories(
 		)
 		.join('\n');
 
-	let raw = '';
 	let llmFallbackFired = false;
 	try {
-		await streamChat({
+		const runtime = await createOllamaRuntime();
+		const response = await runtime.json({
 			messages: [
 				{
 					content:
@@ -166,34 +223,26 @@ export async function findRelevantMemories(
 					role: 'user',
 				},
 			],
-			onChunk: (chunk) => {
-				raw += chunk;
-			},
+			schema: z.array(z.string()),
 			temperature: 0.1,
 		});
 
 		llmFallbackFired = true;
-		const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
-		const ids: unknown = JSON.parse((fenced ? fenced[1] : raw).trim());
-		if (Array.isArray(ids)) {
-			const idSet = new Set(
-				ids.filter((x): x is string => typeof x === 'string'),
-			);
-			const llmDetails: MemoryWithReason[] = remaining3
-				.filter((m) => idSet.has(m.id))
-				.slice(0, needed)
-				.map((m) => ({ memory: m, reason: 'llm_picked' as MemoryReason }));
+		const idSet = new Set(response.json);
+		const llmDetails: MemoryWithReason[] = remaining3
+			.filter((m) => idSet.has(m.id))
+			.slice(0, needed)
+			.map((m) => ({ memory: m, reason: 'llm_picked' as MemoryReason }));
 
-			const allDetails = [...combined, ...llmDetails].slice(0, maxResults);
-			const reasons: Record<string, MemoryReason> = {};
-			for (const d of allDetails) reasons[d.memory.id] = d.reason;
-			return {
-				details: allDetails,
-				llmFallbackFired,
-				memories: allDetails.map((d) => d.memory),
-				reasons,
-			};
-		}
+		const allDetails = [...combined, ...llmDetails].slice(0, maxResults);
+		const reasons: Record<string, MemoryReason> = {};
+		for (const d of allDetails) reasons[d.memory.id] = d.reason;
+		return {
+			details: allDetails,
+			llmFallbackFired,
+			memories: allDetails.map((d) => d.memory),
+			reasons,
+		};
 	} catch {
 		// LLM call failed — return what earlier passes found
 	}

@@ -6,7 +6,7 @@ import {
 	type CanonTimeline,
 	CanonTimelineSchema,
 } from '@simplechat/types';
-import { readJson, storyDir, writeJson } from '../../storage/helpers';
+import { readJson, storyDir, writeJson } from '../../storage/helpers.js';
 
 async function canonTimelinePath(storyId: string): Promise<string> {
 	const dir = await storyDir(storyId);

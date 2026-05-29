@@ -1,12 +1,12 @@
 import { CanonEntryCreateSchema } from '@simplechat/types';
 import type { FastifyInstance } from 'fastify';
-import { stories_store } from '../stories/store';
+import { stories_store } from '../stories/store.js';
 import {
 	addCanonEntry,
 	getCanonTimeline,
 	removeCanonEntry,
 	reorderCanonTimeline,
-} from './store';
+} from './store.js';
 
 export async function canonTimelineRoutes(app: FastifyInstance): Promise<void> {
 	app.get<{ Params: { id: string } }>(

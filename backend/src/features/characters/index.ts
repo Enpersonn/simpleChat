@@ -1,10 +1,10 @@
 import type { Character, MemoryDeltaEffect } from '@simplechat/types';
-import { now } from '../../storage/helpers';
+import { now } from '../../storage/helpers.js';
 import {
 	character_memory_relations_store,
 	memories_store,
-} from '../memories/store';
-import { characters_store } from './store';
+} from '../memories/store/index.js';
+import { characters_store } from './store.js';
 
 export async function createGenesisMemory(char: Character): Promise<Character> {
 	if (char.genesisMemoryId) return char;
@@ -13,102 +13,102 @@ export async function createGenesisMemory(char: Character): Promise<Character> {
 
 	for (const trait of char.public.personality) {
 		effects.push({
-			path: 'public.personality',
+			entityType: 'character',
 			op: 'add',
+			path: 'public.personality',
 			value: trait,
 			weight: 1,
-			entityType: 'character',
 		});
 	}
 	for (const fear of char.private.fears) {
 		effects.push({
-			path: 'private.fears',
+			entityType: 'character',
 			op: 'add',
+			path: 'private.fears',
 			value: fear,
 			weight: 1,
-			entityType: 'character',
 		});
 	}
 	for (const item of char.private.privateKnowledge) {
 		effects.push({
-			path: 'private.privateKnowledge',
+			entityType: 'character',
 			op: 'add',
+			path: 'private.privateKnowledge',
 			value: item,
 			weight: 1,
-			entityType: 'character',
 		});
 	}
 	if (char.public.appearance)
 		effects.push({
-			path: 'public.appearance',
+			entityType: 'character',
 			op: 'set',
+			path: 'public.appearance',
 			value: char.public.appearance,
 			weight: 1,
-			entityType: 'character',
 		});
 	if (char.public.speechStyle)
 		effects.push({
-			path: 'public.speechStyle',
+			entityType: 'character',
 			op: 'set',
+			path: 'public.speechStyle',
 			value: char.public.speechStyle,
 			weight: 1,
-			entityType: 'character',
 		});
 	if (char.public.reputation)
 		effects.push({
-			path: 'public.reputation',
+			entityType: 'character',
 			op: 'set',
+			path: 'public.reputation',
 			value: char.public.reputation,
 			weight: 1,
-			entityType: 'character',
 		});
 	if (char.public.clothing)
 		effects.push({
-			path: 'public.clothing',
+			entityType: 'character',
 			op: 'set',
+			path: 'public.clothing',
 			value: char.public.clothing,
 			weight: 1,
-			entityType: 'character',
 		});
 	if (char.private.trueMotives)
 		effects.push({
-			path: 'private.trueMotives',
+			entityType: 'character',
 			op: 'set',
+			path: 'private.trueMotives',
 			value: char.private.trueMotives,
 			weight: 1,
-			entityType: 'character',
 		});
 	if (char.private.moralLimits)
 		effects.push({
-			path: 'private.moralLimits',
+			entityType: 'character',
 			op: 'set',
+			path: 'private.moralLimits',
 			value: char.private.moralLimits,
 			weight: 1,
-			entityType: 'character',
 		});
 	if (char.private.hiddenEmotionalState)
 		effects.push({
-			path: 'private.hiddenEmotionalState',
+			entityType: 'character',
 			op: 'set',
+			path: 'private.hiddenEmotionalState',
 			value: char.private.hiddenEmotionalState,
 			weight: 1,
-			entityType: 'character',
 		});
 	if (char.relationships.length > 0)
 		effects.push({
-			path: 'relationships',
+			entityType: 'character',
 			op: 'set',
+			path: 'relationships',
 			value: char.relationships as Record<string, unknown>[],
 			weight: 1,
-			entityType: 'character',
 		});
 	if (char.locationRelationships.length > 0)
 		effects.push({
-			path: 'locationRelationships',
+			entityType: 'character',
 			op: 'set',
+			path: 'locationRelationships',
 			value: char.locationRelationships as Record<string, unknown>[],
 			weight: 1,
-			entityType: 'character',
 		});
 
 	const summaryParts: string[] = [];
@@ -125,20 +125,20 @@ export async function createGenesisMemory(char: Character): Promise<Character> {
 
 	const t = now();
 	const genesis = await memories_store.add({
-		summary: summaryParts.join(' '),
-		storyId: char.storyId,
-		tags: [...char.public.personality, ...char.private.fears].slice(0, 10),
-		importance: 1.0,
-		deltas: { effects },
 		createdAt: t,
+		deltas: { effects },
+		importance: 1.0,
+		storyId: char.storyId,
+		summary: summaryParts.join(' '),
+		tags: [...char.public.personality, ...char.private.fears].slice(0, 10),
 		updatedAt: t,
 	});
 
 	await character_memory_relations_store.add({
-		storyId: char.storyId,
 		characterId: char.id,
-		memoryId: genesis.id,
 		createdAt: t,
+		memoryId: genesis.id,
+		storyId: char.storyId,
 	});
 
 	const updated = await characters_store.update(char.id, {

@@ -1,10 +1,10 @@
 import type { FastifyInstance } from 'fastify';
-import { chatCRUDRoutes } from './crud';
-import { chatGenerationRoutes } from './generation';
-import { chatMemoryRoutes } from './memories';
-import { DmPlaningRoutes as dmPlaningRoutes } from './planning';
-import { ChatStateRoutes } from './state';
-import { chatTurnRoutes } from './turns';
+import { chatCRUDRoutes } from './crud.js';
+import { chatGenerationRoutes } from './generation.js';
+import { chatMemoryRoutes } from './memories.js';
+import { DmPlaningRoutes as dmPlaningRoutes } from './planning.js';
+import { ChatStateRoutes } from './state.js';
+import { chatTurnRoutes } from './turns.js';
 
 export async function chatsRoutes(app: FastifyInstance): Promise<void> {
 	app.register(chatCRUDRoutes);

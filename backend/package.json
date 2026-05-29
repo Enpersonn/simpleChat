@@ -1,5 +1,6 @@
 {
 	"dependencies": {
+		"@llm-helpers/agents": "1.0.0-dev.8775a76",
 		"@fastify/cors": "^10.0.2",
 		"@llm-helpers/an-agent-runtime-handler": "1.0.0-dev.8775a76",
 		"@llm-helpers/an-llm-request-router": "1.0.0-dev.8775a76",
@@ -20,7 +21,7 @@
 	"private": true,
 	"scripts": {
 		"build": "tsc",
-		"dev": "tsx watch src/index.ts",
+		"dev": "npm run build --workspace=@simplechat/types && tsx watch src/index.ts",
 		"start": "node dist/index.js"
 	},
 	"type": "module",

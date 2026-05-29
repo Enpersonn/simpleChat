@@ -14,6 +14,7 @@ import type {
 
 const STEP_ORDER: PipelineStep[] = [
 	'data_load',
+	'prepare_turns',
 	'memory_chain',
 	'memory_retrieval',
 	'context_assembly',
@@ -30,6 +31,9 @@ const STEP_LABELS: Record<PipelineStep, string> = {
 	memory_chain: 'Memory Chain',
 	memory_retrieval: 'Memory Retrieval',
 	persist_result: 'Persist Result',
+	planning_reply: 'Planning Reply',
+	prepare_turns: 'Prepare Turns',
+	proposal_author: 'Proposal Author',
 };
 
 interface Props {
@@ -478,18 +482,21 @@ function StepData({
 						</span>
 					</div>
 				)}
-				{d.canonFactsCreated !== undefined && d.canonFactsCreated > 0 && (
-					<div class="flex justify-between gap-2">
-						<span class="text-text-muted">Canon facts</span>
-						<span class="text-right font-medium text-success">
-							+{d.canonFactsCreated}
-						</span>
-					</div>
-				)}
+				{d.canonFactsCreated !== undefined &&
+					d.canonFactsCreated > 0 && (
+						<div class="flex justify-between gap-2">
+							<span class="text-text-muted">Canon facts</span>
+							<span class="text-right font-medium text-success">
+								+{d.canonFactsCreated}
+							</span>
+						</div>
+					)}
 				{d.relationshipUpdates !== undefined &&
 					d.relationshipUpdates > 0 && (
 						<div class="flex justify-between gap-2">
-							<span class="text-text-muted">Relationship updates</span>
+							<span class="text-text-muted">
+								Relationship updates
+							</span>
 							<span class="text-right font-medium text-text-primary">
 								{d.relationshipUpdates}
 							</span>
@@ -497,7 +504,9 @@ function StepData({
 					)}
 				{d.volatileUpdates !== undefined && d.volatileUpdates > 0 && (
 					<div class="flex justify-between gap-2">
-						<span class="text-text-muted">Volatile state updates</span>
+						<span class="text-text-muted">
+							Volatile state updates
+						</span>
 						<span class="text-right font-medium text-text-primary">
 							{d.volatileUpdates}
 						</span>

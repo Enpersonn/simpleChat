@@ -1,24 +1,24 @@
 import {
 	characterAgent,
 	storyCharactersAgent,
-} from '../../features/characters/generation-agents';
+} from '../../features/characters/generation-agents.js';
 import {
 	locationAgent,
 	storyLocationsAgent,
-} from '../../features/locations/generation-agents';
-import { storyMemoriesAgent } from '../../features/memories/generation-agent';
+} from '../../features/locations/generation-agents.js';
+import { storyMemoriesAgent } from '../../features/memories/generation-agent.js';
 import {
 	storyCoreAgent,
 	supportingFieldsAgent,
-} from '../../features/stories/generation-agents';
+} from '../../features/stories/generation-agents.js';
 import {
 	normaliseCharacter,
 	normaliseLocation,
 	normaliseMemoryItem,
 	normaliseStoryCore,
 	parseArray,
-} from '../normalizers';
-import { streamChat } from '../ollama';
+} from '../normalizers.js';
+import { streamText } from '../runtime.js';
 
 export type GenerationType =
 	| 'story-core'
@@ -170,13 +170,9 @@ export async function generateRawText(
 	userPrompt: string,
 	temperature = 0.9,
 ): Promise<string> {
-	let result = '';
-	await streamChat({
-		messages: [{ role: 'user', content: userPrompt }],
-		temperature,
-		onChunk: (text) => {
-			result += text;
-		},
+	const result = await streamText({
+		messages: [{ content: userPrompt, role: 'user' }],
+		temperature: temperature,
 	});
 	return result.trim();
 }

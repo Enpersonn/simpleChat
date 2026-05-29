@@ -7,9 +7,10 @@ import {
 	type Story,
 	type Turn,
 } from '@simplechat/types';
-import { streamChat } from '../../LLM/ollama';
-import { extractJson } from '../../utils';
-import { getMemoryChainForCharacter } from '../memories/store';
+import { z } from 'zod';
+import { createOllamaRuntime } from '../../LLM/runtime.js';
+import { writeStreamEvent } from '../../stream-events.js';
+import { getMemoryChainForCharacter } from '../memories/store/index.js';
 
 export type PipelineStep =
 	| 'data_load'
@@ -20,7 +21,8 @@ export type PipelineStep =
 	| 'extraction';
 
 export function emitFrame(raw: ServerResponse, frame: object): void {
-	raw.write(`${JSON.stringify(frame)}\n`);
+	const event = 'event' in frame ? frame : { event: frame };
+	raw.write(`${JSON.stringify(event)}\n`);
 }
 
 export function emitPipeline(
@@ -30,14 +32,20 @@ export function emitPipeline(
 	startedAt?: number,
 	data?: object,
 ): void {
-	const event: Record<string, unknown> = { step, status };
+	const event: Record<string, unknown> = { status, step };
 	if (startedAt !== undefined && status !== 'start') {
 		event.durationMs = Date.now() - startedAt;
 	}
 	if (data !== undefined && status === 'complete') {
 		event.data = data;
 	}
-	raw.write(`${JSON.stringify({ pipelineEvent: event })}\n`);
+	writeStreamEvent(raw, {
+		channel: 'pipeline',
+		data: event,
+		name: event.step as string,
+		status: event.status as 'start' | 'complete' | 'error',
+		type: 'progress',
+	});
 }
 
 export function buildChainDiffs(
@@ -48,28 +56,28 @@ export function buildChainDiffs(
 	return characters.map((base, i) => {
 		const eff = effectiveCharacters[i];
 		return {
+			chainLength: chains[i].length,
 			characterId: base.id,
 			characterName: base.name,
-			chainLength: chains[i].length,
-			hasGenesisMemory: !!base.genesisMemoryId,
 			effectiveDiff: {
+				fearsAdded: eff.private.fears.filter(
+					(f) => !base.private.fears.includes(f),
+				),
+				hiddenEmotionalStateChanged:
+					eff.private.hiddenEmotionalState !==
+					base.private.hiddenEmotionalState,
 				personalityAdded: eff.public.personality.filter(
 					(t) => !base.public.personality.includes(t),
 				),
 				personalityRemoved: base.public.personality.filter(
 					(t) => !eff.public.personality.includes(t),
 				),
-				fearsAdded: eff.private.fears.filter(
-					(f) => !base.private.fears.includes(f),
-				),
 				speechStyleChanged:
 					eff.public.speechStyle !== base.public.speechStyle,
 				trueMotivestChanged:
 					eff.private.trueMotives !== base.private.trueMotives,
-				hiddenEmotionalStateChanged:
-					eff.private.hiddenEmotionalState !==
-					base.private.hiddenEmotionalState,
 			},
+			hasGenesisMemory: !!base.genesisMemoryId,
 		};
 	});
 }
@@ -77,9 +85,9 @@ export function buildChainDiffs(
 export function defaultChatState(chatId: string, storyId: string) {
 	return ChatEntityStateSchema.parse({
 		chatId,
-		storyId,
 		currentLocationId: null,
 		locationOverrides: {},
+		storyId,
 		updatedAt: new Date().toISOString(),
 	});
 }
@@ -159,44 +167,47 @@ export async function generateLocationFromContext(
 	recentTurns: Turn[],
 ): Promise<LocationCreate> {
 	const sceneText = recentTurns.map((t) => `${t.role}: ${t.text}`).join('\n');
-	let raw = '';
+	const schema = z.object({
+		atmosphere: z.string().default(''),
+		description: z.string().default(''),
+		layout: z.string().default(''),
+		lighting: z.string().default(''),
+		notes: z.string().default(''),
+		smells: z.string().default(''),
+		soundscape: z.string().default(''),
+		tags: z.array(z.string()).default([]),
+	});
 	try {
-		await streamChat({
+		const runtime = await createOllamaRuntime();
+		const response = await runtime.json({
 			messages: [
 				{
-					role: 'system',
 					content: [
 						'You are a setting designer. Return ONLY valid JSON describing a location.',
 						'Return this shape: { "description": "", "atmosphere": "", "lighting": "", "soundscape": "", "smells": "", "layout": "", "notes": "", "tags": [] }',
 						'Infer sensory details from the scene context. Be evocative but concise (1-2 sentences per field).',
 					].join('\n'),
+					role: 'system',
 				},
 				{
-					role: 'user',
 					content: `Story: ${story.premise ?? story.title}\nNew location name: ${name}\nRecent scene:\n${sceneText}`,
+					role: 'user',
 				},
 			],
+			schema,
 			temperature: 0.3,
-			onChunk: (chunk) => {
-				raw += chunk;
-			},
 		});
-		const data = extractJson(raw) as Record<string, unknown>;
+		const data = response.json;
 		return {
+			atmosphere: data.atmosphere,
+			description: data.description,
+			layout: data.layout,
+			lighting: data.lighting,
 			name,
-			description:
-				typeof data.description === 'string' ? data.description : '',
-			atmosphere:
-				typeof data.atmosphere === 'string' ? data.atmosphere : '',
-			lighting: typeof data.lighting === 'string' ? data.lighting : '',
-			soundscape:
-				typeof data.soundscape === 'string' ? data.soundscape : '',
-			smells: typeof data.smells === 'string' ? data.smells : '',
-			layout: typeof data.layout === 'string' ? data.layout : '',
-			notes: typeof data.notes === 'string' ? data.notes : '',
-			tags: Array.isArray(data.tags)
-				? (data.tags as string[]).filter((t) => typeof t === 'string')
-				: [],
+			notes: data.notes,
+			smells: data.smells,
+			soundscape: data.soundscape,
+			tags: data.tags,
 		};
 	} catch {
 		return { name };

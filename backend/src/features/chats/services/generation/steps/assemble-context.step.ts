@@ -1,8 +1,8 @@
 import type { MemoryItem } from '@simplechat/types';
-import { getSettings } from '../../../../../config';
-import { assembleContext } from '../../../../../LLM/context';
-import { activeModel } from '../../../../../LLM/ollama';
-import type { GenerationContext } from '../../../types';
+import { getSettings } from '../../../../../config.js';
+import { assembleContext } from '../../../../../LLM/context.js';
+import { activeModel } from '../../../../../LLM/ollama.js';
+import type { GenerationContext } from '../../../types.js';
 
 export const assembleContextStep = async (ctx: GenerationContext) => {
 	const speakerChar = ctx.characters.find((c) => c.id === ctx.activeSpeaker);

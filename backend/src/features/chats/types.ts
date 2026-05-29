@@ -10,8 +10,8 @@ import type {
 	Turn,
 } from '@simplechat/types';
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import type { MemoryReason } from '../../LLM/memory-retrieval';
-import type { createGenerationStream } from './services/generation/generation-stream';
+import type { MemoryReason } from '../../LLM/memory-retrieval.js';
+import type { createGenerationStream } from './services/generation/generation-stream.js';
 
 export type GenerationKind = 'message' | 'regenerate' | 'opener';
 

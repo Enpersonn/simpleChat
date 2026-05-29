@@ -18,12 +18,15 @@ export interface StreamPhase {
 }
 
 export const CHAT_PHASE_LABELS: Record<string, string> = {
+	context_assembly: 'Preparing context…',
+	extraction: 'Updating world state…',
+	llm_call: 'Generating…',
 	memory_chain: 'Loading memories…',
 	memory_retrieval: 'Finding relevant context…',
-	context_assembly: 'Preparing context…',
-	llm_call: 'Generating…',
 	persist_result: 'Saving…',
-	extraction: 'Updating world state…',
+	planning_reply: 'Planning response…',
+	prepare_turns: 'Preparing turns…',
+	proposal_author: 'Extracting proposals…',
 };
 
 export function resolveCurrentPhase(
@@ -47,9 +50,9 @@ export function resolveCurrentPhase(
 	for (const [step, entry] of [...steps.entries()].reverse()) {
 		if (entry.start && !entry.terminal) {
 			return {
-				step,
 				label: CHAT_PHASE_LABELS[step] ?? step,
 				status: 'running',
+				step,
 			};
 		}
 	}
@@ -57,10 +60,10 @@ export function resolveCurrentPhase(
 	// All steps finished — return the last terminal event's step
 	const last = events[events.length - 1];
 	return {
-		step: last.step,
+		durationMs: last.status !== 'start' ? last.durationMs : undefined,
 		label: CHAT_PHASE_LABELS[last.step] ?? last.step,
 		status: last.status === 'error' ? 'error' : 'complete',
-		durationMs: last.status !== 'start' ? last.durationMs : undefined,
+		step: last.step,
 	};
 }
 
@@ -77,7 +80,7 @@ export function mergeToolResult(
 	const realIdx = activities.length - 1 - idx;
 	return activities.map((a, i) =>
 		i === realIdx
-			? { ...a, result, status: 'complete', completedAt: Date.now() }
+			? { ...a, completedAt: Date.now(), result, status: 'complete' }
 			: a,
 	);
 }

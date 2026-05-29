@@ -2,20 +2,14 @@ import type {
 	GenerationContext,
 	GenerationInput,
 	GenerationStream,
-} from '../../types';
-import { loadGenerationData } from './load-generation-data';
+} from '../../types.js';
+import { loadGenerationData } from './load-generation-data.js';
 
 export async function createGenerationContext(
 	input: GenerationInput,
 	stream: GenerationStream,
 ): Promise<GenerationContext> {
 	const data = await loadGenerationData(input.storyId, input.chatId);
-
-	stream.pipeline('data_load', 'complete', undefined, {
-		characterCount: data.characters.length,
-		locationCount: data.locations.length,
-		turnCount: data.turns,
-	});
 	return {
 		...input,
 		accessibleMemories: [],

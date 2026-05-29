@@ -1,6 +1,5 @@
 import { z } from 'zod';
-import { extractJson } from '../../utils.js';
-import { getOllamaAdapter } from '../llm-client.js';
+import { createOllamaRuntime } from '../runtime.js';
 
 export interface PromptRunnerVerboseEvent {
 	step: 'request' | 'response';
@@ -29,22 +28,23 @@ export const createPromptRunner = <T extends z.ZodType<any>>(config: {
 	): Promise<z.infer<T>> => {
 		overrides?.onVerbose?.({ prompt: userContent, step: 'request' });
 		const startTime = Date.now();
-		const adapter = await getOllamaAdapter(
-			overrides?.num_ctx ?? config.num_ctx,
-		);
-		const { text } = await adapter.chat({
+		const runtime = await createOllamaRuntime({
+			numCtx: overrides?.num_ctx ?? config.num_ctx,
+		});
+		const response = await runtime.json({
 			messages: [
 				{ content: systemPrompt, role: 'system' as const },
 				{ content: userContent, role: 'user' as const },
 			],
+			schema: config.outputSchema,
 			temperature: overrides?.temperature ?? config.temperature,
 		});
 		overrides?.onVerbose?.({
 			durationMs: Date.now() - startTime,
-			rawText: text,
+			rawText: response.text,
 			step: 'response',
 		});
-		return extractJson(text) as z.infer<T>;
+		return response.json;
 	};
 
 	return { run };
